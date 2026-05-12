@@ -5,53 +5,65 @@ import Link from 'next/link'
 
 const STORAGE_KEY = 'rfp_agent_welcomed_v2'
 
-type Tab = 'guide' | 'demo' | 'features' | 'pipeline'
+type Tab = 'tips' | 'scenarios' | 'features' | 'pipeline'
 
 const TAB_LABELS: Record<Tab, string> = {
-  guide: 'Guide',
-  demo: 'Demo',
+  tips: 'Tips',
+  scenarios: 'Scenarios',
   features: 'Features',
   pipeline: 'How it works',
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────
 
-const GUIDE_STEPS = [
+const TIP_GROUPS = [
   {
-    num: 1,
-    title: 'Frame the problem',
-    narrative: 'Open with: "This is a RAG pipeline — the model can only cite chunks it actually retrieved from your knowledge base. It cannot invent answers without tripping a confidence threshold. Every claim traces back to a source document." Point to the dashboard document count and the three-step workflow.',
-    links: [] as { label: string; href: string }[],
+    label: 'Ask',
+    href: '/ask',
+    tips: [
+      { text: 'Press ⌘+Enter (Ctrl+Enter on Windows) to submit without clicking the Ask button.' },
+      { text: 'Use "Add RFP context" to narrow by industry, response type, and tone — it improves relevance significantly for specialised topics.' },
+      { text: 'The confidence badge shows how well your knowledge base covered the question. Below 75% surfaces a review prompt; you can skip it or send it to the queue.' },
+      { text: 'Off-topic test: ask something completely unrelated to your documents. A healthy system returns "no relevant sources" rather than a plausible-sounding invention.' },
+    ],
   },
   {
-    num: 2,
-    title: 'Knowledge base tour',
-    narrative: 'Navigate to Knowledge Base. Show the document grid — 8 file types accepted. Click a document to open the chunk panel and show how each section becomes its own embedding. The section title prefix in each chunk is what gives the vector a clearer topic signal than a raw character slice.',
-    links: [{ label: 'Knowledge Base →', href: '/documents' }],
+    label: 'RFP Runs',
+    href: '/rfp',
+    tips: [
+      { text: 'Upload a PDF or DOCX and the agent extracts every numbered requirement automatically — no copy-pasting.' },
+      { text: 'Deselect individual questions before running. Only answer what is relevant to this specific submission.' },
+      { text: 'Low-confidence answers show a confirmation prompt before going to the review queue — you control what gets routed.' },
+      { text: 'Export to Word after reviewing. The document includes all answers, citations, and context tags.' },
+    ],
   },
   {
-    num: 3,
-    title: 'Core AML query',
-    narrative: 'Go to Ask. Run the AML review time question from the Fintech scenario. Walk through every response section: executive summary, full draft, confidence badge, citations panel (each citation traces to a real chunk), missing information flags, and suggested next actions. Point out that the model was forced to be explicit about gaps rather than fill them in.',
-    links: [{ label: 'Ask →', href: '/ask' }, { label: 'Demo Scenarios →', href: '/demo' }],
+    label: 'Review queue',
+    href: '/review',
+    tips: [
+      { text: 'Filter by risk level or status to focus on what needs attention first.' },
+      { text: 'Edit and approval are separate steps — save your edits first, then approve when you are satisfied.' },
+      { text: 'Hover the "Edited by reviewer" badge on any approved answer to see the original AI draft before changes.' },
+      { text: 'Use "Notify [Team]" on a missing-information item to send an email to the right owner without leaving the card.' },
+    ],
   },
   {
-    num: 4,
-    title: 'Hallucination test',
-    narrative: 'Run the "Off-topic test" from the Enterprise Security scenario (hospital staffing / NHS workforce). The agent returns low confidence and a "no relevant sources" flag — it does not invent a healthcare pitch. This is the most important thing to demonstrate: failure mode is graceful degradation, not plausible fiction.',
-    links: [{ label: 'Enterprise Security →', href: '/demo' }],
+    label: 'Knowledge base',
+    href: '/documents',
+    tips: [
+      { text: 'Click any document to see how it was chunked. Each chunk is its own embedding — this is the unit of retrieval.' },
+      { text: 'Documents with clear headings chunk better. The section title prefix (e.g. "Security Policy › Access Control") is what makes vector search accurate.' },
+      { text: 'Re-upload updated documents to refresh the embeddings. Stale docs produce stale answers.' },
+    ],
   },
   {
-    num: 5,
-    title: 'Full RFP batch run',
-    narrative: 'Navigate to RFP Runs. Upload a PDF or DOCX (or show a past run from History). The agent extracts every numbered requirement, lets you deselect any you don\'t want, then answers all selected questions in parallel with a live progress bar. Low-confidence answers surface a confirmation prompt to send for human review. Export the complete response as Word.',
-    links: [{ label: 'RFP Runs →', href: '/rfp' }, { label: 'RFP History →', href: '/rfp/history' }],
-  },
-  {
-    num: 6,
-    title: 'Human review & tech stack',
-    narrative: 'Show the Review Queue — answers routed there by confidence score or risk level. Each item has an SLA timer, topic-owner assignment, and a full audit trail. Close with the stack: pgvector + BM25 hybrid search → RRF fusion → gpt-4o-mini rerank (14→6 chunks) → GPT-4o structured generation → citation check → SSE stream to client.',
-    links: [{ label: 'Review Queue →', href: '/review' }, { label: 'Admin →', href: '/admin' }],
+    label: 'Admin & routing',
+    href: '/admin',
+    tips: [
+      { text: 'Each topic (Legal, Engineering, Commercial) can have its own owner email, notification channel, and escalation SLA.' },
+      { text: 'Escalation hours: items not reviewed within that window are automatically escalated to the backup contact.' },
+      { text: 'Set the notification channel to "Both" to send email and Slack simultaneously for high-risk topics.' },
+    ],
   },
 ]
 
@@ -92,17 +104,17 @@ const SCENARIOS = [
 ]
 
 const FEATURES = [
-  { icon: '⬆', title: 'Document ingestion', desc: '8 file types: PDF, DOCX, CSV, XLSX, HTML, JSON, Markdown, plain text. Documents are split into overlapping ~500-token chunks, embedded with text-embedding-3-small, and stored in Supabase (pgvector).' },
-  { icon: '⌕', title: 'Hybrid search + reranking', desc: 'BM25 keyword search and pgvector semantic search run in parallel, fused with Reciprocal Rank Fusion. A second gpt-4o-mini pass reranks the top 14 candidates down to the 6 most relevant chunks.' },
-  { icon: '≋', title: 'Streaming generation', desc: 'Responses stream token-by-token via Server-Sent Events. Executive summary and draft appear within ~1 second; citations and confidence fade in as the stream completes.' },
-  { icon: '✓', title: 'Citation verification', desc: 'After generation, every cited chunk ID is checked against what was actually retrieved. Citations the model invented are stripped before the response reaches the client.' },
-  { icon: '⬡', title: 'RFP batch processing', desc: 'Upload a full RFP PDF or DOCX. The agent extracts every numbered requirement, lets you review and remove questions, then answers all selected requirements in parallel. Export the complete response as a formatted Word document.' },
-  { icon: '⚐', title: 'Human review queue', desc: 'Answers below the confidence threshold or classified as high-risk are routed to the Review Queue. Each item shows topic, risk level, SLA countdown, and assigned reviewer. Bulk approve or reject.' },
-  { icon: '✎', title: 'Review detail', desc: 'Reviewers read the AI draft, edit it inline, and approve or reject. Editing and approval are separate steps. Notify missing-information owners by team. Full audit trail per item.' },
-  { icon: '⚙', title: 'Admin routing', desc: 'Configure which team owns each topic (Legal, Engineering, Commercial, etc.), set owner and backup emails, choose notification channel (Email / Slack / Both), and set escalation SLAs in hours.' },
-  { icon: '▶', title: 'Demo scenarios', desc: '3 preloaded industry scenarios — Fintech AML, Legaltech Contract Review, Enterprise Security — each with representative questions and one-click launch links.' },
-  { icon: '◷', title: 'Query history', desc: 'Every question and full response is stored. Expand any past query inline to see the complete response with context tags, confidence level, and citations. Re-run with one click.' },
-  { icon: '⚑', title: 'Edit flagging', desc: 'When a reviewer edits an AI draft, the approved answer displays a persistent "Edited by reviewer" badge. Hovering the badge reveals the original generated text so recipients know what changed.' },
+  { icon: '⬆', title: 'Document ingestion', desc: 'PDF, DOCX, CSV, XLSX, HTML, JSON, Markdown, plain text. ~500-token overlapping chunks, pgvector embeddings.' },
+  { icon: '⌕', title: 'Hybrid search + rerank', desc: 'BM25 + vector search in parallel, Reciprocal Rank Fusion, then gpt-4o-mini reranks top 14 down to 6.' },
+  { icon: '≋', title: 'Streaming generation', desc: 'Token-by-token SSE stream. Executive summary appears within ~1 second.' },
+  { icon: '✓', title: 'Citation verification', desc: 'Cited chunk IDs are checked against retrieved set post-generation. Invented citations are stripped.' },
+  { icon: '⬡', title: 'RFP batch processing', desc: 'Extract requirements from a full RFP PDF/DOCX, answer in parallel, export as Word.' },
+  { icon: '⚐', title: 'Review queue', desc: 'Low-confidence or high-risk answers route to the queue with SLA timers and topic-owner assignment.' },
+  { icon: '✎', title: 'Review editing', desc: 'Edit and approval are separate. Edited answers show a badge revealing the original AI draft on hover.' },
+  { icon: '⚙', title: 'Admin routing', desc: 'Per-topic owner, email/Slack channel, and escalation SLA.' },
+  { icon: '▶', title: 'Demo scenarios', desc: '3 preloaded industry scenarios with one-click launch links.' },
+  { icon: '◷', title: 'Query history', desc: 'Every answer stored and expandable. Re-run with one click.' },
+  { icon: '✉', title: 'Info requests', desc: 'Notify a specific team about missing information directly from a review card.' },
 ]
 
 const PIPELINE_STEPS = [
@@ -110,88 +122,112 @@ const PIPELINE_STEPS = [
     phase: 'Ingest',
     colour: 'var(--accent)',
     headline: 'Documents → chunks → embeddings → Postgres',
-    tech: '8 file types accepted. Each document is split on markdown headings into overlapping ~500-token chunks, each prefixed with document title and section name. OpenAI text-embedding-3-small converts each chunk to a 1536-dim vector stored in Supabase via the pgvector extension.',
+    tech: '8 file types. Split on headings into overlapping ~500-token chunks, each prefixed with document title and section. OpenAI text-embedding-3-small → 1536-dim vectors in Supabase pgvector.',
   },
   {
     phase: 'Retrieve',
     colour: 'var(--warn)',
     headline: 'BM25 + pgvector → RRF fusion → gpt-4o-mini rerank',
-    tech: 'Two searches run in parallel: full-text BM25 (Postgres tsvector) and cosine similarity (pgvector). Results merge with Reciprocal Rank Fusion. The top 14 candidates pass to gpt-4o-mini which reranks them to the 6 chunks most genuinely relevant to the specific question.',
+    tech: 'Full-text (tsvector) and cosine similarity searches run in parallel, merged with Reciprocal Rank Fusion. Top 14 candidates pass to gpt-4o-mini which reranks to the 6 most relevant chunks.',
   },
   {
     phase: 'Generate',
     colour: 'var(--terra)',
     headline: 'GPT-4o structured output → SSE stream → citation check',
-    tech: 'The 6 chunks plus the question go to GPT-4o with a Zod-schema structured output format — one source of truth from database to UI. The response streams token-by-token via SSE. After streaming, a citation verification pass strips any chunk IDs the model invented that were not in the retrieved set.',
+    tech: 'Chunks + question go to GPT-4o with a Zod-validated schema. Response streams token-by-token via SSE. Post-stream pass strips any chunk IDs not in the retrieved set.',
   },
   {
     phase: 'Review',
     colour: 'var(--success)',
-    headline: 'Confidence threshold → review queue → human approval',
-    tech: 'Answers with score below 0.75 or classified as high-risk are surfaced to the user for confirmation before routing to the Review Queue. Each review item is assigned to a topic owner with email or Slack notification. Approvals are saved back to the knowledge base for future retrieval.',
+    headline: 'Confidence threshold → queue → human approval',
+    tech: 'Score < 0.75 or high-risk topic surfaces a confirmation prompt before routing to the queue. Each item assigned to a topic owner with email/Slack notification and audit log.',
   },
 ]
 
 // ── Sub-tab components ────────────────────────────────────────────────────
 
-function GuideTab() {
+function TipsTab() {
+  const [open, setOpen] = useState<string>(TIP_GROUPS[0].label)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 20 }}>
-        A 10-minute live demo flow. Each step has the talking points and direct links to the relevant page.
-      </p>
-      {GUIDE_STEPS.map((step, i) => (
-        <div
-          key={step.num}
-          style={{
-            display: 'flex',
-            gap: 14,
-            paddingBottom: 20,
-            marginBottom: i < GUIDE_STEPS.length - 1 ? 20 : 0,
-            borderBottom: i < GUIDE_STEPS.length - 1 ? '1px solid var(--border)' : 'none',
-          }}
-        >
-          <div style={{
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            color: 'var(--bg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 11,
-            fontWeight: 600,
-            fontFamily: 'var(--font-mono)',
-            flexShrink: 0,
-            marginTop: 1,
-          }}>
-            {step.num}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 6 }}>
-              {step.title}
-            </p>
-            <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, marginBottom: step.links.length ? 10 : 0 }}>
-              {step.narrative}
-            </p>
-            {step.links.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {step.links.map((l) => (
-                  <Link key={l.href} href={l.href} className="btn sm" style={{ fontSize: 11.5 }}>
-                    {l.label}
-                  </Link>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {TIP_GROUPS.map((group) => {
+        const isOpen = open === group.label
+        return (
+          <div key={group.label} className="card" style={{ overflow: 'hidden' }}>
+            <button
+              onClick={() => setOpen(isOpen ? '' : group.label)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '11px 14px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{group.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{group.tips.length} tips</span>
+                <svg
+                  width="12" height="12" viewBox="0 0 16 16" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                  style={{ color: 'var(--muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}
+                >
+                  <path d="M4 6l4 4 4-4" />
+                </svg>
+              </div>
+            </button>
+            {isOpen && (
+              <div style={{ borderTop: '1px solid var(--border)' }}>
+                {group.tips.map((tip, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderBottom: i < group.tips.length - 1 ? '1px solid var(--border)' : 'none',
+                      background: 'var(--bg)',
+                    }}
+                  >
+                    <span style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: 'color-mix(in oklch, var(--accent) 15%, transparent)',
+                      color: 'var(--accent)',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}>
+                      ✦
+                    </span>
+                    <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>{tip.text}</p>
+                  </div>
                 ))}
+                <div style={{ padding: '8px 14px', background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
+                  <Link href={group.href} className="btn ghost sm" style={{ fontSize: 11 }}>
+                    Go to {group.label} →
+                  </Link>
+                </div>
               </div>
             )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
-function DemoTab({ onClose }: { onClose: () => void }) {
+function ScenariosTab({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{
@@ -263,23 +299,14 @@ function DemoTab({ onClose }: { onClose: () => void }) {
 
 function FeaturesTab() {
   return (
-    <div>
-      <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 16 }}>
-        Everything that has been built into this demo — all features are live and working.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {FEATURES.map((f) => (
-          <div
-            key={f.title}
-            className="card"
-            style={{ padding: '12px 14px' }}
-          >
-            <div style={{ fontSize: 18, marginBottom: 6, lineHeight: 1 }}>{f.icon}</div>
-            <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{f.title}</p>
-            <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>{f.desc}</p>
-          </div>
-        ))}
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      {FEATURES.map((f) => (
+        <div key={f.title} className="card" style={{ padding: '12px 14px' }}>
+          <div style={{ fontSize: 18, marginBottom: 6, lineHeight: 1 }}>{f.icon}</div>
+          <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{f.title}</p>
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>{f.desc}</p>
+        </div>
+      ))}
     </div>
   )
 }
@@ -287,15 +314,8 @@ function FeaturesTab() {
 function PipelineTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 4 }}>
-        The four stages every query passes through, from document upload to human-approved answer.
-      </p>
       {PIPELINE_STEPS.map((step) => (
-        <div
-          key={step.phase}
-          className="card card-pad"
-          style={{ borderLeft: `3px solid ${step.colour}` }}
-        >
+        <div key={step.phase} className="card card-pad" style={{ borderLeft: `3px solid ${step.colour}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <span style={{
               fontSize: 10,
@@ -314,9 +334,7 @@ function PipelineTab() {
           <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 6, lineHeight: 1.4, fontFamily: 'var(--font-serif)' }}>
             {step.headline}
           </p>
-          <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-            {step.tech}
-          </p>
+          <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>{step.tech}</p>
         </div>
       ))}
     </div>
@@ -327,12 +345,12 @@ function PipelineTab() {
 
 export function HelpNavigator() {
   const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<Tab>('guide')
+  const [tab, setTab] = useState<Tab>('tips')
   const closeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) setOpen(true)
-    const handler = () => setOpen(true)
+    const handler = () => { setOpen(true); setTab('tips') }
     window.addEventListener('show-welcome', handler)
     return () => window.removeEventListener('show-welcome', handler)
   }, [])
@@ -360,44 +378,25 @@ export function HelpNavigator() {
         aria-modal="true"
         aria-labelledby="help-nav-title"
         className="drawer slide-in-right"
-        style={{ width: 560 }}
+        style={{ width: 520 }}
       >
-        {/* Header */}
         <div className="drawer-head" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 22,
-              height: 22,
-              borderRadius: '50%',
-              background: 'var(--accent)',
-              color: 'var(--bg)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              fontWeight: 700,
-              fontFamily: 'var(--font-mono)',
-              flexShrink: 0,
-            }}>
-              ?
-            </div>
+              width: 22, height: 22, borderRadius: '50%',
+              background: 'var(--accent)', color: 'var(--bg)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', flexShrink: 0,
+            }}>?</div>
             <span id="help-nav-title" style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>
-              Help &amp; Demo Guide
+              Tips &amp; Help
             </span>
           </div>
           <button
             ref={closeRef}
             onClick={dismiss}
             aria-label="Close"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 4,
-              color: 'var(--muted)',
-              display: 'flex',
-              alignItems: 'center',
-            }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--muted)', display: 'flex', alignItems: 'center' }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -405,7 +404,6 @@ export function HelpNavigator() {
           </button>
         </div>
 
-        {/* Tab strip */}
         <div style={{
           display: 'flex',
           borderBottom: '1px solid var(--border)',
@@ -422,7 +420,6 @@ export function HelpNavigator() {
                 fontSize: 12.5,
                 fontWeight: tab === t ? 500 : 400,
                 color: tab === t ? 'var(--ink)' : 'var(--muted)',
-                borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`,
                 marginBottom: -1,
                 background: 'none',
                 border: 'none',
@@ -439,10 +436,9 @@ export function HelpNavigator() {
           ))}
         </div>
 
-        {/* Scrollable body */}
         <div className="drawer-body">
-          {tab === 'guide' && <GuideTab />}
-          {tab === 'demo' && <DemoTab onClose={dismiss} />}
+          {tab === 'tips' && <TipsTab />}
+          {tab === 'scenarios' && <ScenariosTab onClose={dismiss} />}
           {tab === 'features' && <FeaturesTab />}
           {tab === 'pipeline' && <PipelineTab />}
         </div>
