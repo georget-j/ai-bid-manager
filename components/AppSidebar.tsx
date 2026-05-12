@@ -94,6 +94,14 @@ const NAV_BOTTOM = [
   },
 ]
 
+const HELP_ICON = (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="8" cy="8" r="6.5" />
+    <path d="M6.5 5.5a1.5 1.5 0 0 1 3 0c0 1-1.5 1.5-1.5 2.5" />
+    <circle cx="8" cy="11" r=".5" fill="currentColor" />
+  </svg>
+)
+
 export function AppSidebar() {
   const path = usePathname()
 
@@ -128,6 +136,13 @@ export function AppSidebar() {
       <div style={{ flex: 1 }} />
 
       <nav className="nav-section">
+        <button
+          className="nav-item"
+          onClick={() => window.dispatchEvent(new Event('show-welcome'))}
+        >
+          <span className="nav-icon">{HELP_ICON}</span>
+          Help
+        </button>
         {NAV_BOTTOM.map((item) => (
           <Link
             key={item.href}

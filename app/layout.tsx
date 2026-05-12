@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { AppSidebar } from '@/components/AppSidebar'
 import { AppTopbar } from '@/components/AppTopbar'
-import { WelcomeModal } from '@/components/WelcomeModal'
+import { HelpNavigator } from '@/components/HelpNavigator'
 
 export const metadata: Metadata = {
   title: 'AI RFP Agent — Enterprise Knowledge',
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </div>
-        <WelcomeModal />
+        <HelpNavigator />
       </body>
     </html>
   )
