@@ -19,6 +19,15 @@ export function AppTopbar() {
 
   return (
     <header className="topbar">
+      <button
+        className="icon-btn hamburger"
+        aria-label="Open navigation"
+        onClick={() => window.dispatchEvent(new Event('toggle-sidebar'))}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <path d="M2 4h12M2 8h12M2 12h12" />
+        </svg>
+      </button>
       <div className="crumb">
         <span>RFP Agent</span>
         <span className="crumb-sep">›</span>

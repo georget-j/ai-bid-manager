@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
 
 const NAV_MAIN = [
   {
@@ -104,6 +105,18 @@ const HELP_ICON = (
 
 export function AppSidebar() {
   const path = usePathname()
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const toggle = () => setOpen(v => !v)
+    const close = () => setOpen(false)
+    window.addEventListener('toggle-sidebar', toggle)
+    window.addEventListener('close-sidebar', close)
+    return () => {
+      window.removeEventListener('toggle-sidebar', toggle)
+      window.removeEventListener('close-sidebar', close)
+    }
+  }, [])
 
   function isActive(href: string, exact = false) {
     if (exact) return path === href
@@ -111,7 +124,12 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <>
+    <div
+      className={`sidebar-scrim${open ? ' sidebar-open' : ''}`}
+      onClick={() => setOpen(false)}
+    />
+    <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
       <div className="brand">
         <div className="brand-mark">A</div>
         <div className="brand-text">
@@ -126,6 +144,7 @@ export function AppSidebar() {
             key={item.href}
             href={item.href}
             className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`}
+            onClick={() => setOpen(false)}
           >
             <span className="nav-icon">{item.icon}</span>
             {item.label}
@@ -148,6 +167,7 @@ export function AppSidebar() {
             key={item.href}
             href={item.href}
             className={`nav-item ${isActive(item.href) ? 'active' : ''}`}
+            onClick={() => setOpen(false)}
           >
             <span className="nav-icon">{item.icon}</span>
             {item.label}
@@ -163,5 +183,6 @@ export function AppSidebar() {
         </div>
       </div>
     </aside>
+    </>
   )
 }

@@ -1,15 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
 
 type Config = { windowSeconds: number; maxRequests: number }
 
 const LIMITS: Record<string, Config> = {
-  ask:    { windowSeconds: 3600, maxRequests: 20 },
-  upload: { windowSeconds: 3600, maxRequests: 10 },
-  seed:   { windowSeconds: 3600, maxRequests: 3  },
+  ask:           { windowSeconds: 3600, maxRequests: 20 },
+  upload:        { windowSeconds: 3600, maxRequests: 10 },
+  seed:          { windowSeconds: 3600, maxRequests: 3  },
+  review_action: { windowSeconds: 3600, maxRequests: 30 },
+  review_read:   { windowSeconds: 3600, maxRequests: 120 },
+  admin_write:   { windowSeconds: 3600, maxRequests: 20 },
+  admin_read:    { windowSeconds: 3600, maxRequests: 60 },
+  export:        { windowSeconds: 3600, maxRequests: 10 },
 }
 
-function clientIP(req: NextRequest): string {
+function clientIP(req: Request): string {
   return (
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
     req.headers.get('x-real-ip') ??
@@ -23,7 +28,7 @@ function clientIP(req: NextRequest): string {
  * missing rate_limits table never blocks legitimate traffic.
  */
 export async function checkRateLimit(
-  req: NextRequest,
+  req: Request,
   endpoint: string,
 ): Promise<NextResponse | null> {
   const config = LIMITS[endpoint]
