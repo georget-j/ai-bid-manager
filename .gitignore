@@ -43,6 +43,7 @@ yarn-error.log*
 next-env.d.ts
 
 # Claude Code internal files
+.claude/
 CLAUDE.md
 AGENTS.md
 
