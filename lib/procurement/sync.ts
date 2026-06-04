@@ -417,19 +417,21 @@ export async function syncPage(
 
   let opportunitiesUpserted = 0;
   if (oppRows.length > 0) {
-    const { data: oppData, error: oppErr } = await supabase
+    // .select() is intentionally omitted: PostgREST returns an empty array for
+    // ON CONFLICT DO NOTHING even when rows are inserted, so we can't rely on
+    // the returned count. Report oppRows.length (rows attempted) instead.
+    const { error: oppErr } = await supabase
       .from("opportunities")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .upsert(oppRows as any, {
         onConflict: "source_name,source_notice_id",
         ignoreDuplicates: true, // never overwrite an existing opportunity
-      })
-      .select("id");
+      });
 
     if (oppErr) {
       errors.push(`opportunities: ${oppErr.message}`);
     } else {
-      opportunitiesUpserted = oppData?.length ?? 0;
+      opportunitiesUpserted = oppRows.length;
     }
   }
 

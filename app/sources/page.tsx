@@ -365,7 +365,9 @@ export default function SourcesPage() {
       ...prev,
       [sourceName]: { ...form, open: false },
     }));
-    await runBackfillLoop(sourceName, form.from, form.to, false);
+    // Run backwards (newest first) so the start date is a floor, not a starting point.
+    // The user sets "from" as the earliest they care about; we fetch from today back.
+    await runBackfillLoop(sourceName, form.from, form.to, true);
   }
 
   /** One-click: start from today and walk backwards, no config required. */
@@ -838,7 +840,7 @@ export default function SourcesPage() {
                           marginBottom: 4,
                         }}
                       >
-                        From
+                        Go back to
                       </label>
                       <input
                         type="date"
@@ -871,7 +873,7 @@ export default function SourcesPage() {
                           marginBottom: 4,
                         }}
                       >
-                        To
+                        Start from
                       </label>
                       <input
                         type="date"
@@ -910,7 +912,8 @@ export default function SourcesPage() {
                         margin: 0,
                       }}
                     >
-                      Processes week-by-week. Keep this tab open until complete.
+                      Fetches newest first, back to "Go back to" date. Keep tab
+                      open.
                     </p>
                   </div>
                 )}
