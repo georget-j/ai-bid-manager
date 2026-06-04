@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getOpportunity } from "@/lib/procurement/data";
 import { OpportunityActions } from "./OpportunityActions";
 import { DocumentsPanel } from "./DocumentsPanel";
+import { QuestionsPanel } from "./QuestionsPanel";
 import type {
   OpportunityRow,
   NormalizedLot,
@@ -347,6 +348,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           ))}
         </div>
       )}
+
+      {/* ITT Questions — extract, AI-answer, and push to compliance matrix */}
+      <QuestionsPanel opportunityId={opp.id} opportunityTitle={opp.title} />
 
       {/* Documents — always show the panel so users can check accessibility */}
       <DocumentsPanel opportunityId={opp.id} initialDocs={docs} />
