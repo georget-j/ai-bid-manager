@@ -361,11 +361,12 @@ export async function syncPage(
     parser_version: "1",
   }));
 
+  // Unique constraint is (source_name, source_notice_id, content_hash) — all 3 needed
   const { error: rawErr } = await supabase
     .from("raw_notices")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .upsert(rawRows as any, {
-      onConflict: "source_name,source_notice_id",
+      onConflict: "source_name,source_notice_id,content_hash",
       ignoreDuplicates: true,
     });
 

@@ -1083,8 +1083,18 @@ export default function SourcesPage() {
                           {countSync.pages !== 1 ? "s" : ""}
                         </span>
                         {countSync.errors.length > 0 && (
-                          <span style={{ color: "#d97706" }}>
-                            {countSync.errors.length} warning(s)
+                          <span
+                            style={{
+                              color: "#d97706",
+                              fontSize: 11,
+                              maxWidth: 320,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={countSync.errors.join(" | ")}
+                          >
+                            {countSync.errors[0]}
                           </span>
                         )}
                         {!countSync.done && (
