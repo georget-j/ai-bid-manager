@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Mode = "signin" | "signup" | "magic";
+type Mode = "signin" | "signup" | "magic" | "forgot";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +19,22 @@ export default function LoginPage() {
     e.preventDefault();
     setStatus("loading");
     setErrorMsg("");
+
+    if (mode === "forgot") {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setStatus("sent");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data.error ?? "Something went wrong. Please try again.");
+        setStatus("error");
+      }
+      return;
+    }
 
     if (mode === "magic") {
       const res = await fetch("/api/auth/login", {
@@ -112,8 +128,17 @@ export default function LoginPage() {
             </svg>
             <p className="login-sent-title">Check your email</p>
             <p className="login-sent-body">
-              We sent a sign-in link to <strong>{email}</strong>. It expires in
-              24 hours.
+              {mode === "forgot" ? (
+                <>
+                  We sent a password reset link to <strong>{email}</strong>. It
+                  expires in 1 hour.
+                </>
+              ) : (
+                <>
+                  We sent a sign-in link to <strong>{email}</strong>. It expires
+                  in 24 hours.
+                </>
+              )}
             </p>
             <button
               className="login-resend"
@@ -136,6 +161,8 @@ export default function LoginPage() {
                 background: "var(--surface)",
                 borderRadius: 8,
                 padding: 4,
+                visibility:
+                  mode === "magic" || mode === "forgot" ? "hidden" : "visible",
               }}
             >
               {(["signin", "signup"] as Mode[]).map((m) => (
@@ -167,81 +194,150 @@ export default function LoginPage() {
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="login-form">
-              <label htmlFor="email" className="login-label">
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                autoFocus
-                required
-                placeholder="you@company.com"
-                className="login-input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={status === "loading"}
-              />
-              <label
-                htmlFor="password"
-                className="login-label"
-                style={{ marginTop: 12 }}
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                autoComplete={
-                  mode === "signup" ? "new-password" : "current-password"
-                }
-                required
-                placeholder={
-                  mode === "signup"
-                    ? "Choose a password (8+ chars)"
-                    : "Your password"
-                }
-                className="login-input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={status === "loading"}
-              />
-              {status === "error" && <p className="login-error">{errorMsg}</p>}
-              <button
-                type="submit"
-                className="login-btn"
-                disabled={status === "loading" || !email || !password}
-              >
-                {status === "loading"
-                  ? "Please wait…"
-                  : mode === "signup"
-                    ? "Create account"
-                    : "Sign in"}
-              </button>
-            </form>
+            {mode !== "magic" && mode !== "forgot" && (
+              <form onSubmit={handleSubmit} className="login-form">
+                <label htmlFor="email" className="login-label">
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                  placeholder="you@company.com"
+                  className="login-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={status === "loading"}
+                />
+                <label
+                  htmlFor="password"
+                  className="login-label"
+                  style={{ marginTop: 12 }}
+                >
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  autoComplete={
+                    mode === "signup" ? "new-password" : "current-password"
+                  }
+                  required
+                  placeholder={
+                    mode === "signup"
+                      ? "Choose a password (8+ chars)"
+                      : "Your password"
+                  }
+                  className="login-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={status === "loading"}
+                />
+                {status === "error" && (
+                  <p className="login-error">{errorMsg}</p>
+                )}
+                <button
+                  type="submit"
+                  className="login-btn"
+                  disabled={status === "loading" || !email || !password}
+                >
+                  {status === "loading"
+                    ? "Please wait…"
+                    : mode === "signup"
+                      ? "Create account"
+                      : "Sign in"}
+                </button>
+              </form>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === "magic" ? "signin" : "magic");
-                setStatus("idle");
-                setErrorMsg("");
-              }}
+            <div
               style={{
                 marginTop: 16,
-                fontSize: 12,
-                color: "var(--muted)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                textDecoration: "underline",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                alignItems: "center",
               }}
             >
-              {mode === "magic"
-                ? "← Back to password"
-                : "Use magic link instead"}
-            </button>
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setStatus("idle");
+                    setErrorMsg("");
+                  }}
+                  style={{
+                    fontSize: 12,
+                    color: "var(--muted)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Forgot password?
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(
+                    mode === "magic" || mode === "forgot" ? "signin" : "magic",
+                  );
+                  setStatus("idle");
+                  setErrorMsg("");
+                }}
+                style={{
+                  fontSize: 12,
+                  color: "var(--muted)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                {mode === "magic" || mode === "forgot"
+                  ? "← Back to sign in"
+                  : "Use magic link instead"}
+              </button>
+            </div>
+
+            {mode === "forgot" && (
+              <form
+                onSubmit={handleSubmit}
+                className="login-form"
+                style={{ marginTop: 12 }}
+              >
+                <label htmlFor="forgot-email" className="login-label">
+                  Email address
+                </label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                  placeholder="you@company.com"
+                  className="login-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={status === "loading"}
+                />
+                {status === "error" && (
+                  <p className="login-error">{errorMsg}</p>
+                )}
+                <button
+                  type="submit"
+                  className="login-btn"
+                  disabled={status === "loading" || !email}
+                >
+                  {status === "loading" ? "Sending…" : "Send reset link"}
+                </button>
+              </form>
+            )}
 
             {mode === "magic" && (
               <form
