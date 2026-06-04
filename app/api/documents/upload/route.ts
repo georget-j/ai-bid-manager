@@ -50,11 +50,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const orgId = await getRequestOrgId();
+    if (!orgId) {
+      return NextResponse.json(
+        { error: "No organisation found" },
+        { status: 403 },
+      );
+    }
+
     const supabase = getServiceSupabase();
     const { data: existing } = await supabase
       .from("documents")
       .select("id, title, created_at")
       .eq("file_name", file.name)
+      .eq("org_id", orgId)
       .limit(1)
       .single();
 
@@ -71,8 +80,6 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
-
-    const orgId = await getRequestOrgId();
     const result = await ingestDocument({
       text: extraction.text,
       title: extraction.title,

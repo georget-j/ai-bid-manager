@@ -25,8 +25,8 @@ export async function getOrgIdForUser(userId: string): Promise<string | null> {
 }
 
 /**
- * On first login: creates an org for the user if they have none,
- * otherwise joins the first existing org as a member.
+ * On first login: creates a private org for the user if they have none.
+ * Each user gets their own isolated org — data isolation is enforced by org_id.
  * Called from the auth callback.
  */
 export async function getOrCreateOrgForUser(
@@ -39,44 +39,30 @@ export async function getOrCreateOrgForUser(
   const existing = await getOrgIdForUser(userId);
   if (existing) return existing;
 
-  // Is there already an org in this instance?
-  const { data: orgs } = await supabase
+  // Create a new org for this user. Use the full sanitized email as slug to
+  // guarantee uniqueness (email addresses are unique in Supabase Auth).
+  const slug = email
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const { data: newOrg, error } = await supabase
     .from("orgs")
+    .insert({ name: email, slug })
     .select("id")
-    .limit(1)
     .single();
 
-  let orgId: string;
-
-  if (orgs?.id) {
-    // Join existing org as member
-    orgId = orgs.id;
-  } else {
-    // First user — create the org
-    const slug =
-      email
-        .split("@")[1]
-        ?.replace(/[^a-z0-9]/gi, "-")
-        .toLowerCase() ?? "default";
-
-    const { data: newOrg, error } = await supabase
-      .from("orgs")
-      .insert({ name: slug, slug })
-      .select("id")
-      .single();
-
-    if (error || !newOrg) {
-      throw new Error(`Failed to create org: ${error?.message}`);
-    }
-    orgId = newOrg.id;
+  if (error || !newOrg) {
+    throw new Error(`Failed to create org: ${error?.message}`);
   }
 
   await supabase
     .from("org_memberships")
     .upsert(
-      { org_id: orgId, user_id: userId, email, role: "member" },
+      { org_id: newOrg.id, user_id: userId, email, role: "owner" },
       { onConflict: "org_id,user_id" },
     );
 
-  return orgId;
+  return newOrg.id;
 }

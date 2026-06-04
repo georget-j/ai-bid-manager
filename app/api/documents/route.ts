@@ -7,12 +7,18 @@ export async function GET() {
     const supabase = getServiceSupabase();
     const orgId = await getRequestOrgId();
 
-    let query = supabase
+    if (!orgId) {
+      return NextResponse.json(
+        { error: "No organisation found" },
+        { status: 403 },
+      );
+    }
+
+    const query = supabase
       .from("documents")
       .select("id, title, source_type, file_name, created_at")
+      .eq("org_id", orgId)
       .order("created_at", { ascending: false });
-
-    if (orgId) query = query.eq("org_id", orgId);
 
     const { data: documents, error } = await query;
 
@@ -58,8 +64,21 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const orgId = await getRequestOrgId();
+    if (!orgId) {
+      return NextResponse.json(
+        { error: "No organisation found" },
+        { status: 403 },
+      );
+    }
+
     const supabase = getServiceSupabase();
-    const { error } = await supabase.from("documents").delete().eq("id", id);
+    // Scope delete to org to prevent cross-org deletion
+    const { error } = await supabase
+      .from("documents")
+      .delete()
+      .eq("id", id)
+      .eq("org_id", orgId);
 
     if (error) throw new Error(error.message);
 
