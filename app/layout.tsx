@@ -5,6 +5,7 @@ import { AppTopbar } from "@/components/AppTopbar";
 import { HelpNavigator } from "@/components/HelpNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getAuthUser } from "@/lib/supabase-server";
+import { getIsAdmin } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "UK Bid Intelligence Agent",
@@ -23,8 +24,10 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = isDemoMode ? true : await getAuthUser();
-  const showNav = !!user;
+  const user = isDemoMode ? null : await getAuthUser();
+  const showNav = isDemoMode || !!user;
+  const isAdmin = showNav ? await getIsAdmin() : false;
+  const userEmail = user?.email ?? null;
 
   return (
     <html lang="en">
@@ -40,7 +43,7 @@ export default async function RootLayout({
       <body>
         {showNav ? (
           <div className="app">
-            <AppSidebar />
+            <AppSidebar isAdmin={isAdmin} userEmail={userEmail} />
             <div className="main">
               <AppTopbar />
               <div className="content">

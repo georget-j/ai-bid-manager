@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "./supabase-server";
 import { isDemoMode, env } from "./env";
 
+export async function getIsAdmin(): Promise<boolean> {
+  if (isDemoMode) return true;
+  const user = await getAuthUser();
+  if (!user?.email) return false;
+  // When ADMIN_EMAILS is not configured, allow in non-production only (local dev convenience)
+  if (env.ADMIN_EMAILS.length === 0) {
+    return process.env.NODE_ENV !== "production";
+  }
+  return env.ADMIN_EMAILS.includes(user.email);
+}
+
 /**
  * Returns null if the caller has a valid session.
  * Returns a 401 NextResponse if not.
@@ -29,7 +40,12 @@ export async function requireAdmin(): Promise<NextResponse | null> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (env.ADMIN_EMAILS.length > 0 && !env.ADMIN_EMAILS.includes(user.email)) {
+  const adminAllowed =
+    env.ADMIN_EMAILS.length === 0
+      ? process.env.NODE_ENV !== "production"
+      : env.ADMIN_EMAILS.includes(user.email);
+
+  if (!adminAllowed) {
     return NextResponse.json(
       { error: "Forbidden — admin access required" },
       { status: 403 },

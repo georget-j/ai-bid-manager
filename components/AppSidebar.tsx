@@ -25,6 +25,24 @@ const NAV_INTELLIGENCE = [
     ),
   },
   {
+    href: "/my-opportunities",
+    label: "My Opportunities",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.4l-3.7 2.1.7-4.1-3-2.9 4.2-.9z" />
+      </svg>
+    ),
+  },
+  {
     href: "/pipeline",
     label: "Bid Pipeline",
     icon: (
@@ -66,6 +84,7 @@ const NAV_INTELLIGENCE = [
   {
     href: "/sources",
     label: "Sources",
+    adminOnly: true,
     icon: (
       <svg
         width="14"
@@ -324,7 +343,13 @@ const HELP_ICON = (
   </svg>
 );
 
-export function AppSidebar() {
+export function AppSidebar({
+  isAdmin = false,
+  userEmail,
+}: {
+  isAdmin?: boolean;
+  userEmail?: string | null;
+}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -361,7 +386,9 @@ export function AppSidebar() {
 
         <nav className="nav-section">
           <div className="nav-group-label">Intelligence</div>
-          {NAV_INTELLIGENCE.map((item) => (
+          {NAV_INTELLIGENCE.filter(
+            (item) => !("adminOnly" in item && item.adminOnly && !isAdmin),
+          ).map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -413,10 +440,21 @@ export function AppSidebar() {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="avatar petrol">B</div>
+          <div className="avatar petrol">
+            {userEmail ? userEmail[0].toUpperCase() : "B"}
+          </div>
           <div className="user-line">
-            <div className="name">UK Bid Intelligence</div>
-            <div className="role">Demo mode active</div>
+            <div
+              className="name"
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {userEmail ?? "UK Bid Intelligence"}
+            </div>
+            <div className="role">{isAdmin ? "Admin" : "Member"}</div>
           </div>
         </div>
       </aside>
