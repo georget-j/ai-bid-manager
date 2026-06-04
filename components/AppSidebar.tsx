@@ -344,14 +344,17 @@ const HELP_ICON = (
 );
 
 export function AppSidebar({
-  isAdmin = false,
-  userEmail,
+  isAdmin: isAdminProp = false,
+  userEmail: userEmailProp,
 }: {
   isAdmin?: boolean;
   userEmail?: string | null;
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  // Client-side admin check — overrides the SSR prop to avoid layout caching issues
+  const [isAdmin, setIsAdmin] = useState(isAdminProp);
+  const [userEmail, setUserEmail] = useState(userEmailProp ?? null);
 
   useEffect(() => {
     const toggle = () => setOpen((v) => !v);
@@ -362,6 +365,16 @@ export function AppSidebar({
       window.removeEventListener("toggle-sidebar", toggle);
       window.removeEventListener("close-sidebar", close);
     };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d: { isAdmin: boolean; email: string | null }) => {
+        setIsAdmin(d.isAdmin);
+        if (d.email) setUserEmail(d.email);
+      })
+      .catch(() => {});
   }, []);
 
   function isActive(href: string, exact = false) {

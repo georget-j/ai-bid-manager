@@ -3,6 +3,8 @@ import { getAuthUser } from "@/lib/supabase-server";
 import { getIsAdmin } from "@/lib/admin-auth";
 import { isDemoMode } from "@/lib/env";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   if (isDemoMode) {
     return NextResponse.json({ isAdmin: true, email: null });
