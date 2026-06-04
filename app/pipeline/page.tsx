@@ -103,7 +103,7 @@ export default function PipelinePage() {
         setLoading(false);
       })
       .catch(() => {
-        setError("Failed to load pipeline");
+        setError("Failed to load pipeline — please refresh.");
         setLoading(false);
       });
   }, []);

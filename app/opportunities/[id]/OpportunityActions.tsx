@@ -47,9 +47,16 @@ export function OpportunityActions({
       const res = await fetch(`/api/opportunities/${opportunityId}/analyse`, {
         method: "POST",
       });
-      const data = (await res.json()) as ScoringResult & { error?: string };
+      const data = (await res.json()) as ScoringResult & {
+        error?: string;
+        profileRequired?: boolean;
+      };
       if (!res.ok) {
-        setError(data.error ?? "Analysis failed");
+        setError(
+          data.profileRequired
+            ? "profile-required"
+            : (data.error ?? "Analysis failed"),
+        );
       } else {
         setScore(data);
       }
@@ -217,9 +224,25 @@ export function OpportunityActions({
             background: "#fee2e2",
             color: "#dc2626",
             fontSize: 12.5,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
           }}
         >
-          {error}
+          {error === "profile-required" ? (
+            <>
+              No organisation profile set up.{" "}
+              <Link
+                href="/profile"
+                style={{ color: "#dc2626", fontWeight: 600 }}
+              >
+                Set up your profile →
+              </Link>
+            </>
+          ) : (
+            error
+          )}
         </div>
       )}
 

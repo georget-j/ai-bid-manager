@@ -121,7 +121,7 @@ export async function listOpportunitiesWithFallback(
 }> {
   try {
     const result = await listOpportunities(opts);
-    if (result.total > 0 || !isDemoMode) {
+    if (result.total > 0) {
       return { ...result, source: "db" };
     }
   } catch {

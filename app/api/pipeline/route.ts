@@ -5,7 +5,13 @@ import { getServiceSupabase } from "@/lib/supabase";
 export async function GET() {
   const orgId = await getRequestOrgId();
   if (!orgId) {
-    return NextResponse.json({ items: [] });
+    return NextResponse.json(
+      {
+        error:
+          "Could not determine your organisation — try signing out and back in.",
+      },
+      { status: 401 },
+    );
   }
 
   // Fetch pipeline items joined with opportunity data
