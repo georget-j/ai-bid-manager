@@ -3,12 +3,6 @@ import type { ReviewRequestRow, RoutingConfig } from "./routing";
 import { generateReviewMagicLink } from "./review-auth";
 import { escapeHtml } from "./html";
 
-const CONFIDENCE_LABEL: Record<string, string> = {
-  high: "🟢 High",
-  medium: "🟡 Medium",
-  low: "🔴 Low",
-};
-
 const TOPIC_LABEL: Record<string, string> = {
   security_compliance: "Security & Compliance",
   legal: "Legal",

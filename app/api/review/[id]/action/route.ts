@@ -54,6 +54,13 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // In auth mode use the session user's email; in demo mode fall back to assigned_to
+  let actorEmail: string = reviewRequest.assigned_to ?? "unknown";
+  if (!isDemoMode) {
+    const user = await getAuthUser();
+    actorEmail = user?.email ?? actorEmail;
+  }
+
   const { data: queryData, error: qError } = await supabase
     .from("queries")
     .select("query_text, rfp_context, query_results(answer)")
@@ -76,7 +83,7 @@ export async function POST(
       .update({ status: "rejected", updated_at: new Date().toISOString() })
       .eq("id", id);
 
-    void logReviewAction(id, reviewRequest.assigned_to, "rejected");
+    void logReviewAction(id, actorEmail, "rejected");
 
     return NextResponse.json({ success: true, action: "rejected" });
   }
@@ -104,7 +111,7 @@ export async function POST(
     query_id: reviewRequest.query_id,
     original_question: queryData.query_text,
     approved_answer: approvedText,
-    approved_by: reviewRequest.assigned_to,
+    approved_by: actorEmail,
     topic: reviewRequest.topic,
     source_rfp:
       ((queryData.rfp_context as Record<string, unknown> | null)
@@ -118,7 +125,7 @@ export async function POST(
     .update({ status: "approved", updated_at: new Date().toISOString() })
     .eq("id", id);
 
-  void logReviewAction(id, reviewRequest.assigned_to, "approved", {
+  void logReviewAction(id, actorEmail, "approved", {
     edited: !!editedAnswer?.trim(),
     ingested: !!ingestedDocumentId,
   });

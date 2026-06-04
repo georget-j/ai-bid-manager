@@ -1,59 +1,55 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { formatDate, truncate } from '@/lib/utils'
-import { ConfidenceBadge } from './ConfidenceBadge'
-import { ResponseCard } from './ResponseCard'
-import { EmptyState } from './EmptyState'
-import { LoadingState } from './LoadingState'
-import { ErrorAlert } from './ErrorAlert'
-import type { QueryHistoryItem, AskResponse, RFPContext } from '@/lib/schema'
-
-const CONFIDENCE_STYLES = {
-  high: 'bg-green-50 text-green-700 border-green-200',
-  medium: 'bg-amber-50 text-amber-700 border-amber-200',
-  low: 'bg-red-50 text-red-700 border-red-200',
-}
+import { useState, useEffect } from "react";
+import { formatDate, truncate } from "@/lib/utils";
+import { ConfidenceBadge } from "./ConfidenceBadge";
+import { ResponseCard } from "./ResponseCard";
+import { EmptyState } from "./EmptyState";
+import { LoadingState } from "./LoadingState";
+import { ErrorAlert } from "./ErrorAlert";
+import type { QueryHistoryItem, AskResponse, RFPContext } from "@/lib/schema";
 
 const INDUSTRY_LABELS: Record<string, string> = {
-  fintech: 'Fintech',
-  legaltech: 'Legaltech',
-  'enterprise-saas': 'Enterprise SaaS',
-  healthcare: 'Healthcare',
-  industrial: 'Industrial',
-  other: 'Other',
-}
+  fintech: "Fintech",
+  legaltech: "Legaltech",
+  "enterprise-saas": "Enterprise SaaS",
+  healthcare: "Healthcare",
+  industrial: "Industrial",
+  other: "Other",
+};
 
 const RESPONSE_TYPE_LABELS: Record<string, string> = {
-  'executive-summary': 'Executive summary',
-  'technical-answer': 'Technical answer',
-  'implementation-approach': 'Implementation approach',
-  'security-compliance': 'Security & compliance',
-  'case-study': 'Case study',
-  'full-rfp-draft': 'Full RFP draft',
-}
+  "executive-summary": "Executive summary",
+  "technical-answer": "Technical answer",
+  "implementation-approach": "Implementation approach",
+  "security-compliance": "Security & compliance",
+  "case-study": "Case study",
+  "full-rfp-draft": "Full RFP draft",
+};
 
 const TONE_LABELS: Record<string, string> = {
-  concise: 'Concise',
-  formal: 'Formal',
-  'founder-led': 'Founder-led',
-  technical: 'Technical',
-  commercial: 'Commercial',
-}
+  concise: "Concise",
+  formal: "Formal",
+  "founder-led": "Founder-led",
+  technical: "Technical",
+  commercial: "Commercial",
+};
 
 const MATURITY_LABELS: Record<string, string> = {
-  startup: 'Startup',
-  'mid-market': 'Mid-market',
-  enterprise: 'Enterprise',
-}
+  startup: "Startup",
+  "mid-market": "Mid-market",
+  enterprise: "Enterprise",
+};
 
 function ContextChips({ ctx }: { ctx: RFPContext }) {
-  const chips: string[] = []
-  if (ctx.industry) chips.push(INDUSTRY_LABELS[ctx.industry] ?? ctx.industry)
-  if (ctx.response_type) chips.push(RESPONSE_TYPE_LABELS[ctx.response_type] ?? ctx.response_type)
-  if (ctx.tone) chips.push(TONE_LABELS[ctx.tone] ?? ctx.tone)
-  if (ctx.customer_maturity) chips.push(MATURITY_LABELS[ctx.customer_maturity] ?? ctx.customer_maturity)
-  if (chips.length === 0) return null
+  const chips: string[] = [];
+  if (ctx.industry) chips.push(INDUSTRY_LABELS[ctx.industry] ?? ctx.industry);
+  if (ctx.response_type)
+    chips.push(RESPONSE_TYPE_LABELS[ctx.response_type] ?? ctx.response_type);
+  if (ctx.tone) chips.push(TONE_LABELS[ctx.tone] ?? ctx.tone);
+  if (ctx.customer_maturity)
+    chips.push(MATURITY_LABELS[ctx.customer_maturity] ?? ctx.customer_maturity);
+  if (chips.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1 mt-1.5">
       {chips.map((chip) => (
@@ -65,24 +61,30 @@ function ContextChips({ ctx }: { ctx: RFPContext }) {
         </span>
       ))}
     </div>
-  )
+  );
 }
 
-function ExpandedResponse({ queryId, onClose }: { queryId: string; onClose: () => void }) {
-  const [result, setResult] = useState<AskResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+function ExpandedResponse({
+  queryId,
+  onClose,
+}: {
+  queryId: string;
+  onClose: () => void;
+}) {
+  const [result, setResult] = useState<AskResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/queries/${queryId}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.error) throw new Error(data.error)
-        setResult(data as AskResponse)
+        if (data.error) throw new Error(data.error);
+        setResult(data as AskResponse);
       })
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [queryId])
+      .finally(() => setLoading(false));
+  }, [queryId]);
 
   return (
     <tr>
@@ -104,28 +106,29 @@ function ExpandedResponse({ queryId, onClose }: { queryId: string; onClose: () =
         )}
       </td>
     </tr>
-  )
+  );
 }
 
 export function HistoryList() {
-  const [items, setItems] = useState<QueryHistoryItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [items, setItems] = useState<QueryHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/queries')
+    fetch("/api/queries")
       .then((r) => r.json())
       .then((data) => {
-        if (data.error) throw new Error(data.error)
-        setItems(data)
+        if (data.error) throw new Error(data.error);
+        setItems(data);
       })
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => setLoading(false));
+  }, []);
 
-  if (loading) return <LoadingState message="Loading history…" />
-  if (error) return <ErrorAlert message={error} onDismiss={() => setError(null)} />
+  if (loading) return <LoadingState message="Loading history…" />;
+  if (error)
+    return <ErrorAlert message={error} onDismiss={() => setError(null)} />;
 
   if (items.length === 0) {
     return (
@@ -133,7 +136,7 @@ export function HistoryList() {
         title="No queries yet"
         description="Ask a question on the Ask page and your responses will appear here."
       />
-    )
+    );
   }
 
   return (
@@ -141,9 +144,15 @@ export function HistoryList() {
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Confidence</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Date</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Question
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+              Confidence
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+              Date
+            </th>
             <th className="px-4 py-3 w-28"></th>
           </tr>
         </thead>
@@ -152,7 +161,7 @@ export function HistoryList() {
             <>
               <tr
                 key={item.id}
-                className={`transition-colors ${expandedId === item.id ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
+                className={`transition-colors ${expandedId === item.id ? "bg-gray-50" : "hover:bg-gray-50"}`}
               >
                 <td className="px-4 py-3">
                   <p className="text-sm font-medium text-gray-900 leading-snug">
@@ -168,7 +177,7 @@ export function HistoryList() {
                 <td className="px-4 py-3 hidden sm:table-cell">
                   {item.confidence_level ? (
                     <ConfidenceBadge
-                      confidence={{ level: item.confidence_level, reason: '' }}
+                      confidence={{ level: item.confidence_level, reason: "" }}
                     />
                   ) : (
                     <span className="text-xs text-gray-400">—</span>
@@ -180,10 +189,14 @@ export function HistoryList() {
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
                     <button
-                      onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
+                      onClick={() =>
+                        setExpandedId((prev) =>
+                          prev === item.id ? null : item.id,
+                        )
+                      }
                       className="text-xs text-blue-600 hover:text-blue-800 transition-colors font-medium"
                     >
-                      {expandedId === item.id ? 'Hide ▲' : 'View ▼'}
+                      {expandedId === item.id ? "Hide ▲" : "View ▼"}
                     </button>
                     <a
                       href={`/ask?q=${encodeURIComponent(item.query_text)}`}
@@ -206,5 +219,5 @@ export function HistoryList() {
         </tbody>
       </table>
     </div>
-  )
+  );
 }

@@ -20,21 +20,25 @@ function buildInfoRequestEmail(params: {
   rfpTitle: string;
 }): string {
   const { questionText, item, whyItMatters, rfpTitle } = params;
+  const eTitle = escapeHtml(rfpTitle);
+  const eQuestion = escapeHtml(questionText);
+  const eItem = escapeHtml(item);
+  const eWhy = whyItMatters ? escapeHtml(whyItMatters) : undefined;
   return `<!DOCTYPE html>
 <html>
 <body style="font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;color:#111827;">
   <div style="border-left:4px solid #F59E0B;padding:16px 20px;background:#FFFBEB;margin-bottom:24px;">
     <p style="margin:0;font-size:13px;color:#78350F;font-weight:600;">Information Requested</p>
-    <p style="margin:4px 0 0;font-size:12px;color:#374151;">${rfpTitle}</p>
+    <p style="margin:4px 0 0;font-size:12px;color:#374151;">${eTitle}</p>
   </div>
 
   <p style="font-size:13px;color:#374151;margin-bottom:4px;font-weight:600;">RFP Question</p>
-  <p style="font-size:13px;color:#111827;margin-bottom:20px;">${questionText}</p>
+  <p style="font-size:13px;color:#111827;margin-bottom:20px;">${eQuestion}</p>
 
   <p style="font-size:13px;color:#374151;margin-bottom:4px;font-weight:600;">Information needed from you</p>
-  <p style="font-size:13px;color:#111827;margin-bottom:12px;">${item}</p>
+  <p style="font-size:13px;color:#111827;margin-bottom:12px;">${eItem}</p>
 
-  ${whyItMatters ? `<p style="font-size:12px;color:#6B7280;margin-bottom:20px;font-style:italic;">${whyItMatters}</p>` : ""}
+  ${eWhy ? `<p style="font-size:12px;color:#6B7280;margin-bottom:20px;font-style:italic;">${eWhy}</p>` : ""}
 
   <p style="font-size:12px;color:#9CA3AF;margin-top:24px;">
     Please reply to this email or contact the RFP team with the requested information.

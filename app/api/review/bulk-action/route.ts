@@ -37,6 +37,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // Resolve actor identity once for the entire batch
+  let actorEmail: string | null = null;
+  if (!isDemoMode) {
+    const user = await getAuthUser();
+    actorEmail = user?.email ?? null;
+  }
+
   const supabase = getServiceSupabase();
   const failed: string[] = [];
   let processed = 0;
@@ -60,9 +67,12 @@ export async function POST(req: NextRequest) {
           .from("review_requests")
           .update({ status: "rejected", updated_at: new Date().toISOString() })
           .eq("id", id);
-        void logReviewAction(id, reviewRequest.assigned_to, "rejected", {
-          bulk: true,
-        });
+        void logReviewAction(
+          id,
+          actorEmail ?? reviewRequest.assigned_to,
+          "rejected",
+          { bulk: true },
+        );
         processed++;
         continue;
       }
@@ -102,7 +112,7 @@ export async function POST(req: NextRequest) {
         query_id: reviewRequest.query_id,
         original_question: queryData.query_text,
         approved_answer: approvedText,
-        approved_by: reviewRequest.assigned_to,
+        approved_by: actorEmail ?? reviewRequest.assigned_to,
         topic: reviewRequest.topic,
         source_rfp:
           ((queryData.rfp_context as Record<string, unknown> | null)
@@ -116,9 +126,12 @@ export async function POST(req: NextRequest) {
         .update({ status: "approved", updated_at: new Date().toISOString() })
         .eq("id", id);
 
-      void logReviewAction(id, reviewRequest.assigned_to, "approved", {
-        bulk: true,
-      });
+      void logReviewAction(
+        id,
+        actorEmail ?? reviewRequest.assigned_to,
+        "approved",
+        { bulk: true },
+      );
       processed++;
     } catch {
       failed.push(id);

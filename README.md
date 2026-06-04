@@ -1,6 +1,6 @@
-# AI RFP / Enterprise Knowledge Agent
+# AI RFP Agent
 
-> Draft RFP responses grounded in your internal knowledge base — with source citations, confidence scoring, and missing information flags.
+> Draft RFP responses grounded in your internal knowledge base — with source citations, confidence scoring, missing information flags, and a human-in-the-loop review queue.
 
 ---
 
@@ -8,23 +8,25 @@
 
 Answering RFPs and proposal questions is one of the most time-consuming things a B2B team does. The knowledge you need already exists somewhere — a case study, a security note, an implementation playbook — but pulling it together under deadline pressure is painful. Generic AI tools make it worse because they invent answers, and in enterprise sales that gets you into trouble fast.
 
-This project is my attempt to build what that workflow should actually look like: a structured retrieval and generation pipeline where every claim is grounded in a source document, every gap is flagged explicitly, and the output is ready to drop into a proposal without second-guessing whether the AI made something up.
+This project is my attempt to build what that workflow should actually look like: a structured retrieval and generation pipeline where every claim is grounded in a source document and every gap is flagged explicitly, so the output is a strong, reviewable first draft — one you refine into a proposal rather than copy-paste, with the AI's uncertainty surfaced instead of hidden.
 
 ---
 
 ## What it does
 
-You load your knowledge base (case studies, security docs, implementation guides, answer libraries). You ask a question. It finds the most relevant content, generates a structured response in enterprise proposal style, and shows you exactly where every claim came from.
+You load your knowledge base (case studies, security docs, implementation guides, answer libraries). You ask a question or upload an RFP. It finds the most relevant content, generates a structured response in enterprise proposal style, and shows you exactly where every claim came from.
 
 ```
-Your question
+Your question / RFP batch
   → embed with text-embedding-3-small
-  → cosine similarity search across all indexed chunks (pgvector)
-  → top 6 chunks retrieved
+  → hybrid search: cosine similarity + full-text (pgvector)
+  → top chunks retrieved
   → gpt-4o-mini generates structured response (Zod-validated JSON)
   → response includes:
       draft answer · executive summary · supporting evidence
-      source citations · missing info flags · confidence level · next actions
+      source citations (server-verified) · missing info flags
+      confidence level · next actions
+  → low-confidence / high-risk answers routed to review queue
 ```
 
 ---
@@ -36,59 +38,46 @@ flowchart LR
     A[User] --> B[Next.js UI]
     B --> C[Route Handlers]
     C --> D[Ingestion Pipeline\nchunking + embeddings]
-    C --> E[Retrieval Pipeline\nvector search]
+    C --> E[Retrieval Pipeline\nhybrid vector + keyword]
     D --> F[Supabase Postgres\n+ pgvector]
     E --> F
     E --> G[LLM Generation\ngpt-4o-mini]
     G --> H[Zod Schema Validation]
-    H --> B
-```
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant A as Next.js API
-    participant O as OpenAI
-    participant D as Supabase/pgvector
-
-    U->>A: POST /api/ask { query, rfp_context }
-    A->>O: Embed query (text-embedding-3-small)
-    O-->>A: query_embedding [1536]
-    A->>D: match_document_chunks(query_embedding, 6, 0.3)
-    D-->>A: top-6 chunks with similarity scores
-    A->>O: chat.completions.parse (gpt-4o-mini, zodResponseFormat)
-    O-->>A: structured RFPResponse JSON
-    A->>D: INSERT query_results
-    A-->>U: { query_id, response, retrieved_chunks }
+    H --> I[Review Routing]
+    I --> B
 ```
 
 ---
 
 ## Tech stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router) + TypeScript |
-| Styling | Tailwind CSS v4 |
-| Database | Supabase Postgres + pgvector |
-| Embeddings | OpenAI text-embedding-3-small (1536 dims) |
-| Generation | OpenAI gpt-4o-mini with structured output |
-| Schema validation | Zod v4 (end-to-end typed) |
-| Testing | Vitest |
-| Deployment | Vercel + Supabase Cloud |
+| Layer               | Technology                                |
+| ------------------- | ----------------------------------------- |
+| Framework           | Next.js 16 (App Router) + TypeScript      |
+| Styling             | Tailwind CSS v4                           |
+| Database            | Supabase Postgres + pgvector              |
+| Embeddings          | OpenAI text-embedding-3-small (1536 dims) |
+| Generation          | OpenAI gpt-4o-mini with structured output |
+| Email notifications | Resend                                    |
+| Testing             | Vitest                                    |
+| Deployment          | Vercel + Supabase Cloud                   |
 
 ---
 
 ## Features
 
+- **Multi-format ingestion** — PDF, DOCX, XLSX, CSV, Markdown, JSON, HTML, and plain text
 - **Markdown-aware chunking** — documents split on `##` section boundaries, each chunk prefixed with `[Document > Section]` for better embedding quality and cleaner citations
-- **One-click sample dataset** — 8 realistic enterprise documents loaded with a single button; useful for seeing the system work before you connect your own content
-- **Semantic search** — pgvector cosine similarity over all indexed chunks, threshold-filtered to avoid low-quality retrievals
+- **Hybrid search** — pgvector cosine similarity combined with full-text keyword search for better recall on exact-match queries
+- **Batch RFP processing** — upload an RFP, extract questions, process up to 100 in parallel with SSE streaming progress
 - **Structured generation** — gpt-4o-mini with a Zod schema as the response format, so the type flows from the database straight to the UI with no manual parsing
-- **Source citations** — every key claim links to the source document, chunk content, and similarity score
+- **Source citations (server-verified)** — every key claim links to the source document, chunk content, and similarity score; citations are verified server-side against retrieved chunk IDs
 - **Missing information flags** — explicit acknowledgement of what isn't covered, with a suggested owner for each gap
 - **Confidence levels** — high/medium/low with a plain-English reason, grounded in how well the retrieved content actually answers the question
-- **Copy as markdown** — exports the full response with citations in one click
+- **Human-in-the-loop review queue** — low-confidence and high-risk answers are automatically routed to the right reviewer with email/Slack notification and SLA escalation
+- **Word export** — export single responses or full RFP batches to a formatted `.docx` file
+- **Run history** — browse past RFP runs and individual question results
+- **One-click sample dataset** — 8 realistic enterprise documents loaded with a single button
 
 ---
 
@@ -107,6 +96,7 @@ sequenceDiagram
 - Node.js 20+
 - A Supabase project (free tier is fine)
 - An OpenAI API key
+- A Resend account (for review notifications — optional)
 
 ### 1. Clone and install
 
@@ -125,19 +115,35 @@ cp .env.example .env.local
 Fill in `.env.local`:
 
 ```
+# Required
 OPENAI_API_KEY=sk-...
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Recommended
+NEXT_PUBLIC_APP_URL=https://your-app.vercel.app   # used for CSRF check
+RESEND_API_KEY=re_...                              # review queue notifications
+
+# Production only
+CRON_SECRET=<random string>                        # secures the escalation cron job
 ```
 
 ### 3. Database setup
 
-Run the three migration files in your Supabase project's SQL editor, in order:
+Run the migration files in your Supabase project's SQL editor in order:
 
-1. `supabase/migrations/001_enable_vector.sql` — enables the pgvector extension
-2. `supabase/migrations/002_create_tables.sql` — creates the documents, chunks, queries, and results tables
-3. `supabase/migrations/003_match_function.sql` — creates the `match_document_chunks` SQL function
+1. `001_enable_vector.sql` — pgvector extension
+2. `002_create_tables.sql` — documents, chunks, queries, results
+3. `003_match_function.sql` — vector similarity function
+4. `004_hybrid_search.sql` — hybrid search function
+5. `005_fix_hybrid_search.sql` — hybrid search fix
+6. `006_extended_metadata.sql` — document metadata columns
+7. `007_rate_limits.sql` — rate limiting table and function
+8. `008_review_workflow.sql` — review queue, routing config, approved answers
+9. `009_review_enhancements.sql` — escalation columns, comments, audit log
+10. `010_engineering_topic.sql` — engineering routing topic
+11. `011_rls.sql` — Row Level Security policies
 
 ### 4. Run locally
 
@@ -157,12 +163,16 @@ Click **"Load Sample Documents"** on the dashboard. It ingests 8 sample enterpri
 
 ## Environment variables
 
-| Variable | Description |
-|----------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key — server-side only, never sent to the browser |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key — server-side only |
+| Variable                        | Required      | Description                                    |
+| ------------------------------- | ------------- | ---------------------------------------------- |
+| `OPENAI_API_KEY`                | Yes           | OpenAI API key — server-side only              |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Supabase project URL                           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Supabase anon/public key                       |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Yes           | Supabase service role key — server-side only   |
+| `NEXT_PUBLIC_APP_URL`           | Recommended   | App URL for CSRF origin check                  |
+| `RESEND_API_KEY`                | Optional      | Resend key for review email notifications      |
+| `DEMO_MODE`                     | Dev/demo only | `true` bypasses auth (never set in production) |
+| `CRON_SECRET`                   | Production    | Secret for the `/api/cron/escalate` endpoint   |
 
 ---
 
@@ -170,11 +180,11 @@ Click **"Load Sample Documents"** on the dashboard. It ingests 8 sample enterpri
 
 After loading the sample documents:
 
-1. *"Draft a response to a fintech customer asking how we reduce AML review time."*
-2. *"Do we have SOC 2 certification? What's our current compliance status?"*
-3. *"Which case studies are relevant to a legaltech workflow automation pitch?"*
-4. *"What does our standard implementation timeline look like, and what do we need from the customer?"*
-5. *"Can this platform help with hospital staffing optimisation?"* — off-topic test, should return low confidence with no invented healthcare capabilities
+1. _"Draft a response to a fintech customer asking how we reduce AML review time."_
+2. _"Do we have SOC 2 certification? What's our current compliance status?"_
+3. _"Which case studies are relevant to a legaltech workflow automation pitch?"_
+4. _"What does our standard implementation timeline look like, and what do we need from the customer?"_
+5. _"Can this platform help with hospital staffing optimisation?"_ — off-topic test, should return low confidence with no invented healthcare capabilities
 
 ---
 
@@ -184,11 +194,7 @@ After loading the sample documents:
 npm test
 ```
 
-42 unit tests across three files:
-
-- **chunking** — size bounds, section boundary detection, context prefix format, long-section splitting, plain-text fallback, empty input
-- **prompt construction** — system prompt constraints, chunk injection, optional RFP context fields
-- **schema validation** — Zod types for RFPResponse and AskRequest, invalid enum rejection
+Unit tests across chunking, prompt construction, and schema validation.
 
 ---
 
@@ -206,18 +212,6 @@ The `[Title > Section]` prefix also shows up in citations, so when the LLM says 
 
 See [/docs/evaluation.md](./docs/evaluation.md) for test cases, expected retrieval behaviour, pass/fail criteria, known failure modes, and suggested improvements.
 
-I've included this because I think the difference between a demo that looks good and a system you'd trust in production is largely about knowing where it breaks.
-
----
-
-## Known limitations
-
-- **PDF not supported** — text and markdown only in this version
-- **No auth** — single-user demo, no workspace isolation
-- **Synchronous ingestion** — large document batches may time out; background jobs would be the production fix
-- **Vector-only search** — no keyword fallback; hybrid search (pgvector + full-text) would improve recall for exact-match queries
-- **Citation verification not implemented** — the model is instructed to cite only retrieved chunks but this isn't server-verified
-
 ---
 
 ## Deploying
@@ -226,27 +220,35 @@ The project is set up for Vercel + Supabase:
 
 1. Push to GitHub
 2. Import to Vercel — Next.js is auto-detected
-3. Add the four environment variables in Vercel project settings
+3. Add environment variables in Vercel project settings (see table above)
 4. Run the SQL migrations in your Supabase SQL editor
+5. Set `DEMO_MODE=false` (or leave unset) in production
+
+The `vercel.json` in this repo configures a cron job that runs hourly to escalate overdue review items. Add `CRON_SECRET` to your Vercel environment variables to secure it.
 
 ---
 
 ## What this demonstrates
 
-A complete RAG pipeline in TypeScript: document ingestion → markdown-aware chunking → batch embeddings → pgvector similarity search → structured gpt-4o-mini generation → Zod-validated typed response from database to UI.
+A complete RAG pipeline in TypeScript: document ingestion → multi-format extraction → markdown-aware chunking → batch embeddings → hybrid pgvector search → structured gpt-4o-mini generation → Zod-validated typed response → server-verified citations → human-in-the-loop review routing.
 
-The design choices I'd highlight for a technical conversation:
-- **Zod as the OpenAI response format** rather than a separate JSON schema — one source of truth, types flow all the way through
+Design choices worth noting:
+
+- **Zod as the OpenAI response format** — one source of truth, types flow all the way through from database to UI
 - **SQL-native vector search** via pgvector rather than a separate vector database — simpler ops, joins work normally, no sync issues
+- **Hybrid search** — pgvector cosine similarity plus Postgres full-text, giving better recall on exact-match terms
 - **Explicit missing information** in the response schema — the model is forced to surface gaps rather than paper over them
 - **Section-aware chunking** — keeps the embedding meaningful and makes citations navigable
+- **Server-verified citations** — chunk IDs are cross-checked server-side; hallucinated citations are stripped before the response reaches the UI
 
 ---
 
 ## Security note
 
-Don't upload confidential documents to a public deployment. Documents are stored as plain text in Supabase with no access controls beyond the service role key. Add Supabase RLS before any multi-user deployment.
+Documents are stored as plain text in Supabase. Row Level Security is enabled on all tables (`011_rls.sql`). For multi-user deployments, configure Supabase Auth and tighten RLS policies to org scope before going live.
+
+Never set `DEMO_MODE=true` in production — this flag bypasses auth enforcement and is only safe in local development or isolated demo environments.
 
 ---
 
-*George Terpitsas — [github.com/georget-j](https://github.com/georget-j) — georgeterpitsas1@hotmail.co.uk*
+_George Terpitsas — [github.com/georget-j](https://github.com/georget-j) — georgeterpitsas1@hotmail.co.uk_
