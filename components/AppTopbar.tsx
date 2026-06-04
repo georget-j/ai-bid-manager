@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 const CRUMB_MAP: Record<string, string> = {
@@ -30,6 +30,11 @@ export function AppTopbar() {
       Object.keys(CRUMB_MAP).find((k) => k !== "/" && path.startsWith(k)) ?? ""
     ] ??
     "Page";
+
+  const handleSignOut = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }, [router]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -66,8 +71,6 @@ export function AppTopbar() {
         <span className="crumb-sep">›</span>
         <b>{label}</b>
       </div>
-      <span className="demo-pill">Demo</span>
-
       <div className="topbar-right">
         <div
           className="search-pill"
@@ -112,6 +115,28 @@ export function AppTopbar() {
             <path d="M8 7v1.5" />
             <circle cx="8" cy="11" r=".5" fill="currentColor" strokeWidth="0" />
             <path d="M6.5 5.5a1.5 1.5 0 0 1 3 0c0 1-1.5 1.5-1.5 2.5" />
+          </svg>
+        </button>
+
+        <button
+          className="icon-btn"
+          onClick={handleSignOut}
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+            <path d="M10.5 11l3.5-3-3.5-3" />
+            <path d="M14 8H6" />
           </svg>
         </button>
       </div>
