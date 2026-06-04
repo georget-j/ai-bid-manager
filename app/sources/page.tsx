@@ -386,6 +386,16 @@ export default function SourcesPage() {
 
   async function startCountSync(sourceName: string) {
     const target = selectedCounts[sourceName] ?? 1000;
+    const chunkDays = 7;
+    const msPerChunk = chunkDays * 24 * 60 * 60 * 1000;
+
+    // CF caps results per date-window query, so we walk backwards week by
+    // week (same as the backfill route) and stop once we hit the target.
+    const overallTo = isoDate(new Date());
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+    const hardStop = isoDate(twoYearsAgo);
+
     countCancelledRef.current = false;
     setCountSync({
       sourceName,
@@ -398,24 +408,36 @@ export default function SourcesPage() {
       done: false,
     });
 
+    let chunkTo = overallTo;
+    let chunkFrom = isoDate(
+      new Date(new Date(overallTo).getTime() - msPerChunk),
+    );
     let cursor: string | null = null;
     let totalFetched = 0;
 
     while (!countCancelledRef.current && totalFetched < target) {
       let data: {
-        fetched: number;
-        opportunitiesUpserted: number;
-        errors: string[];
-        hasMore: boolean;
+        done: boolean;
         nextCursor: string | null;
+        nextFrom: string | null;
+        result: {
+          fetched: number;
+          opportunitiesUpserted: number;
+          errors: string[];
+        };
         error?: string;
       };
 
       try {
-        const res = await fetch(`/api/sources/${sourceName}/sync-count`, {
+        const res = await fetch(`/api/sources/${sourceName}/backfill`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cursor }),
+          body: JSON.stringify({
+            fromDate: chunkFrom,
+            toDate: chunkTo,
+            chunkDays,
+            cursor,
+          }),
         });
         data = await res.json();
       } catch (err) {
@@ -443,17 +465,19 @@ export default function SourcesPage() {
         break;
       }
 
-      totalFetched += data.fetched;
-      const done = totalFetched >= target || !data.hasMore || !data.nextCursor;
+      totalFetched += data.result.fetched;
+      const sourceExhausted = data.done || (!data.nextCursor && !data.nextFrom);
+      const hitTarget = totalFetched >= target;
+      const done = hitTarget || sourceExhausted;
 
       setCountSync((prev) =>
         prev
           ? {
               ...prev,
-              fetched: prev.fetched + data.fetched,
-              stored: prev.stored + data.opportunitiesUpserted,
+              fetched: prev.fetched + data.result.fetched,
+              stored: prev.stored + data.result.opportunitiesUpserted,
               pages: prev.pages + 1,
-              errors: [...prev.errors, ...data.errors],
+              errors: [...prev.errors, ...data.result.errors],
               running: !done,
               done,
             }
@@ -461,7 +485,19 @@ export default function SourcesPage() {
       );
 
       if (done || countCancelledRef.current) break;
-      cursor = data.nextCursor;
+
+      if (data.nextCursor) {
+        // More pages within this week
+        cursor = data.nextCursor;
+      } else {
+        // Week exhausted — step back one week
+        chunkTo = chunkFrom;
+        chunkFrom = isoDate(
+          new Date(new Date(chunkFrom).getTime() - msPerChunk),
+        );
+        cursor = null;
+        if (chunkFrom < hardStop) break;
+      }
     }
 
     load();
