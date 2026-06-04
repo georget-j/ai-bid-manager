@@ -13,22 +13,6 @@ const BASE_URL =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
 
-/**
- * Contracts Finder uses numeric offset-based pagination via the `from` param.
- * The cursor we store is the string representation of the next offset.
- * We also accept a full URL (e.g. from payload.links.next) and extract `from`.
- */
-function parseOffset(cursor: string | null | undefined): number {
-  if (!cursor) return 0;
-  const n = Number(cursor);
-  if (!isNaN(n) && n >= 0) return n;
-  try {
-    return Number(new URL(cursor).searchParams.get("from") ?? "0") || 0;
-  } catch {
-    return 0;
-  }
-}
-
 export const contractsFinderConnector: ProcurementSourceConnector = {
   sourceName: "contracts-finder",
   displayName: "Contracts Finder",
@@ -40,15 +24,25 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
     cursor,
     limit = 100,
   }: FetchSinceParams): Promise<SourceFetchResult> {
-    const offset = parseOffset(cursor);
+    // The CF OCDS API returns an opaque cursor URL in links.next.
+    // On subsequent pages, use that URL directly rather than rebuilding it —
+    // the cursor encodes server-side state (publishedTo timestamp + offset)
+    // that cannot be reconstructed from a numeric offset.
+    const fetchUrl =
+      cursor && cursor.startsWith("http")
+        ? cursor
+        : (() => {
+            const url = new URL(`${BASE_URL}/Published/Notices/OCDS/Search`);
+            url.searchParams.set(
+              "postedFrom",
+              from.toISOString().split("T")[0],
+            );
+            url.searchParams.set("postedTo", to.toISOString().split("T")[0]);
+            url.searchParams.set("size", String(limit));
+            return url.toString();
+          })();
 
-    const url = new URL(`${BASE_URL}/Published/Notices/OCDS/Search`);
-    url.searchParams.set("postedFrom", from.toISOString().split("T")[0]);
-    url.searchParams.set("postedTo", to.toISOString().split("T")[0]);
-    url.searchParams.set("size", String(limit));
-    if (offset > 0) url.searchParams.set("from", String(offset));
-
-    const response = await fetch(url.toString(), {
+    const response = await fetch(fetchUrl, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(30_000),
     });
@@ -73,16 +67,15 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
             ? payload
             : [];
 
-    // Infer hasMore from page fullness — don't rely on API returning a next-link
-    const hasMore = rawItems.length >= limit;
-    const nextOffset = offset + rawItems.length;
+    // The presence of links.next is the authoritative signal that more pages exist.
+    const nextCursor: string | null = payload.links?.next ?? null;
 
     return {
       sourceName: "contracts-finder",
       rawItems,
-      nextCursor: hasMore ? String(nextOffset) : null,
+      nextCursor,
       fetchedAt: new Date().toISOString(),
-      hasMore,
+      hasMore: Boolean(nextCursor),
     };
   },
 
