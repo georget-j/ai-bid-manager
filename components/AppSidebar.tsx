@@ -352,8 +352,9 @@ export function AppSidebar({
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
-  // Always start hidden (false) so Sources never flashes to non-admins.
-  // The /api/auth/me fetch sets the real value after mount.
+  // mounted ensures server HTML and client initial render agree (both false),
+  // eliminating hydration mismatches. Admin items only render post-mount.
+  const [mounted, setMounted] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState(userEmailProp ?? null);
 
@@ -369,13 +370,14 @@ export function AppSidebar({
   }, []);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d: { isAdmin: boolean; email: string | null }) => {
-        setIsAdmin(d.isAdmin);
-        if (d.email) setUserEmail(d.email);
-      })
-      .catch(() => {});
+    setMounted(true);
+    // Read the x-is-admin cookie set by middleware on every authenticated
+    // request. Synchronous — no network round-trip, no race condition.
+    const cookie = document.cookie
+      .split("; ")
+      .find((r) => r.startsWith("x-is-admin="))
+      ?.split("=")[1];
+    setIsAdmin(cookie === "1");
   }, []);
 
   function isActive(href: string, exact = false) {
@@ -401,7 +403,8 @@ export function AppSidebar({
         <nav className="nav-section">
           <div className="nav-group-label">Intelligence</div>
           {NAV_INTELLIGENCE.filter(
-            (item) => !("adminOnly" in item && item.adminOnly && !isAdmin),
+            (item) =>
+              !("adminOnly" in item && item.adminOnly && !(mounted && isAdmin)),
           ).map((item) => (
             <Link
               key={item.href}

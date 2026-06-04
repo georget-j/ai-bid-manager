@@ -20,6 +20,21 @@ const PUBLIC_PAGES = [
   "/contact",
 ];
 
+// Admin-only page prefixes — non-admins are redirected to /
+const ADMIN_PAGES = ["/sources"];
+
+function computeIsAdmin(email: string): boolean {
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (adminEmails.length === 0) {
+    // No list configured: allow in dev/test only, never in production
+    return process.env.NODE_ENV !== "production";
+  }
+  return adminEmails.includes(email);
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   let response = NextResponse.next({ request });
@@ -102,6 +117,24 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
   }
+
+  // ── Admin role enforcement ─────────────────────────────────────────────────
+  const isAdmin = computeIsAdmin(user.email ?? "");
+
+  // Block non-admins from admin-only page routes
+  if (!isAdmin && ADMIN_PAGES.some((p) => pathname.startsWith(p))) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // Set a plain (JS-readable) cookie so the client sidebar can determine role
+  // without a network round-trip. This is a UI hint only — the redirect above
+  // is the actual security boundary.
+  response.cookies.set("x-is-admin", isAdmin ? "1" : "0", {
+    httpOnly: false, // must be readable by client JS for sidebar
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  });
 
   return response;
 }
