@@ -46,6 +46,19 @@ interface BackfillState {
   backwards: boolean;
 }
 
+interface CountSyncState {
+  sourceName: string;
+  target: number;
+  fetched: number;
+  stored: number;
+  pages: number;
+  errors: string[];
+  running: boolean;
+  done: boolean;
+}
+
+const PRESETS = [100, 500, 1000, 5000] as const;
+
 const CONNECTOR_AVAILABLE = new Set([
   "find-tender",
   "contracts-finder",
@@ -94,6 +107,13 @@ export default function SourcesPage() {
   const [syncResults, setSyncResults] = useState<
     Record<string, SyncResult & { timestamp: string }>
   >({});
+
+  // Count-based sync state
+  const [countSync, setCountSync] = useState<CountSyncState | null>(null);
+  const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>(
+    {},
+  );
+  const countCancelledRef = useRef(false);
 
   // Backfill state — one backfill at a time across all sources
   const [backfill, setBackfill] = useState<BackfillState | null>(null);
@@ -364,7 +384,97 @@ export default function SourcesPage() {
     );
   }
 
+  async function startCountSync(sourceName: string) {
+    const target = selectedCounts[sourceName] ?? 1000;
+    countCancelledRef.current = false;
+    setCountSync({
+      sourceName,
+      target,
+      fetched: 0,
+      stored: 0,
+      pages: 0,
+      errors: [],
+      running: true,
+      done: false,
+    });
+
+    let cursor: string | null = null;
+    let totalFetched = 0;
+
+    while (!countCancelledRef.current && totalFetched < target) {
+      let data: {
+        fetched: number;
+        opportunitiesUpserted: number;
+        errors: string[];
+        hasMore: boolean;
+        nextCursor: string | null;
+        error?: string;
+      };
+
+      try {
+        const res = await fetch(`/api/sources/${sourceName}/sync-count`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cursor }),
+        });
+        data = await res.json();
+      } catch (err) {
+        setCountSync((prev) =>
+          prev
+            ? {
+                ...prev,
+                running: false,
+                errors: [
+                  ...prev.errors,
+                  err instanceof Error ? err.message : "Network error",
+                ],
+              }
+            : prev,
+        );
+        break;
+      }
+
+      if (data.error) {
+        setCountSync((prev) =>
+          prev
+            ? { ...prev, running: false, errors: [...prev.errors, data.error!] }
+            : prev,
+        );
+        break;
+      }
+
+      totalFetched += data.fetched;
+      const done = totalFetched >= target || !data.hasMore || !data.nextCursor;
+
+      setCountSync((prev) =>
+        prev
+          ? {
+              ...prev,
+              fetched: prev.fetched + data.fetched,
+              stored: prev.stored + data.opportunitiesUpserted,
+              pages: prev.pages + 1,
+              errors: [...prev.errors, ...data.errors],
+              running: !done,
+              done,
+            }
+          : prev,
+      );
+
+      if (done || countCancelledRef.current) break;
+      cursor = data.nextCursor;
+    }
+
+    load();
+  }
+
+  function cancelCountSync() {
+    countCancelledRef.current = true;
+    setCountSync((prev) => (prev ? { ...prev, running: false } : prev));
+  }
+
   const busyWithBackfill = backfill?.running ?? false;
+  const busyWithCount = countSync?.running ?? false;
+  const anyBusy = busyWithBackfill || busyWithCount;
 
   return (
     <div style={{ maxWidth: 900 }}>
@@ -450,6 +560,11 @@ export default function SourcesPage() {
             const backfillDone =
               backfill?.sourceName === source.name && backfill.done;
             const form = backfillForms[source.name];
+            const isCountSyncing =
+              countSync?.sourceName === source.name && countSync.running;
+            const countSyncDone =
+              countSync?.sourceName === source.name && countSync.done;
+            const selectedCount = selectedCounts[source.name] ?? 1000;
 
             return (
               <div key={source.id}>
@@ -572,31 +687,58 @@ export default function SourcesPage() {
                   >
                     {hasConnector ? (
                       <>
+                        {/* Sync last N — primary CTA */}
+                        <div style={{ display: "flex", gap: 0 }}>
+                          <select
+                            value={selectedCount}
+                            onChange={(e) =>
+                              setSelectedCounts((prev) => ({
+                                ...prev,
+                                [source.name]: Number(e.target.value),
+                              }))
+                            }
+                            disabled={anyBusy || isSyncing || !source.enabled}
+                            style={{
+                              fontSize: 12,
+                              padding: "5px 8px",
+                              border: "1px solid var(--border)",
+                              borderRight: "none",
+                              borderRadius: "var(--r-sm) 0 0 var(--r-sm)",
+                              background: "var(--bg)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {PRESETS.map((n) => (
+                              <option key={n} value={n}>
+                                Last {n.toLocaleString()}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="btn primary"
+                            onClick={() => startCountSync(source.name)}
+                            disabled={anyBusy || isSyncing || !source.enabled}
+                            style={{
+                              fontSize: 12,
+                              padding: "5px 14px",
+                              borderRadius: "0 var(--r-sm) var(--r-sm) 0",
+                            }}
+                          >
+                            {isCountSyncing ? "Fetching…" : "Sync"}
+                          </button>
+                        </div>
                         <button
                           className="btn accent"
                           onClick={() => triggerSync(source.name)}
-                          disabled={
-                            isSyncing || !source.enabled || busyWithBackfill
-                          }
+                          disabled={isSyncing || !source.enabled || anyBusy}
                           style={{ fontSize: 12, padding: "5px 14px" }}
                         >
                           {isSyncing ? "Syncing…" : "Sync now"}
                         </button>
                         <button
-                          className="btn primary"
-                          onClick={() => startAutoSync(source.name)}
-                          disabled={
-                            isSyncing || busyWithBackfill || !source.enabled
-                          }
-                          style={{ fontSize: 12, padding: "5px 14px" }}
-                          title="Fetch from today backwards — newest opportunities first"
-                        >
-                          Sync history ↩
-                        </button>
-                        <button
                           className="btn"
                           onClick={() => openBackfillForm(source.name)}
-                          disabled={isSyncing || busyWithBackfill}
+                          disabled={anyBusy || isSyncing}
                           style={{ fontSize: 12, padding: "5px 14px" }}
                         >
                           Backfill…
@@ -871,6 +1013,97 @@ export default function SourcesPage() {
                           <button
                             className="btn"
                             onClick={() => setBackfill(null)}
+                            style={{ fontSize: 11, padding: "3px 10px" }}
+                          >
+                            Dismiss
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Count sync progress */}
+                {(isCountSyncing || countSyncDone) &&
+                  countSync?.sourceName === source.name && (
+                    <div
+                      style={{
+                        padding: "14px 20px 14px 44px",
+                        borderTop: "1px solid var(--border)",
+                        background: countSync.done ? "#f0fdf4" : "#f0f9ff",
+                      }}
+                    >
+                      {/* Progress bar */}
+                      <div
+                        style={{
+                          height: 6,
+                          borderRadius: 999,
+                          background: "var(--border)",
+                          marginBottom: 10,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            borderRadius: 999,
+                            background: countSync.done ? "#059669" : "#2563eb",
+                            width: `${Math.min(100, (countSync.fetched / countSync.target) * 100)}%`,
+                            transition: "width 0.3s ease",
+                          }}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 20,
+                          flexWrap: "wrap",
+                          fontSize: 12.5,
+                          color: "var(--ink-2)",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span>
+                          {countSync.done ? (
+                            <b style={{ color: "#059669" }}>Done</b>
+                          ) : (
+                            <>
+                              <b>{countSync.fetched.toLocaleString()}</b>
+                              {" / "}
+                              <b>{countSync.target.toLocaleString()}</b>
+                              {" fetched"}
+                            </>
+                          )}
+                        </span>
+                        <span>
+                          <b>{countSync.stored.toLocaleString()}</b>{" "}
+                          opportunities stored
+                        </span>
+                        <span style={{ color: "var(--muted)" }}>
+                          {countSync.pages} page
+                          {countSync.pages !== 1 ? "s" : ""}
+                        </span>
+                        {countSync.errors.length > 0 && (
+                          <span style={{ color: "#d97706" }}>
+                            {countSync.errors.length} warning(s)
+                          </span>
+                        )}
+                        {!countSync.done && (
+                          <button
+                            className="btn"
+                            onClick={cancelCountSync}
+                            style={{
+                              fontSize: 11,
+                              padding: "3px 10px",
+                              color: "#dc2626",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        {countSync.done && (
+                          <button
+                            className="btn"
+                            onClick={() => setCountSync(null)}
                             style={{ fontSize: 11, padding: "3px 10px" }}
                           >
                             Dismiss

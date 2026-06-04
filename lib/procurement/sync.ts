@@ -282,6 +282,165 @@ async function updateSourceError(
     .eq("name", name);
 }
 
+// ---------------------------------------------------------------------------
+// Fast single-page sync with bulk DB writes
+// ---------------------------------------------------------------------------
+
+export interface SyncPageResult {
+  fetched: number;
+  opportunitiesUpserted: number;
+  errors: string[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+/**
+ * Fetch exactly one page from a connector and write it to the DB using bulk
+ * upserts — 2 DB round-trips per page instead of 200.
+ *
+ * Intended for the count-based "sync last N" flow. Does not update the source
+ * row's last_successful_sync_at so it won't interfere with incremental syncs.
+ */
+export async function syncPage(
+  connector: ProcurementSourceConnector,
+  options: {
+    cursor?: string | null;
+    limit?: number;
+    /** Date window to query. Defaults to 2 years → now so CF returns latest first. */
+    from?: Date;
+    to?: Date;
+  } = {},
+): Promise<SyncPageResult> {
+  const supabase = getServiceSupabase();
+  const errors: string[] = [];
+
+  const to = options.to ?? new Date();
+  const from =
+    options.from ?? new Date(to.getTime() - 2 * 365 * 24 * 60 * 60 * 1000);
+  const limit = options.limit ?? SYNC_LIMIT;
+
+  let fetchResult;
+  try {
+    fetchResult = await connector.fetchSince({
+      from,
+      to,
+      cursor: options.cursor ?? null,
+      limit,
+    });
+  } catch (err) {
+    return {
+      fetched: 0,
+      opportunitiesUpserted: 0,
+      errors: [err instanceof Error ? err.message : String(err)],
+      hasMore: false,
+      nextCursor: null,
+    };
+  }
+
+  const { rawItems, hasMore } = fetchResult;
+  const nextCursor: string | null = fetchResult.nextCursor ?? null;
+
+  if (rawItems.length === 0) {
+    return {
+      fetched: 0,
+      opportunitiesUpserted: 0,
+      errors: [],
+      hasMore,
+      nextCursor,
+    };
+  }
+
+  // --- Bulk insert raw_notices (skip exact duplicates) ---
+  const rawRows = rawItems.map((raw) => ({
+    source_name: connector.sourceName,
+    source_notice_id: extractSourceId(raw) ?? hashPayload(raw),
+    ocid: extractOcid(raw),
+    raw_payload: raw as object,
+    content_hash: hashPayload(raw),
+    fetched_at: fetchResult.fetchedAt,
+    parser_version: "1",
+  }));
+
+  const { error: rawErr } = await supabase
+    .from("raw_notices")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .upsert(rawRows as any, {
+      onConflict: "source_name,source_notice_id",
+      ignoreDuplicates: true,
+    });
+
+  if (rawErr) errors.push(`raw_notices: ${rawErr.message}`);
+
+  // --- Normalize all items in parallel ---
+  const normalizeResults = await Promise.allSettled(
+    rawItems.map((raw) => connector.normalize(raw)),
+  );
+
+  const oppRows: Record<string, unknown>[] = [];
+  for (const r of normalizeResults) {
+    if (r.status === "rejected") {
+      errors.push(`normalize: ${String(r.reason)}`);
+      continue;
+    }
+    for (const opp of r.value) {
+      oppRows.push({
+        canonical_ocid: opp.canonicalOcid ?? null,
+        source_name: opp.sourceName,
+        source_notice_id: opp.sourceNoticeId,
+        source_url: opp.sourceUrl ?? null,
+        submission_url: opp.submissionUrl ?? null,
+        title: opp.title,
+        description: opp.description ?? null,
+        buyer_name: opp.buyerName ?? null,
+        buyer_identifier: opp.buyerIdentifier ?? null,
+        buyer_region: opp.buyerRegion ?? null,
+        notice_type: opp.noticeType ?? null,
+        procurement_stage: opp.procurementStage,
+        status: opp.status,
+        cpv_codes: opp.cpvCodes,
+        region: opp.region ?? null,
+        value_amount: opp.valueAmount ?? null,
+        value_currency: opp.valueCurrency ?? "GBP",
+        published_at: opp.publishedAt ?? null,
+        deadline_at: opp.deadlineAt ?? null,
+        contract_start_at: opp.contractStartAt ?? null,
+        contract_end_at: opp.contractEndAt ?? null,
+        framework_flag: opp.frameworkFlag ?? false,
+        lots: opp.lots ?? null,
+        documents: opp.documents ?? null,
+        raw_json: opp.rawJson ?? null,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  let opportunitiesUpserted = 0;
+  if (oppRows.length > 0) {
+    const { data: oppData, error: oppErr } = await supabase
+      .from("opportunities")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert(oppRows as any, {
+        onConflict: "source_name,source_notice_id",
+        ignoreDuplicates: false,
+      })
+      .select("id");
+
+    if (oppErr) {
+      errors.push(`opportunities: ${oppErr.message}`);
+    } else {
+      opportunitiesUpserted = oppData?.length ?? 0;
+    }
+  }
+
+  return {
+    fetched: rawItems.length,
+    opportunitiesUpserted,
+    errors,
+    hasMore,
+    nextCursor,
+  };
+}
+
 /** Ensure source rows exist in the sources table (idempotent). */
 export async function seedSources(): Promise<void> {
   const supabase = getServiceSupabase();
