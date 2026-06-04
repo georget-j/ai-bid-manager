@@ -386,15 +386,6 @@ export default function SourcesPage() {
 
   async function startCountSync(sourceName: string) {
     const target = selectedCounts[sourceName] ?? 1000;
-    const chunkDays = 7;
-    const msPerChunk = chunkDays * 24 * 60 * 60 * 1000;
-
-    // CF caps results per date-window query, so we walk backwards week by
-    // week (same as the backfill route) and stop once we hit the target.
-    const overallTo = isoDate(new Date());
-    const twoYearsAgo = new Date();
-    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-    const hardStop = isoDate(twoYearsAgo);
 
     countCancelledRef.current = false;
     setCountSync({
@@ -408,36 +399,27 @@ export default function SourcesPage() {
       done: false,
     });
 
-    let chunkTo = overallTo;
-    let chunkFrom = isoDate(
-      new Date(new Date(overallTo).getTime() - msPerChunk),
-    );
+    // Use the fast /sync-count route (bulk DB writes, parallel normalization).
+    // The CF cursor (links.next URL) carries the full date context, so we just
+    // chain cursors without any date-window management here.
     let cursor: string | null = null;
     let totalFetched = 0;
 
     while (!countCancelledRef.current && totalFetched < target) {
       let data: {
-        done: boolean;
+        fetched: number;
+        opportunitiesUpserted: number;
+        errors: string[];
+        hasMore: boolean;
         nextCursor: string | null;
-        nextFrom: string | null;
-        result: {
-          fetched: number;
-          opportunitiesUpserted: number;
-          errors: string[];
-        };
         error?: string;
       };
 
       try {
-        const res = await fetch(`/api/sources/${sourceName}/backfill`, {
+        const res = await fetch(`/api/sources/${sourceName}/sync-count`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fromDate: chunkFrom,
-            toDate: chunkTo,
-            chunkDays,
-            cursor,
-          }),
+          body: JSON.stringify({ cursor }),
         });
         data = await res.json();
       } catch (err) {
@@ -465,19 +447,17 @@ export default function SourcesPage() {
         break;
       }
 
-      totalFetched += data.result.fetched;
-      const sourceExhausted = data.done || (!data.nextCursor && !data.nextFrom);
-      const hitTarget = totalFetched >= target;
-      const done = hitTarget || sourceExhausted;
+      totalFetched += data.fetched;
+      const done = totalFetched >= target || !data.hasMore || !data.nextCursor;
 
       setCountSync((prev) =>
         prev
           ? {
               ...prev,
-              fetched: prev.fetched + data.result.fetched,
-              stored: prev.stored + data.result.opportunitiesUpserted,
+              fetched: prev.fetched + data.fetched,
+              stored: prev.stored + data.opportunitiesUpserted,
               pages: prev.pages + 1,
-              errors: [...prev.errors, ...data.result.errors],
+              errors: [...prev.errors, ...data.errors],
               running: !done,
               done,
             }
@@ -485,19 +465,7 @@ export default function SourcesPage() {
       );
 
       if (done || countCancelledRef.current) break;
-
-      if (data.nextCursor) {
-        // More pages within this week
-        cursor = data.nextCursor;
-      } else {
-        // Week exhausted — step back one week
-        chunkTo = chunkFrom;
-        chunkFrom = isoDate(
-          new Date(new Date(chunkFrom).getTime() - msPerChunk),
-        );
-        cursor = null;
-        if (chunkFrom < hardStop) break;
-      }
+      cursor = data.nextCursor;
     }
 
     load();
