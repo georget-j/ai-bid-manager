@@ -422,7 +422,7 @@ export async function syncPage(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .upsert(oppRows as any, {
         onConflict: "source_name,source_notice_id",
-        ignoreDuplicates: false,
+        ignoreDuplicates: true, // never overwrite an existing opportunity
       })
       .select("id");
 
