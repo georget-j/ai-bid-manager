@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { listOpportunitiesWithFallback } from "@/lib/procurement/data";
+import { listOpportunities } from "@/lib/procurement/data";
+import { getAuthUser } from "@/lib/supabase-server";
+import { getOrgIdForUser } from "@/lib/org";
 import type { OpportunityRow } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -20,15 +22,14 @@ function formatDeadline(deadlineAt: string | null | undefined) {
   if (!deadlineAt) return null;
   const d = new Date(deadlineAt);
   const now = new Date();
-  const diffMs = d.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
+  const diffDays = Math.ceil(
+    (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+  );
   const formatted = d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
-
   if (diffDays < 0) return { label: formatted, urgent: false, overdue: true };
   if (diffDays <= 7)
     return {
@@ -64,16 +65,33 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   const status = params.status ?? "";
   const stage = params.stage ?? "";
   const region = params.region ?? "";
+  const buyer = params.buyer ?? "";
 
-  const { opportunities, total, source } = await listOpportunitiesWithFallback({
-    search: search || undefined,
-    status: status || undefined,
-    stage: stage || undefined,
-    region: region || undefined,
-    limit: 50,
-  });
+  const user = await getAuthUser().catch(() => null);
+  const orgId = user ? await getOrgIdForUser(user.id) : null;
 
-  const hasFilters = !!(search || status || stage || region);
+  let opportunities: OpportunityRow[] = [];
+  let total = 0;
+
+  if (orgId) {
+    try {
+      const result = await listOpportunities({
+        orgId,
+        search: search || undefined,
+        status: status || undefined,
+        stage: stage || undefined,
+        region: region || undefined,
+        buyer: buyer || undefined,
+        limit: 50,
+      });
+      opportunities = result.opportunities;
+      total = result.total;
+    } catch {
+      // show empty state on error
+    }
+  }
+
+  const hasFilters = !!(search || status || stage || region || buyer);
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -88,8 +106,8 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           <em>opportunities</em>
         </h1>
         <p className="subtitle">
-          Browse and filter public-sector tender opportunities matched to your
-          organisation. Score bid fit, add to your pipeline, and start RFP
+          Browse and filter public-sector tender opportunities synced from your
+          connected sources. Score bid fit, add to your pipeline, and start RFP
           responses directly from any opportunity.
         </p>
       </div>
@@ -158,20 +176,6 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           {total === 0
             ? "No opportunities found"
             : `${total} opportunit${total === 1 ? "y" : "ies"}`}
-          {source === "seed" && (
-            <span
-              style={{
-                marginLeft: 8,
-                fontSize: 11,
-                padding: "2px 8px",
-                borderRadius: 999,
-                background: "var(--accent-tint)",
-                color: "var(--accent)",
-              }}
-            >
-              Demo data
-            </span>
-          )}
         </span>
         <Link
           href="/sources"
@@ -189,10 +193,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
       {opportunities.length === 0 && (
         <div
           className="card card-pad"
-          style={{
-            textAlign: "center",
-            padding: "48px 32px",
-          }}
+          style={{ textAlign: "center", padding: "48px 32px" }}
         >
           <p
             style={{
@@ -217,23 +218,13 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           >
             {hasFilters
               ? "Try removing some filters or broadening your search."
-              : "Connect a procurement source or load demo data to get started."}
+              : "Connect a procurement source and run a sync to start seeing live UK tender opportunities here."}
           </p>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}
-          >
+          {!hasFilters && (
             <Link href="/sources" className="btn primary">
               Connect a source
             </Link>
-            <Link href="/demo" className="btn ghost">
-              Load demo data
-            </Link>
-          </div>
+          )}
         </div>
       )}
 
@@ -248,8 +239,8 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             );
             return (
               <Link
-                key={opp.id ?? opp.source_notice_id}
-                href={`/opportunities/${opp.id ?? opp.source_notice_id}`}
+                key={opp.id}
+                href={`/opportunities/${opp.id}`}
                 style={{ textDecoration: "none" }}
               >
                 <div
@@ -335,7 +326,6 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
                       )}
                     </div>
                   </div>
-
                   <div
                     style={{
                       display: "flex",
@@ -361,11 +351,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
                       <span
                         style={{
                           fontSize: 11.5,
-                          color: deadline.urgent
-                            ? "#dc2626"
-                            : deadline.overdue
-                              ? "var(--muted)"
-                              : "var(--muted)",
+                          color: deadline.urgent ? "#dc2626" : "var(--muted)",
                           fontWeight: deadline.urgent ? 600 : 400,
                         }}
                       >
@@ -385,9 +371,6 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
         <div style={{ marginTop: 16, textAlign: "center" }}>
           <p style={{ fontSize: 12, color: "var(--muted)" }}>
             Showing {opportunities.length} of {total}
-            {source === "seed"
-              ? " (demo data — connect a source to see live opportunities)"
-              : ""}
           </p>
         </div>
       )}

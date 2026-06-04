@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getServiceSupabase } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/supabase-server";
+import { getOrgIdForUser } from "@/lib/org";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +21,17 @@ type BuyerRow = {
 };
 
 async function getBuyerStats(): Promise<BuyerRow[]> {
+  const user = await getAuthUser().catch(() => null);
+  const orgId = user ? await getOrgIdForUser(user.id) : null;
+  if (!orgId) return [];
+
   const supabase = getServiceSupabase();
   const { data } = await supabase
     .from("opportunities")
     .select(
       "buyer_name, buyer_region, value_amount, status, procurement_stage, created_at",
     )
+    .eq("org_id", orgId)
     .not("buyer_name", "is", null)
     .order("created_at", { ascending: false })
     .limit(2000);

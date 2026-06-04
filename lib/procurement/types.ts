@@ -4,8 +4,7 @@ export type ProcurementSourceName =
   | "public-contracts-scotland"
   | "sell2wales"
   | "etenders-ni"
-  | "manual-upload"
-  | "seed";
+  | "manual-upload";
 
 export type ProcurementStage =
   | "planning"

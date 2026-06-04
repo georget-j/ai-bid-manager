@@ -138,9 +138,9 @@ See SECURITY_REQUIREMENTS.md for full details.
 6. **MIME type validation is client-supplied** — `file.type` is from the browser; magic-byte check would be stronger. Accepted risk for now.
 7. **`document_chunks`, `query_results`, `approved_answers`, `review_comments`, `review_audit_log`, `rfp_run_questions` not org-scoped** — FIXED in migration 021: org-scoped policies for all 6 tables; `rfp_run_questions` also gains `org_id` column. `routing_config`, `integration_settings`, `rate_limits` remain broad (admin config only, service-role access only).
 
-### Pending migration
+### All migrations applied (2026-06-04)
 
-Apply `021_tighten_rls.sql` to Supabase (along with 017–020).
+Migrations 011–021 applied to Supabase project `zurulmbbddizwiozrewu` via `supabase db push`.
 
 ---
 

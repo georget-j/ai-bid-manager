@@ -4,7 +4,7 @@ Last updated: 2026-06-04
 
 ## Current objective
 
-Phases 1–10 complete. Security gaps fixed. Dashboard and buyers page updated. Apply pending DB migrations to Supabase (017–021), then deploy to Vercel.
+All phases complete. DB migrations applied. Deployed to Vercel. App is live at ai-rfp-agent-ten.vercel.app.
 
 ---
 
@@ -27,14 +27,20 @@ Phases 1–10 complete. Security gaps fixed. Dashboard and buyers page updated. 
 - Phase 6: RFP→opportunity link (migration 018), RFPProcessor props, opportunity detail actions
 - Phase 7: Compliance matrix migration (019), generate/detail/update routes, compliance list + detail pages
 
-## Pending DB migrations — apply to Supabase before deploying
+## DB migrations — all applied (2026-06-04)
 
 ```
-017_procurement_tables.sql
-018_rfp_opportunity_link.sql
-019_compliance_matrix.sql
-020_alert_rules.sql
-021_tighten_rls.sql
+011_rls.sql                   ✓ applied
+012_orgs.sql                  ✓ applied
+013_answer_library.sql        ✓ applied
+014_rfp_run_questions.sql     ✓ applied
+015_fix_rls_conflicts.sql     ✓ applied
+016_retrieval_org_scope.sql   ✓ applied
+017_procurement_tables.sql    ✓ applied
+018_rfp_opportunity_link.sql  ✓ applied
+019_compliance_matrix.sql     ✓ applied
+020_alert_rules.sql           ✓ applied
+021_tighten_rls.sql           ✓ applied
 ```
 
 ---
@@ -53,9 +59,7 @@ Phases 1–10 complete. Security gaps fixed. Dashboard and buyers page updated. 
 
 ## Blockers / questions
 
-1. **Org model:** Single-org per deployment (Phase 1) vs multi-tenant (Phase 2)? Affects how `org_id` is passed into procurement tables.
-2. **Demo mode vs production auth:** How should demo opportunities be scoped? Null `org_id` = visible to all (same as existing demo documents)?
-3. **`CRON_SECRET` in current deployment:** Is it set on Vercel? If not, GAP-005 is live.
+- None. All blockers resolved.
 
 ---
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOpportunity } from "@/lib/procurement/data";
-import { SEED_OPPORTUNITIES } from "@/lib/procurement/seed";
+import { getAuthUser } from "@/lib/supabase-server";
+import { getOrgIdForUser } from "@/lib/org";
 import { OpportunityActions } from "./OpportunityActions";
 import type {
   OpportunityRow,
@@ -85,47 +86,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default async function OpportunityDetailPage({ params }: PageProps) {
   const { id } = await params;
 
-  // Try DB first, then fall back to in-memory seed
-  let opp: OpportunityRow | null = await getOpportunity(id);
+  const user = await getAuthUser().catch(() => null);
+  const orgId = user ? await getOrgIdForUser(user.id) : undefined;
 
-  if (!opp) {
-    const seedMatch = SEED_OPPORTUNITIES.find(
-      (s) => s.sourceNoticeId === id || s.canonicalOcid === id,
-    );
-    if (seedMatch) {
-      const now = new Date().toISOString();
-      opp = {
-        id,
-        canonical_ocid: seedMatch.canonicalOcid ?? null,
-        source_name: seedMatch.sourceName,
-        source_notice_id: seedMatch.sourceNoticeId,
-        source_url: seedMatch.sourceUrl ?? null,
-        submission_url: seedMatch.submissionUrl ?? null,
-        title: seedMatch.title,
-        description: seedMatch.description ?? null,
-        buyer_name: seedMatch.buyerName ?? null,
-        buyer_identifier: seedMatch.buyerIdentifier ?? null,
-        buyer_region: seedMatch.buyerRegion ?? null,
-        notice_type: seedMatch.noticeType ?? null,
-        procurement_stage: seedMatch.procurementStage,
-        status: seedMatch.status,
-        cpv_codes: seedMatch.cpvCodes,
-        region: seedMatch.region ?? null,
-        value_amount: seedMatch.valueAmount ?? null,
-        value_currency: seedMatch.valueCurrency ?? "GBP",
-        published_at: seedMatch.publishedAt ?? null,
-        deadline_at: seedMatch.deadlineAt ?? null,
-        contract_start_at: seedMatch.contractStartAt ?? null,
-        contract_end_at: seedMatch.contractEndAt ?? null,
-        framework_flag: seedMatch.frameworkFlag ?? false,
-        lots: seedMatch.lots ?? null,
-        documents: seedMatch.documents ?? null,
-        raw_json: seedMatch.rawJson ?? null,
-        created_at: now,
-        updated_at: now,
-      };
-    }
-  }
+  const opp: OpportunityRow | null = await getOpportunity(
+    id,
+    orgId ?? undefined,
+  );
 
   if (!opp) notFound();
 
