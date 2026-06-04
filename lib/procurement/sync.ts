@@ -22,6 +22,7 @@ export interface SyncResult {
 const LOOKBACK_HOURS = Number(
   process.env.PROCUREMENT_SYNC_LOOKBACK_HOURS ?? "24",
 );
+const SYNC_LIMIT = Number(process.env.PROCUREMENT_SYNC_LIMIT ?? "100");
 
 export async function syncSource(
   connector: ProcurementSourceConnector,
@@ -54,7 +55,12 @@ export async function syncSource(
   // Fetch raw data
   let fetchResult;
   try {
-    fetchResult = await connector.fetchSince({ from, to, cursor });
+    fetchResult = await connector.fetchSince({
+      from,
+      to,
+      cursor,
+      limit: SYNC_LIMIT,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateSourceError(supabase, connector.sourceName, msg);
