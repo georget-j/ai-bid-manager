@@ -34,6 +34,7 @@ interface BackfillState {
   fromDate: string;
   toDate: string;
   currentFrom: string;
+  currentPage: number;
   chunksTotal: number;
   chunksDone: number;
   totalStored: number;
@@ -204,6 +205,7 @@ export default function SourcesPage() {
       fromDate,
       toDate,
       currentFrom: fromDate,
+      currentPage: 1,
       chunksTotal,
       chunksDone: 0,
       totalStored: 0,
@@ -213,11 +215,14 @@ export default function SourcesPage() {
       done: false,
     });
 
+    // Drive both page cursor (within a chunk) and chunk advancement (week by week)
     let currentFrom = fromDate;
+    let currentCursor: string | null = null;
 
     while (!cancelledRef.current) {
       let data: {
         done: boolean;
+        nextCursor: string | null;
         nextFrom: string | null;
         result: {
           fetched: number;
@@ -231,7 +236,12 @@ export default function SourcesPage() {
         const res = await fetch(`/api/sources/${sourceName}/backfill`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fromDate: currentFrom, toDate, chunkDays }),
+          body: JSON.stringify({
+            fromDate: currentFrom,
+            toDate,
+            chunkDays,
+            cursor: currentCursor,
+          }),
         });
         data = await res.json();
       } catch (err) {
@@ -259,12 +269,15 @@ export default function SourcesPage() {
         break;
       }
 
+      const chunkAdvanced = !data.nextCursor && !!data.nextFrom;
+
       setBackfill((prev) =>
         prev
           ? {
               ...prev,
               currentFrom: data.nextFrom ?? currentFrom,
-              chunksDone: prev.chunksDone + 1,
+              currentPage: chunkAdvanced ? 1 : prev.currentPage + 1,
+              chunksDone: chunkAdvanced ? prev.chunksDone + 1 : prev.chunksDone,
               totalFetched: prev.totalFetched + (data.result.fetched ?? 0),
               totalStored:
                 prev.totalStored + (data.result.opportunitiesUpserted ?? 0),
@@ -275,8 +288,18 @@ export default function SourcesPage() {
           : prev,
       );
 
-      if (data.done || !data.nextFrom || cancelledRef.current) break;
-      currentFrom = data.nextFrom;
+      if (data.done || cancelledRef.current) break;
+
+      if (data.nextCursor) {
+        // More pages in the same chunk — continue with cursor
+        currentCursor = data.nextCursor;
+      } else if (data.nextFrom) {
+        // This chunk exhausted — advance to next chunk, reset cursor
+        currentFrom = data.nextFrom;
+        currentCursor = null;
+      } else {
+        break;
+      }
     }
 
     // Refresh source counts after backfill completes
@@ -729,11 +752,11 @@ export default function SourcesPage() {
                             <>
                               Week <b>{backfill.chunksDone + 1}</b> of{" "}
                               <b>{backfill.chunksTotal}</b>
+                              {" · "}page <b>{backfill.currentPage}</b>
                             </>
                           )}
                         </span>
                         <span>
-                          Currently:{" "}
                           <span
                             style={{
                               fontFamily: "var(--font-mono)",

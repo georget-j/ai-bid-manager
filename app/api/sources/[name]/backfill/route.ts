@@ -19,12 +19,20 @@ interface Params {
 }
 
 export interface BackfillChunkResponse {
+  /** True when all chunks and all pages within the final chunk are done. */
   done: boolean;
   chunkFrom: string;
   chunkTo: string;
-  /** ISO date string for the start of the next chunk, or null when done */
+  /**
+   * Cursor for the next page within the current chunk.
+   * Null means the current chunk is exhausted — advance chunkFrom.
+   */
+  nextCursor: string | null;
+  /**
+   * ISO date string for the start of the next chunk, or null when done.
+   * Only set when nextCursor is null (i.e., current chunk is finished).
+   */
   nextFrom: string | null;
-  /** Overall end date (echoed back for client convenience) */
   overallTo: string;
   result: {
     fetched: number;
@@ -33,6 +41,7 @@ export interface BackfillChunkResponse {
     duplicatesSkipped: number;
     opportunitiesUpserted: number;
     errors: string[];
+    hasMore: boolean;
   };
 }
 
@@ -55,12 +64,14 @@ export async function POST(request: NextRequest, { params }: Params) {
   let chunkFrom: Date;
   let overallTo: Date;
   let chunkDays = 7;
+  let pageCursor: string | null = null;
 
   try {
     const body = (await request.json()) as {
       fromDate?: string;
       toDate?: string;
       chunkDays?: number;
+      cursor?: string | null;
     };
 
     chunkFrom = body.fromDate
@@ -70,6 +81,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     overallTo = body.toDate ? new Date(body.toDate) : new Date();
 
     if (body.chunkDays) chunkDays = Math.max(1, Math.min(14, body.chunkDays));
+
+    pageCursor = body.cursor ?? null;
   } catch {
     return NextResponse.json(
       { error: "Invalid request body" },
@@ -82,6 +95,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       done: true,
       chunkFrom: chunkFrom.toISOString().split("T")[0],
       chunkTo: overallTo.toISOString().split("T")[0],
+      nextCursor: null,
       nextFrom: null,
       overallTo: overallTo.toISOString().split("T")[0],
       result: {
@@ -91,6 +105,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         duplicatesSkipped: 0,
         opportunitiesUpserted: 0,
         errors: [],
+        hasMore: false,
       },
     });
   }
@@ -103,23 +118,35 @@ export async function POST(request: NextRequest, { params }: Params) {
     ),
   );
 
+  // One page per call — keeps the serverless invocation well under timeout.
+  // The client re-calls with the returned cursor to get the next page.
   const result = await syncSource(connector, {
     fromDate: chunkFrom,
     toDate: chunkTo,
     backfill: true,
+    cursor: pageCursor,
+    maxPages: 1,
   });
 
-  const done = chunkTo >= overallTo;
-  // Advance by exactly one chunkDays step (not chunkTo, which may be clamped)
-  const nextFromDate = done
-    ? null
-    : new Date(chunkFrom.getTime() + chunkDays * 24 * 60 * 60 * 1000);
+  const chunkExhausted = !result.hasMore;
+
+  // When this chunk is fully paged through, compute the next chunk start.
+  const nextChunkFrom = chunkExhausted
+    ? new Date(chunkFrom.getTime() + chunkDays * 24 * 60 * 60 * 1000)
+    : null;
+
+  const done =
+    chunkExhausted && nextChunkFrom !== null && nextChunkFrom >= overallTo;
 
   return NextResponse.json<BackfillChunkResponse>({
     done,
     chunkFrom: chunkFrom.toISOString().split("T")[0],
     chunkTo: chunkTo.toISOString().split("T")[0],
-    nextFrom: nextFromDate ? nextFromDate.toISOString().split("T")[0] : null,
+    nextCursor: result.hasMore ? result.nextCursor : null,
+    nextFrom:
+      !done && chunkExhausted && nextChunkFrom
+        ? nextChunkFrom.toISOString().split("T")[0]
+        : null,
     overallTo: overallTo.toISOString().split("T")[0],
     result: {
       fetched: result.fetched,
@@ -128,6 +155,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       duplicatesSkipped: result.duplicatesSkipped,
       opportunitiesUpserted: result.opportunitiesUpserted,
       errors: result.errors,
+      hasMore: result.hasMore,
     },
   });
 }

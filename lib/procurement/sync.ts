@@ -39,6 +39,10 @@ export async function syncSource(
      * the routine daily-sync state is not clobbered.
      */
     backfill?: boolean;
+    /** Explicit starting cursor — overrides stored cursor. Used by backfill. */
+    cursor?: string | null;
+    /** Max pages to fetch in this call (default MAX_PAGES). Set to 1 for backfill. */
+    maxPages?: number;
   } = {},
 ): Promise<SyncResult> {
   const supabase = getServiceSupabase();
@@ -65,17 +69,21 @@ export async function syncSource(
       : new Date(now.getTime() - LOOKBACK_HOURS * 60 * 60 * 1000));
   const to = options.toDate ?? now;
 
-  // For explicit date ranges (backfills) always start at offset 0.
-  // For incremental syncs, continue from the stored cursor.
-  const startCursor: string | null = options.fromDate
-    ? null
-    : (sourceRow?.last_cursor ?? null);
+  // For explicit date ranges (backfills) always start at offset 0 unless an
+  // explicit cursor is provided. For incremental syncs, continue from the DB.
+  const startCursor: string | null =
+    options.cursor !== undefined
+      ? (options.cursor ?? null)
+      : options.fromDate
+        ? null
+        : (sourceRow?.last_cursor ?? null);
 
+  const pageLimit = options.maxPages ?? MAX_PAGES;
   let currentCursor = startCursor;
   let hasMoreAfterCap = false;
 
-  // Paginate until exhausted or MAX_PAGES reached
-  while (totalPages < MAX_PAGES) {
+  // Paginate until exhausted or page limit reached
+  while (totalPages < pageLimit) {
     let fetchResult;
     try {
       fetchResult = await connector.fetchSince({
@@ -202,7 +210,7 @@ export async function syncSource(
       break;
     }
 
-    if (totalPages >= MAX_PAGES) {
+    if (totalPages >= pageLimit) {
       // Hit the cap — signal caller that there is still more
       hasMoreAfterCap = true;
       break;
