@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 import type {
   EnrichedDocument,
@@ -67,13 +67,15 @@ function DocRow({
   doc,
   opportunityId,
   onAdded,
+  initiallyAdded = false,
 }: {
   doc: EnrichedDocument;
   opportunityId: string;
   onAdded: (docId: string) => void;
+  initiallyAdded?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const [added, setAdded] = useState(initiallyAdded);
   const [addError, setAddError] = useState<string | null>(null);
 
   const badge = BADGE[doc.accessibility];
@@ -234,6 +236,21 @@ export function DocumentsPanel({
   const [enriched, setEnriched] = useState<EnrichedDocument[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<string[]>([]);
+  // file_name values for docs already in the procurement KB for this opportunity
+  const [kbFileNames, setKbFileNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch(
+      `/api/documents?collection=procurement&opportunityId=${opportunityId}`,
+    )
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { file_name: string | null }[]) => {
+        setKbFileNames(
+          new Set(rows.map((r) => r.file_name).filter(Boolean) as string[]),
+        );
+      })
+      .catch(() => {});
+  }, [opportunityId]);
 
   async function loadDocuments() {
     setLoading(true);
@@ -363,6 +380,14 @@ export function DocumentsPanel({
             doc={doc}
             opportunityId={opportunityId}
             onAdded={(docId) => setAddedIds((prev) => [...prev, docId])}
+            initiallyAdded={(() => {
+              const urlFileName = doc.url
+                ? decodeURIComponent(
+                    doc.url.split("/").pop()?.split("?")[0] ?? "",
+                  )
+                : null;
+              return urlFileName ? kbFileNames.has(urlFileName) : false;
+            })()}
           />
         ) : (
           // Static view before enrichment

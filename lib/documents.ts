@@ -9,6 +9,8 @@ type IngestInput = {
   fileName?: string;
   mimeType?: string;
   sourceType: "upload" | "sample" | "procurement";
+  collection?: string;
+  opportunityId?: string | null;
   pageCount?: number;
   wordCount?: number;
   extractionWarnings?: string[];
@@ -25,6 +27,8 @@ export async function ingestDocument(
     fileName,
     mimeType,
     sourceType,
+    collection = "main",
+    opportunityId,
     pageCount,
     wordCount,
     extractionWarnings,
@@ -41,6 +45,8 @@ export async function ingestDocument(
     .insert({
       title,
       source_type: sourceType,
+      collection,
+      opportunity_id: opportunityId ?? null,
       file_name: fileName ?? null,
       mime_type: mimeType ?? null,
       raw_text: text,

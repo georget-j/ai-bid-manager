@@ -104,6 +104,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     fileName,
     mimeType,
     sourceType: "procurement",
+    collection: "procurement",
+    opportunityId: id,
     pageCount: extraction.pageCount,
     wordCount: extraction.wordCount,
     extractionWarnings: extraction.warnings,

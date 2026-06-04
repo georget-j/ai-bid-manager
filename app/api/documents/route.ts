@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase";
 import { getRequestOrgId } from "@/lib/org";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = getServiceSupabase();
     const orgId = await getRequestOrgId();
@@ -14,11 +14,30 @@ export async function GET() {
       );
     }
 
-    const query = supabase
+    const { searchParams } = new URL(request.url);
+    const collection = searchParams.get("collection"); // 'main' | 'procurement' | 'all' | null
+    const opportunityId = searchParams.get("opportunityId");
+
+    let query = supabase
       .from("documents")
-      .select("id, title, source_type, file_name, created_at")
+      .select(
+        "id, title, source_type, file_name, created_at, collection, opportunity_id",
+      )
       .eq("org_id", orgId)
       .order("created_at", { ascending: false });
+
+    // Default to 'main' so the /documents page doesn't show procurement docs
+    if (collection === "all") {
+      // no filter — return everything
+    } else if (collection) {
+      query = query.eq("collection", collection);
+    } else {
+      query = query.eq("collection", "main");
+    }
+
+    if (opportunityId) {
+      query = query.eq("opportunity_id", opportunityId);
+    }
 
     const { data: documents, error } = await query;
 
