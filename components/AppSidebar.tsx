@@ -352,8 +352,9 @@ export function AppSidebar({
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
-  // Client-side admin check — overrides the SSR prop to avoid layout caching issues
-  const [isAdmin, setIsAdmin] = useState(isAdminProp);
+  // Always start hidden (false) so Sources never flashes to non-admins.
+  // The /api/auth/me fetch sets the real value after mount.
+  const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState(userEmailProp ?? null);
 
   useEffect(() => {
