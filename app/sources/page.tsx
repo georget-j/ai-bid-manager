@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface SourceRow {
@@ -20,6 +20,7 @@ interface SourceRow {
 interface SyncResult {
   source: string;
   fetched: number;
+  pages?: number;
   rawStored: number;
   duplicatesSkipped: number;
   opportunitiesUpserted: number;
@@ -28,12 +29,36 @@ interface SyncResult {
   error?: string;
 }
 
+interface BackfillState {
+  sourceName: string;
+  fromDate: string;
+  toDate: string;
+  currentFrom: string;
+  chunksTotal: number;
+  chunksDone: number;
+  totalStored: number;
+  totalFetched: number;
+  errors: string[];
+  running: boolean;
+  done: boolean;
+}
+
 const CONNECTOR_AVAILABLE = new Set([
   "find-tender",
   "contracts-finder",
   "public-contracts-scotland",
   "sell2wales",
 ]);
+
+function isoDate(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+function defaultFrom() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return isoDate(d);
+}
 
 function formatDate(iso: string | null) {
   if (!iso) return null;
@@ -67,6 +92,14 @@ export default function SourcesPage() {
     Record<string, SyncResult & { timestamp: string }>
   >({});
 
+  // Backfill state — one backfill at a time across all sources
+  const [backfill, setBackfill] = useState<BackfillState | null>(null);
+  // Per-source backfill form inputs (before starting)
+  const [backfillForms, setBackfillForms] = useState<
+    Record<string, { from: string; to: string; open: boolean }>
+  >({});
+  const cancelledRef = useRef(false);
+
   const load = useCallback(() => {
     fetch("/api/sources")
       .then((r) => r.json())
@@ -88,15 +121,12 @@ export default function SourcesPage() {
   async function triggerSync(name: string) {
     setSyncing(name);
     try {
-      const res = await fetch(`/api/sources/${name}/sync`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/sources/${name}/sync`, { method: "POST" });
       const data = (await res.json()) as SyncResult;
       setSyncResults((prev) => ({
         ...prev,
         [name]: { ...data, timestamp: new Date().toISOString() },
       }));
-      // Reload source stats
       load();
     } catch {
       setSyncResults((prev) => ({
@@ -139,6 +169,129 @@ export default function SourcesPage() {
     }
   }
 
+  function openBackfillForm(name: string) {
+    setBackfillForms((prev) => ({
+      ...prev,
+      [name]: prev[name]?.open
+        ? { ...prev[name], open: false }
+        : { from: defaultFrom(), to: isoDate(new Date()), open: true },
+    }));
+  }
+
+  async function startBackfill(sourceName: string) {
+    const form = backfillForms[sourceName];
+    if (!form) return;
+
+    const fromDate = form.from;
+    const toDate = form.to;
+    const chunkDays = 7;
+    const msPerChunk = chunkDays * 24 * 60 * 60 * 1000;
+    const chunksTotal = Math.max(
+      1,
+      Math.ceil(
+        (new Date(toDate).getTime() - new Date(fromDate).getTime()) /
+          msPerChunk,
+      ),
+    );
+
+    cancelledRef.current = false;
+    setBackfillForms((prev) => ({
+      ...prev,
+      [sourceName]: { ...form, open: false },
+    }));
+    setBackfill({
+      sourceName,
+      fromDate,
+      toDate,
+      currentFrom: fromDate,
+      chunksTotal,
+      chunksDone: 0,
+      totalStored: 0,
+      totalFetched: 0,
+      errors: [],
+      running: true,
+      done: false,
+    });
+
+    let currentFrom = fromDate;
+
+    while (!cancelledRef.current) {
+      let data: {
+        done: boolean;
+        nextFrom: string | null;
+        result: {
+          fetched: number;
+          opportunitiesUpserted: number;
+          errors: string[];
+        };
+        error?: string;
+      };
+
+      try {
+        const res = await fetch(`/api/sources/${sourceName}/backfill`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fromDate: currentFrom, toDate, chunkDays }),
+        });
+        data = await res.json();
+      } catch (err) {
+        setBackfill((prev) =>
+          prev
+            ? {
+                ...prev,
+                running: false,
+                errors: [
+                  ...prev.errors,
+                  err instanceof Error ? err.message : "Network error",
+                ],
+              }
+            : prev,
+        );
+        break;
+      }
+
+      if (data.error) {
+        setBackfill((prev) =>
+          prev
+            ? { ...prev, running: false, errors: [...prev.errors, data.error!] }
+            : prev,
+        );
+        break;
+      }
+
+      setBackfill((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentFrom: data.nextFrom ?? currentFrom,
+              chunksDone: prev.chunksDone + 1,
+              totalFetched: prev.totalFetched + (data.result.fetched ?? 0),
+              totalStored:
+                prev.totalStored + (data.result.opportunitiesUpserted ?? 0),
+              errors: [...prev.errors, ...data.result.errors],
+              running: !data.done,
+              done: data.done,
+            }
+          : prev,
+      );
+
+      if (data.done || !data.nextFrom || cancelledRef.current) break;
+      currentFrom = data.nextFrom;
+    }
+
+    // Refresh source counts after backfill completes
+    load();
+  }
+
+  function cancelBackfill() {
+    cancelledRef.current = true;
+    setBackfill((prev) =>
+      prev ? { ...prev, running: false, done: false } : prev,
+    );
+  }
+
+  const busyWithBackfill = backfill?.running ?? false;
+
   return (
     <div style={{ maxWidth: 900 }}>
       <div
@@ -157,7 +310,7 @@ export default function SourcesPage() {
         <button
           className="btn primary"
           onClick={triggerSyncAll}
-          disabled={syncingAll || !!syncing}
+          disabled={syncingAll || !!syncing || busyWithBackfill}
           style={{ marginTop: 4 }}
         >
           {syncingAll ? "Syncing all…" : "Sync all enabled sources"}
@@ -218,22 +371,24 @@ export default function SourcesPage() {
             const hasConnector = CONNECTOR_AVAILABLE.has(source.name);
             const isSyncing = syncing === source.name;
             const result = syncResults[source.name];
+            const isThisBackfilling =
+              backfill?.sourceName === source.name && backfill.running;
+            const backfillDone =
+              backfill?.sourceName === source.name && backfill.done;
+            const form = backfillForms[source.name];
 
             return (
               <div key={source.id}>
+                {/* Main source row */}
                 <div
                   style={{
                     padding: "16px 20px",
-                    borderBottom:
-                      i < sources.length - 1 || result
-                        ? "1px solid var(--border)"
-                        : "none",
+                    borderBottom: "1px solid var(--border)",
                     display: "flex",
                     gap: 16,
                     alignItems: "flex-start",
                   }}
                 >
-                  {/* Status dot */}
                   <div style={{ paddingTop: 4 }}>
                     <span
                       style={{
@@ -332,16 +487,28 @@ export default function SourcesPage() {
                     )}
                   </div>
 
-                  <div style={{ flexShrink: 0 }}>
+                  <div style={{ flexShrink: 0, display: "flex", gap: 6 }}>
                     {hasConnector ? (
-                      <button
-                        className="btn accent"
-                        onClick={() => triggerSync(source.name)}
-                        disabled={isSyncing || !source.enabled}
-                        style={{ fontSize: 12, padding: "5px 14px" }}
-                      >
-                        {isSyncing ? "Syncing…" : "Sync now"}
-                      </button>
+                      <>
+                        <button
+                          className="btn accent"
+                          onClick={() => triggerSync(source.name)}
+                          disabled={
+                            isSyncing || !source.enabled || busyWithBackfill
+                          }
+                          style={{ fontSize: 12, padding: "5px 14px" }}
+                        >
+                          {isSyncing ? "Syncing…" : "Sync now"}
+                        </button>
+                        <button
+                          className="btn"
+                          onClick={() => openBackfillForm(source.name)}
+                          disabled={isSyncing || busyWithBackfill}
+                          style={{ fontSize: 12, padding: "5px 14px" }}
+                        >
+                          Backfill
+                        </button>
+                      </>
                     ) : (
                       <span
                         style={{
@@ -361,10 +528,7 @@ export default function SourcesPage() {
                   <div
                     style={{
                       padding: "10px 20px 10px 44px",
-                      borderBottom:
-                        i < sources.length - 1
-                          ? "1px solid var(--border)"
-                          : "none",
+                      borderBottom: "1px solid var(--border)",
                       background: result.error ? "#fff5f5" : "var(--bg-tint)",
                       fontSize: 12.5,
                     }}
@@ -384,6 +548,7 @@ export default function SourcesPage() {
                       >
                         <span>
                           <b>{result.fetched}</b> fetched
+                          {result.pages ? ` (${result.pages} pages)` : ""}
                         </span>
                         <span>
                           <b>{result.rawStored}</b> raw stored
@@ -402,13 +567,220 @@ export default function SourcesPage() {
                         )}
                         {result.hasMore && (
                           <span style={{ color: "var(--accent)" }}>
-                            More pages available
+                            More pages — run sync again to continue
                           </span>
                         )}
                       </div>
                     )}
                   </div>
                 )}
+
+                {/* Backfill form */}
+                {form?.open && !isThisBackfilling && (
+                  <div
+                    style={{
+                      padding: "14px 20px 14px 44px",
+                      borderBottom: "1px solid var(--border)",
+                      background: "var(--accent-tint)",
+                      display: "flex",
+                      gap: 12,
+                      alignItems: "flex-end",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          marginBottom: 4,
+                        }}
+                      >
+                        From
+                      </label>
+                      <input
+                        type="date"
+                        value={form.from}
+                        max={form.to}
+                        onChange={(e) =>
+                          setBackfillForms((prev) => ({
+                            ...prev,
+                            [source.name]: {
+                              ...prev[source.name],
+                              from: e.target.value,
+                            },
+                          }))
+                        }
+                        style={{
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--r-sm)",
+                          padding: "4px 8px",
+                          fontSize: 13,
+                          background: "var(--bg)",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          marginBottom: 4,
+                        }}
+                      >
+                        To
+                      </label>
+                      <input
+                        type="date"
+                        value={form.to}
+                        min={form.from}
+                        max={isoDate(new Date())}
+                        onChange={(e) =>
+                          setBackfillForms((prev) => ({
+                            ...prev,
+                            [source.name]: {
+                              ...prev[source.name],
+                              to: e.target.value,
+                            },
+                          }))
+                        }
+                        style={{
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--r-sm)",
+                          padding: "4px 8px",
+                          fontSize: 13,
+                          background: "var(--bg)",
+                        }}
+                      />
+                    </div>
+                    <button
+                      className="btn primary"
+                      onClick={() => startBackfill(source.name)}
+                      style={{ fontSize: 12, padding: "6px 16px" }}
+                    >
+                      Start backfill
+                    </button>
+                    <p
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--muted)",
+                        margin: 0,
+                      }}
+                    >
+                      Processes week-by-week. Keep this tab open until complete.
+                    </p>
+                  </div>
+                )}
+
+                {/* Backfill progress */}
+                {(isThisBackfilling || backfillDone) &&
+                  backfill?.sourceName === source.name && (
+                    <div
+                      style={{
+                        padding: "14px 20px 14px 44px",
+                        borderBottom:
+                          i < sources.length - 1
+                            ? "1px solid var(--border)"
+                            : "none",
+                        background: backfill.done
+                          ? "#f0fdf4"
+                          : "var(--accent-tint)",
+                      }}
+                    >
+                      {/* Progress bar */}
+                      <div
+                        style={{
+                          height: 6,
+                          borderRadius: 999,
+                          background: "var(--border)",
+                          marginBottom: 10,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            borderRadius: 999,
+                            background: backfill.done
+                              ? "#059669"
+                              : "var(--accent)",
+                            width: `${Math.min(100, (backfill.chunksDone / backfill.chunksTotal) * 100)}%`,
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 20,
+                          flexWrap: "wrap",
+                          fontSize: 12.5,
+                          color: "var(--ink-2)",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span>
+                          {backfill.done ? (
+                            <b style={{ color: "#059669" }}>Complete</b>
+                          ) : (
+                            <>
+                              Week <b>{backfill.chunksDone + 1}</b> of{" "}
+                              <b>{backfill.chunksTotal}</b>
+                            </>
+                          )}
+                        </span>
+                        <span>
+                          Currently:{" "}
+                          <span
+                            style={{
+                              fontFamily: "var(--font-mono)",
+                              fontSize: 11,
+                            }}
+                          >
+                            {backfill.currentFrom}
+                          </span>
+                        </span>
+                        <span>
+                          <b>{backfill.totalFetched.toLocaleString()}</b>{" "}
+                          fetched
+                        </span>
+                        <span>
+                          <b>{backfill.totalStored.toLocaleString()}</b>{" "}
+                          opportunities stored
+                        </span>
+                        {backfill.errors.length > 0 && (
+                          <span style={{ color: "#d97706" }}>
+                            {backfill.errors.length} warning(s)
+                          </span>
+                        )}
+                        {!backfill.done && (
+                          <button
+                            className="btn"
+                            onClick={cancelBackfill}
+                            style={{
+                              fontSize: 11,
+                              padding: "3px 10px",
+                              color: "#dc2626",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        {backfill.done && (
+                          <button
+                            className="btn"
+                            onClick={() => setBackfill(null)}
+                            style={{ fontSize: 11, padding: "3px 10px" }}
+                          >
+                            Dismiss
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
               </div>
             );
           })}

@@ -10,6 +10,7 @@ import type {
 export interface SyncResult {
   source: string;
   fetched: number;
+  pages: number;
   rawStored: number;
   duplicatesSkipped: number;
   opportunitiesUpserted: number;
@@ -23,10 +24,22 @@ const LOOKBACK_HOURS = Number(
   process.env.PROCUREMENT_SYNC_LOOKBACK_HOURS ?? "24",
 );
 const SYNC_LIMIT = Number(process.env.PROCUREMENT_SYNC_LIMIT ?? "100");
+// Max pages per syncSource call — prevents runaway fetches / Vercel timeouts
+const MAX_PAGES = Number(process.env.PROCUREMENT_MAX_PAGES ?? "20");
 
 export async function syncSource(
   connector: ProcurementSourceConnector,
-  options: { fromDate?: Date; toDate?: Date; orgId?: string } = {},
+  options: {
+    fromDate?: Date;
+    toDate?: Date;
+    orgId?: string;
+    /**
+     * When true the function will NOT update last_successful_sync_at or
+     * last_cursor on the source row. Use for historical backfills so that
+     * the routine daily-sync state is not clobbered.
+     */
+    backfill?: boolean;
+  } = {},
 ): Promise<SyncResult> {
   const supabase = getServiceSupabase();
   const errors: string[] = [];
@@ -34,9 +47,10 @@ export async function syncSource(
   let duplicatesSkipped = 0;
   let opportunitiesUpserted = 0;
   let opportunitiesErrored = 0;
+  let totalFetched = 0;
+  let totalPages = 0;
   const upsertedIds: string[] = [];
 
-  // Fetch the source row to get last cursor / last sync time
   const { data: sourceRow } = await supabase
     .from("sources")
     .select("*")
@@ -50,155 +64,188 @@ export async function syncSource(
       ? new Date(sourceRow.last_successful_sync_at)
       : new Date(now.getTime() - LOOKBACK_HOURS * 60 * 60 * 1000));
   const to = options.toDate ?? now;
-  const cursor: string | null = sourceRow?.last_cursor ?? null;
 
-  // Fetch raw data
-  let fetchResult;
-  try {
-    fetchResult = await connector.fetchSince({
-      from,
-      to,
-      cursor,
-      limit: SYNC_LIMIT,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await updateSourceError(supabase, connector.sourceName, msg);
-    return {
-      source: connector.sourceName,
-      fetched: 0,
-      rawStored: 0,
-      duplicatesSkipped: 0,
-      opportunitiesUpserted: 0,
-      opportunitiesErrored: 0,
-      errors: [msg],
-      hasMore: false,
-      nextCursor: null,
-    };
-  }
+  // For explicit date ranges (backfills) always start at offset 0.
+  // For incremental syncs, continue from the stored cursor.
+  const startCursor: string | null = options.fromDate
+    ? null
+    : (sourceRow?.last_cursor ?? null);
 
-  const { rawItems, hasMore } = fetchResult;
-  const nextCursor: string | null = fetchResult.nextCursor ?? null;
+  let currentCursor = startCursor;
+  let hasMoreAfterCap = false;
 
-  // Process each raw item
-  for (const raw of rawItems) {
-    const contentHash = hashPayload(raw);
-
-    // Store raw notice — skip if identical hash already exists
-    const { error: rawError } = await supabase.from("raw_notices").insert({
-      source_name: connector.sourceName,
-      source_notice_id: extractSourceId(raw) ?? contentHash,
-      ocid: extractOcid(raw),
-      raw_payload: raw as object,
-      content_hash: contentHash,
-      fetched_at: fetchResult.fetchedAt,
-      parser_version: "1",
-    });
-
-    if (rawError) {
-      if (rawError.code === "23505") {
-        // unique_violation — duplicate, skip
-        duplicatesSkipped++;
-      } else {
-        errors.push(`raw_notice insert: ${rawError.message}`);
-      }
-      continue;
-    }
-
-    rawStored++;
-
-    // Normalize and upsert opportunity
-    let normalized: NormalizedOpportunity[];
+  // Paginate until exhausted or MAX_PAGES reached
+  while (totalPages < MAX_PAGES) {
+    let fetchResult;
     try {
-      normalized = await connector.normalize(raw);
+      fetchResult = await connector.fetchSince({
+        from,
+        to,
+        cursor: currentCursor,
+        limit: SYNC_LIMIT,
+      });
     } catch (err) {
-      errors.push(
-        `normalize: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      continue;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (totalPages === 0) {
+        await updateSourceError(supabase, connector.sourceName, msg);
+        return {
+          source: connector.sourceName,
+          fetched: 0,
+          pages: 0,
+          rawStored: 0,
+          duplicatesSkipped: 0,
+          opportunitiesUpserted: 0,
+          opportunitiesErrored: 0,
+          errors: [msg],
+          hasMore: false,
+          nextCursor: null,
+        };
+      }
+      errors.push(`page ${totalPages + 1} fetch: ${msg}`);
+      break;
     }
 
-    for (const opp of normalized) {
-      const { data: oppData, error: oppError } = await supabase
-        .from("opportunities")
-        .upsert(
-          {
-            canonical_ocid: opp.canonicalOcid ?? null,
-            source_name: opp.sourceName,
-            source_notice_id: opp.sourceNoticeId,
-            source_url: opp.sourceUrl ?? null,
-            submission_url: opp.submissionUrl ?? null,
-            title: opp.title,
-            description: opp.description ?? null,
-            buyer_name: opp.buyerName ?? null,
-            buyer_identifier: opp.buyerIdentifier ?? null,
-            buyer_region: opp.buyerRegion ?? null,
-            notice_type: opp.noticeType ?? null,
-            procurement_stage: opp.procurementStage,
-            status: opp.status,
-            cpv_codes: opp.cpvCodes,
-            region: opp.region ?? null,
-            value_amount: opp.valueAmount ?? null,
-            value_currency: opp.valueCurrency ?? "GBP",
-            published_at: opp.publishedAt ?? null,
-            deadline_at: opp.deadlineAt ?? null,
-            contract_start_at: opp.contractStartAt ?? null,
-            contract_end_at: opp.contractEndAt ?? null,
-            framework_flag: opp.frameworkFlag ?? false,
-            lots: opp.lots ?? null,
-            documents: opp.documents ?? null,
-            raw_json: opp.rawJson ?? null,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "source_name,source_notice_id",
-            ignoreDuplicates: false,
-          },
-        )
-        .select("id")
-        .single();
+    const { rawItems, hasMore } = fetchResult;
+    const nextPageCursor: string | null = fetchResult.nextCursor ?? null;
+    totalFetched += rawItems.length;
+    totalPages++;
 
-      if (oppError) {
-        errors.push(`opportunity upsert: ${oppError.message}`);
-        opportunitiesErrored++;
-      } else {
-        opportunitiesUpserted++;
-        if (oppData?.id) upsertedIds.push(oppData.id);
+    for (const raw of rawItems) {
+      const contentHash = hashPayload(raw);
+
+      const { error: rawError } = await supabase.from("raw_notices").insert({
+        source_name: connector.sourceName,
+        source_notice_id: extractSourceId(raw) ?? contentHash,
+        ocid: extractOcid(raw),
+        raw_payload: raw as object,
+        content_hash: contentHash,
+        fetched_at: fetchResult.fetchedAt,
+        parser_version: "1",
+      });
+
+      if (rawError) {
+        if (rawError.code === "23505") {
+          duplicatesSkipped++;
+        } else {
+          errors.push(`raw_notice insert: ${rawError.message}`);
+        }
+        continue;
       }
+
+      rawStored++;
+
+      let normalized: NormalizedOpportunity[];
+      try {
+        normalized = await connector.normalize(raw);
+      } catch (err) {
+        errors.push(
+          `normalize: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        continue;
+      }
+
+      for (const opp of normalized) {
+        const { data: oppData, error: oppError } = await supabase
+          .from("opportunities")
+          .upsert(
+            {
+              canonical_ocid: opp.canonicalOcid ?? null,
+              source_name: opp.sourceName,
+              source_notice_id: opp.sourceNoticeId,
+              source_url: opp.sourceUrl ?? null,
+              submission_url: opp.submissionUrl ?? null,
+              title: opp.title,
+              description: opp.description ?? null,
+              buyer_name: opp.buyerName ?? null,
+              buyer_identifier: opp.buyerIdentifier ?? null,
+              buyer_region: opp.buyerRegion ?? null,
+              notice_type: opp.noticeType ?? null,
+              procurement_stage: opp.procurementStage,
+              status: opp.status,
+              cpv_codes: opp.cpvCodes,
+              region: opp.region ?? null,
+              value_amount: opp.valueAmount ?? null,
+              value_currency: opp.valueCurrency ?? "GBP",
+              published_at: opp.publishedAt ?? null,
+              deadline_at: opp.deadlineAt ?? null,
+              contract_start_at: opp.contractStartAt ?? null,
+              contract_end_at: opp.contractEndAt ?? null,
+              framework_flag: opp.frameworkFlag ?? false,
+              lots: opp.lots ?? null,
+              documents: opp.documents ?? null,
+              raw_json: opp.rawJson ?? null,
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: "source_name,source_notice_id",
+              ignoreDuplicates: false,
+            },
+          )
+          .select("id")
+          .single();
+
+        if (oppError) {
+          errors.push(`opportunity upsert: ${oppError.message}`);
+          opportunitiesErrored++;
+        } else {
+          opportunitiesUpserted++;
+          if (oppData?.id) upsertedIds.push(oppData.id);
+        }
+      }
+    }
+
+    // Advance cursor for next page
+    currentCursor = nextPageCursor;
+
+    if (!hasMore || !currentCursor) {
+      // All pages consumed
+      break;
+    }
+
+    if (totalPages >= MAX_PAGES) {
+      // Hit the cap — signal caller that there is still more
+      hasMoreAfterCap = true;
+      break;
     }
   }
 
-  // Run alert matching for newly upserted opportunities
   if (upsertedIds.length > 0) {
     try {
       await matchAlertsForOpportunities(upsertedIds);
     } catch {
-      // Alert matching failures should not fail the sync
+      // Alert matching failures must not fail the sync
     }
   }
 
-  // Update source sync status
-  await supabase
-    .from("sources")
-    .update({
-      last_successful_sync_at:
-        rawStored > 0 ? now.toISOString() : sourceRow?.last_successful_sync_at,
-      last_cursor: nextCursor,
-      last_error: errors.length > 0 ? errors[0] : null,
-      updated_at: now.toISOString(),
-    })
-    .eq("name", connector.sourceName);
+  // Don't mutate source-row state during backfills
+  if (!options.backfill) {
+    await supabase
+      .from("sources")
+      .update({
+        last_successful_sync_at:
+          rawStored > 0
+            ? now.toISOString()
+            : sourceRow?.last_successful_sync_at,
+        // Persist the cursor only if we hit the page cap mid-window so the
+        // next routine sync can continue where we left off.
+        last_cursor: hasMoreAfterCap ? currentCursor : null,
+        last_error: errors.length > 0 ? errors[0] : null,
+        updated_at: now.toISOString(),
+      })
+      .eq("name", connector.sourceName);
+  }
 
   return {
     source: connector.sourceName,
-    fetched: rawItems.length,
+    fetched: totalFetched,
+    pages: totalPages,
     rawStored,
     duplicatesSkipped,
     opportunitiesUpserted,
     opportunitiesErrored,
     errors,
-    hasMore,
-    nextCursor,
+    hasMore: hasMoreAfterCap,
+    nextCursor: hasMoreAfterCap ? currentCursor : null,
   };
 }
 
