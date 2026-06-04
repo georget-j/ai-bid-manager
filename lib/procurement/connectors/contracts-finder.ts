@@ -13,6 +13,31 @@ const BASE_URL =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
 
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchWithRetry(url: string, maxRetries = 4): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (res.status !== 429) return res;
+    if (attempt === maxRetries) return res; // let caller handle final 429
+
+    const retryAfter = res.headers.get("Retry-After");
+    const delay = retryAfter
+      ? Math.min(parseInt(retryAfter, 10) * 1000, 60_000)
+      : Math.min(1_500 * 2 ** attempt, 30_000); // 1.5 s, 3 s, 6 s, 12 s
+
+    await sleep(delay);
+  }
+  // unreachable but satisfies TS
+  throw new Error("fetchWithRetry: exhausted retries");
+}
+
 export const contractsFinderConnector: ProcurementSourceConnector = {
   sourceName: "contracts-finder",
   displayName: "Contracts Finder",
@@ -42,10 +67,7 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
             return url.toString();
           })();
 
-    const response = await fetch(fetchUrl, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(30_000),
-    });
+    const response = await fetchWithRetry(fetchUrl);
 
     if (!response.ok) {
       throw new Error(
