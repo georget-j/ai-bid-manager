@@ -21,20 +21,28 @@ type Step = "upload" | "reviewing" | "answering" | "done";
 interface RFPProcessorProps {
   initialTitle?: string;
   initialOpportunityId?: string;
+  initialQuestions?: ExtractedQuestion[];
 }
 
 export function RFPProcessor({
   initialTitle = "",
   initialOpportunityId,
+  initialQuestions,
 }: RFPProcessorProps = {}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState<Step>("upload");
+  const [step, setStep] = useState<Step>(
+    initialQuestions && initialQuestions.length > 0 ? "reviewing" : "upload",
+  );
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rfpTitle, setRfpTitle] = useState(initialTitle);
 
-  const [questions, setQuestions] = useState<ExtractedQuestion[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [questions, setQuestions] = useState<ExtractedQuestion[]>(
+    initialQuestions ?? [],
+  );
+  const [selected, setSelected] = useState<Set<number>>(
+    new Set((initialQuestions ?? []).map((q) => q.id)),
+  );
 
   const [answers, setAnswers] = useState<Map<number, AnsweredQuestion>>(
     new Map(),
