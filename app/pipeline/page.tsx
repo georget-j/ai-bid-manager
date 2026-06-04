@@ -27,6 +27,16 @@ interface PipelineItem {
   due_date: string | null;
   created_at: string;
   opportunity: Opportunity | null;
+  question_count: number;
+  answered_count: number;
+  matrix_count: number;
+  first_matrix_id: string | null;
+}
+
+interface PipelineTotals {
+  questions: number;
+  answered: number;
+  matrices: number;
 }
 
 const STATUS_CONFIG: {
@@ -89,6 +99,11 @@ function formatDeadline(iso: string | null) {
 
 export default function PipelinePage() {
   const [items, setItems] = useState<PipelineItem[]>([]);
+  const [totals, setTotals] = useState<PipelineTotals>({
+    questions: 0,
+    answered: 0,
+    matrices: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
@@ -97,11 +112,20 @@ export default function PipelinePage() {
   useEffect(() => {
     fetch("/api/pipeline")
       .then((r) => r.json())
-      .then((d: { items?: PipelineItem[]; error?: string }) => {
-        if (d.error) setError(d.error);
-        else setItems(d.items ?? []);
-        setLoading(false);
-      })
+      .then(
+        (d: {
+          items?: PipelineItem[];
+          totals?: PipelineTotals;
+          error?: string;
+        }) => {
+          if (d.error) setError(d.error);
+          else {
+            setItems(d.items ?? []);
+            setTotals(d.totals ?? { questions: 0, answered: 0, matrices: 0 });
+          }
+          setLoading(false);
+        },
+      )
       .catch(() => {
         setError("Failed to load pipeline — please refresh.");
         setLoading(false);
@@ -222,6 +246,35 @@ export default function PipelinePage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Intelligence aggregate */}
+      {items.length > 0 && totals.questions > 0 && (
+        <p
+          style={{
+            fontSize: 12.5,
+            color: "var(--muted)",
+            marginBottom: 16,
+            marginTop: -8,
+          }}
+        >
+          {totals.questions} questions across{" "}
+          {items.filter((i) => i.question_count > 0).length} bid
+          {items.filter((i) => i.question_count > 0).length === 1 ? "" : "s"}
+          {totals.questions > 0 && (
+            <span style={{ color: "#059669" }}>
+              {" "}
+              · {totals.answered} answered
+            </span>
+          )}
+          {totals.matrices > 0 && (
+            <span>
+              {" "}
+              · {totals.matrices} compliance matrix
+              {totals.matrices === 1 ? "" : "es"}
+            </span>
+          )}
+        </p>
       )}
 
       {/* Tabs */}
@@ -442,6 +495,99 @@ export default function PipelinePage() {
                       </>
                     )}
                   </div>
+
+                  {/* Question progress + matrix quick-links */}
+                  {(item.question_count > 0 || item.matrix_count > 0) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        marginTop: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {item.question_count > 0 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 80,
+                              height: 4,
+                              borderRadius: 2,
+                              background: "var(--bg-tint)",
+                              overflow: "hidden",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: "100%",
+                                width: `${(item.answered_count / item.question_count) * 100}%`,
+                                background:
+                                  item.answered_count === item.question_count
+                                    ? "#059669"
+                                    : "var(--accent)",
+                                borderRadius: 2,
+                              }}
+                            />
+                          </div>
+                          <span
+                            style={{ fontSize: 11.5, color: "var(--muted)" }}
+                          >
+                            {item.answered_count}/{item.question_count} answered
+                          </span>
+                          <Link
+                            href={`/opportunities/${item.opportunity_id}#questions`}
+                            style={{
+                              fontSize: 11.5,
+                              color: "var(--accent)",
+                              textDecoration: "none",
+                            }}
+                          >
+                            View →
+                          </Link>
+                        </div>
+                      )}
+                      {item.matrix_count > 0 && item.first_matrix_id && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              background: "#dbeafe",
+                              color: "#1d4ed8",
+                            }}
+                          >
+                            {item.matrix_count} matrix
+                          </span>
+                          <Link
+                            href={`/compliance/${item.first_matrix_id}`}
+                            style={{
+                              fontSize: 11.5,
+                              color: "var(--accent)",
+                              textDecoration: "none",
+                            }}
+                          >
+                            Open →
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div
