@@ -8,7 +8,7 @@ type IngestInput = {
   title: string;
   fileName?: string;
   mimeType?: string;
-  sourceType: "upload" | "sample";
+  sourceType: "upload" | "sample" | "procurement";
   pageCount?: number;
   wordCount?: number;
   extractionWarnings?: string[];

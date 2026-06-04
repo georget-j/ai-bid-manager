@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOpportunity } from "@/lib/procurement/data";
 import { OpportunityActions } from "./OpportunityActions";
+import { DocumentsPanel } from "./DocumentsPanel";
 import type {
   OpportunityRow,
   NormalizedLot,
@@ -347,56 +348,8 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Documents */}
-      {docs.length > 0 && (
-        <div className="card card-pad" style={{ marginBottom: 16 }}>
-          <div className="eyebrow" style={{ marginBottom: 12 }}>
-            Tender documents
-          </div>
-          {docs.map((doc, i) => (
-            <div
-              key={doc.id ?? i}
-              style={{
-                padding: "10px 0",
-                borderBottom:
-                  i < docs.length - 1 ? "1px solid var(--border)" : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    fontSize: 13.5,
-                    color: "var(--ink)",
-                    marginBottom: 2,
-                  }}
-                >
-                  {doc.title}
-                </p>
-                {doc.documentType && (
-                  <p style={{ fontSize: 12, color: "var(--muted)" }}>
-                    {doc.documentType}
-                  </p>
-                )}
-              </div>
-              {doc.url && (
-                <a
-                  href={doc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn ghost"
-                  style={{ fontSize: 12, padding: "4px 12px", flexShrink: 0 }}
-                >
-                  Download ↗
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Documents — always show the panel so users can check accessibility */}
+      <DocumentsPanel opportunityId={opp.id} initialDocs={docs} />
     </div>
   );
 }

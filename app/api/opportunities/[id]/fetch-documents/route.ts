@@ -1,0 +1,231 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getRequestOrgId } from "@/lib/org";
+import { getOpportunity } from "@/lib/procurement/data";
+import type { NormalizedDocument } from "@/lib/procurement/types";
+
+interface Params {
+  params: Promise<{ id: string }>;
+}
+
+export interface PortalInfo {
+  name: string;
+  instructions: string[];
+}
+
+export interface EnrichedDocument extends NormalizedDocument {
+  accessibility: "accessible" | "portal-required" | "unknown" | "error";
+  portal?: PortalInfo;
+  errorMessage?: string;
+}
+
+const PORTAL_PATTERNS: Array<{
+  patterns: string[];
+  name: string;
+  instructions: string[];
+}> = [
+  {
+    patterns: ["delta-esourcing.co.uk", "bravosolution"],
+    name: "Delta eSourcing",
+    instructions: [
+      "Register for a free supplier account at delta-esourcing.co.uk",
+      "Log in and navigate to 'My Tenders'",
+      "Search for this opportunity by reference number or title",
+      "Download tender documents from the 'Tender Documents' tab",
+    ],
+  },
+  {
+    patterns: ["jaggaer.com"],
+    name: "Jaggaer",
+    instructions: [
+      "Register for a free supplier account at the buyer's Jaggaer portal",
+      "Log in and navigate to 'Sourcing Events'",
+      "Search by the contract reference or OCID",
+      "Express interest to unlock document downloads",
+    ],
+  },
+  {
+    patterns: ["in-tend.co.uk"],
+    name: "InTend",
+    instructions: [
+      "Register at the buyer's InTend portal",
+      "Log in and browse 'Current Opportunities'",
+      "Enter the reference number from this notice",
+      "Click 'Express Interest' to access tender documents",
+    ],
+  },
+  {
+    patterns: ["procontract.due-north.com"],
+    name: "ProContract",
+    instructions: [
+      "Register at procontract.due-north.com",
+      "Log in and select 'Opportunities'",
+      "Search by opportunity title or reference",
+      "Express interest to download the tender pack",
+    ],
+  },
+  {
+    patterns: ["mytenders.co.uk", "proactis.com"],
+    name: "Pro-Actis / myTenders",
+    instructions: [
+      "Register at mytenders.co.uk",
+      "Log in and navigate to 'Access Projects'",
+      "Search by the contract reference",
+      "Register interest and download documents from the opportunity page",
+    ],
+  },
+  {
+    patterns: ["contracts.mod.uk", "defencegateway"],
+    name: "MOD Defence Contracts Online",
+    instructions: [
+      "Register at contracts.mod.uk (identity verification required)",
+      "Complete your supplier registration and any required vetting",
+      "Log in and search the tender list by reference number",
+      "Express interest to receive tender documents",
+    ],
+  },
+  {
+    patterns: ["sell2wales.gov.wales"],
+    name: "Sell2Wales",
+    instructions: [
+      "Register at sell2wales.gov.wales",
+      "Log in and search 'Opportunities'",
+      "Find this opportunity and click 'Express Interest'",
+      "Download tender documents from your 'My Opportunities' area",
+    ],
+  },
+  {
+    patterns: ["publiccontractsscotland.gov.uk"],
+    name: "Public Contracts Scotland",
+    instructions: [
+      "Register at publiccontractsscotland.gov.uk",
+      "Log in and search for this opportunity",
+      "Express interest to access the tender documents",
+    ],
+  },
+  {
+    patterns: ["etenderwales.bravosolution.co.uk"],
+    name: "eTender Wales",
+    instructions: [
+      "Register at etenderwales.bravosolution.co.uk",
+      "Log in and search for this opportunity",
+      "Express interest to download the ITT documents",
+    ],
+  },
+];
+
+function detectPortal(url: string): PortalInfo | null {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    for (const entry of PORTAL_PATTERNS) {
+      if (entry.patterns.some((p) => hostname.includes(p))) {
+        return { name: entry.name, instructions: entry.instructions };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function checkAccessibility(url: string): Promise<{
+  accessibility: "accessible" | "portal-required" | "unknown" | "error";
+  portal?: PortalInfo;
+  errorMessage?: string;
+}> {
+  const portal = detectPortal(url);
+  if (portal) {
+    return { accessibility: "portal-required", portal };
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(5_000),
+      redirect: "follow",
+    });
+    if (res.ok) {
+      return { accessibility: "accessible" };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { accessibility: "portal-required" };
+    }
+    return { accessibility: "error", errorMessage: `HTTP ${res.status}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Request failed";
+    return {
+      accessibility: "unknown",
+      errorMessage: msg.toLowerCase().includes("abort") ? "Timeout" : msg,
+    };
+  }
+}
+
+function collectDocUrls(opp: {
+  documents: NormalizedDocument[] | null;
+  raw_json: unknown;
+}): NormalizedDocument[] {
+  const base = (opp.documents ?? []) as NormalizedDocument[];
+  const seen = new Set(base.map((d) => d.url).filter(Boolean));
+
+  const extra: NormalizedDocument[] = [];
+  const raw = opp.raw_json as Record<string, unknown> | null;
+  if (raw && Array.isArray(raw.documents)) {
+    for (const d of raw.documents as Array<Record<string, unknown>>) {
+      if (typeof d.url === "string" && !seen.has(d.url)) {
+        seen.add(d.url);
+        extra.push({
+          title: typeof d.title === "string" ? d.title : "Untitled document",
+          url: d.url,
+          format: typeof d.format === "string" ? d.format : undefined,
+          documentType:
+            typeof d.documentType === "string" ? d.documentType : undefined,
+        });
+      }
+    }
+  }
+
+  return [...base, ...extra].filter((d) => Boolean(d.url));
+}
+
+export async function POST(_request: NextRequest, { params }: Params) {
+  const orgId = await getRequestOrgId();
+  if (!orgId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const opp = await getOpportunity(id);
+  if (!opp) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const allDocs = collectDocUrls(opp);
+
+  const CONCURRENCY = 8;
+  const results: EnrichedDocument[] = [];
+
+  for (let i = 0; i < allDocs.length; i += CONCURRENCY) {
+    const batch = allDocs.slice(i, i + CONCURRENCY);
+    const checked = await Promise.allSettled(
+      batch.map((doc) =>
+        checkAccessibility(doc.url!).then((check) => ({
+          ...doc,
+          ...check,
+        })),
+      ),
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const r = checked[j];
+      results.push(
+        r.status === "fulfilled"
+          ? r.value
+          : {
+              ...batch[j],
+              accessibility: "error",
+              errorMessage: "Check failed",
+            },
+      );
+    }
+  }
+
+  return NextResponse.json({ documents: results });
+}
