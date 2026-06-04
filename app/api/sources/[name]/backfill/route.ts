@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { syncSource } from "@/lib/procurement/sync";
+import { syncPage } from "@/lib/procurement/sync";
 import { findTenderConnector } from "@/lib/procurement/connectors/find-tender";
 import { contractsFinderConnector } from "@/lib/procurement/connectors/contracts-finder";
 import { publicContractsScotlandConnector } from "@/lib/procurement/connectors/public-contracts-scotland";
@@ -118,14 +118,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     ),
   );
 
-  // One page per call — keeps the serverless invocation well under timeout.
+  // One page per call with bulk DB writes — keeps invocations well under timeout.
   // The client re-calls with the returned cursor to get the next page.
-  const result = await syncSource(connector, {
-    fromDate: chunkFrom,
-    toDate: chunkTo,
-    backfill: true,
+  const result = await syncPage(connector, {
+    from: chunkFrom,
+    to: chunkTo,
     cursor: pageCursor,
-    maxPages: 1,
   });
 
   const chunkExhausted = !result.hasMore;
@@ -150,9 +148,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     overallTo: overallTo.toISOString().split("T")[0],
     result: {
       fetched: result.fetched,
-      pages: result.pages,
-      rawStored: result.rawStored,
-      duplicatesSkipped: result.duplicatesSkipped,
+      pages: 1,
+      rawStored: result.fetched,
+      duplicatesSkipped: 0,
       opportunitiesUpserted: result.opportunitiesUpserted,
       errors: result.errors,
       hasMore: result.hasMore,

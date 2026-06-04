@@ -49,6 +49,7 @@ interface BackfillState {
 interface CountSyncState {
   sourceName: string;
   target: number;
+  startedAt: number;
   fetched: number;
   stored: number;
   pages: number;
@@ -391,6 +392,7 @@ export default function SourcesPage() {
     setCountSync({
       sourceName,
       target,
+      startedAt: Date.now(),
       fetched: 0,
       stored: 0,
       pages: 0,
@@ -1086,6 +1088,23 @@ export default function SourcesPage() {
                           {countSync.pages} page
                           {countSync.pages !== 1 ? "s" : ""}
                         </span>
+                        {countSync.running &&
+                          countSync.fetched > 0 &&
+                          (() => {
+                            const elapsed =
+                              (Date.now() - countSync.startedAt) / 1000;
+                            const rate = countSync.fetched / elapsed; // items/sec
+                            const remaining =
+                              (countSync.target - countSync.fetched) / rate;
+                            const mins = Math.floor(remaining / 60);
+                            const secs = Math.round(remaining % 60);
+                            return (
+                              <span style={{ color: "var(--muted)" }}>
+                                ~{mins > 0 ? `${mins}m ` : ""}
+                                {secs}s left
+                              </span>
+                            );
+                          })()}
                         {countSync.errors.length > 0 && (
                           <span
                             style={{
