@@ -42,6 +42,8 @@ interface BackfillState {
   errors: string[];
   running: boolean;
   done: boolean;
+  /** When true, chunks process newest-first (today → past). */
+  backwards: boolean;
 }
 
 const CONNECTOR_AVAILABLE = new Set([
@@ -179,12 +181,17 @@ export default function SourcesPage() {
     }));
   }
 
-  async function startBackfill(sourceName: string) {
-    const form = backfillForms[sourceName];
-    if (!form) return;
-
-    const fromDate = form.from;
-    const toDate = form.to;
+  /**
+   * Core loop used by both manual backfill (forward) and auto-sync (backward).
+   * Forward:  starts at fromDate, advances week by week toward toDate.
+   * Backward: starts at toDate, steps back week by week toward fromDate.
+   */
+  async function runBackfillLoop(
+    sourceName: string,
+    fromDate: string,
+    toDate: string,
+    backwards: boolean,
+  ) {
     const chunkDays = 7;
     const msPerChunk = chunkDays * 24 * 60 * 60 * 1000;
     const chunksTotal = Math.max(
@@ -196,15 +203,13 @@ export default function SourcesPage() {
     );
 
     cancelledRef.current = false;
-    setBackfillForms((prev) => ({
-      ...prev,
-      [sourceName]: { ...form, open: false },
-    }));
     setBackfill({
       sourceName,
       fromDate,
       toDate,
-      currentFrom: fromDate,
+      currentFrom: backwards
+        ? isoDate(new Date(new Date(toDate).getTime() - msPerChunk))
+        : fromDate,
       currentPage: 1,
       chunksTotal,
       chunksDone: 0,
@@ -213,13 +218,22 @@ export default function SourcesPage() {
       errors: [],
       running: true,
       done: false,
+      backwards,
     });
 
-    // Drive both page cursor (within a chunk) and chunk advancement (week by week)
-    let currentFrom = fromDate;
+    // Backwards: walk toDate pointer from today toward fromDate.
+    // Forward:   walk fromDate pointer toward toDate.
+    let chunkTo = backwards ? toDate : null; // only used in backwards mode
+    let currentFrom = backwards
+      ? isoDate(new Date(new Date(toDate).getTime() - msPerChunk))
+      : fromDate;
     let currentCursor: string | null = null;
 
     while (!cancelledRef.current) {
+      // In backwards mode the "window" for this chunk is currentFrom → chunkTo.
+      // In forward mode the route computes its own chunk end from fromDate + chunkDays.
+      const chunkToDate = backwards ? chunkTo! : toDate;
+
       let data: {
         done: boolean;
         nextCursor: string | null;
@@ -238,8 +252,9 @@ export default function SourcesPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fromDate: currentFrom,
-            toDate,
-            chunkDays,
+            toDate: chunkToDate,
+            // In backwards mode send chunkDays large enough to cover exactly this window
+            chunkDays: backwards ? chunkDays : chunkDays,
             cursor: currentCursor,
           }),
         });
@@ -269,15 +284,17 @@ export default function SourcesPage() {
         break;
       }
 
-      const chunkAdvanced = !data.nextCursor && !!data.nextFrom;
+      const chunkExhausted = !data.nextCursor;
 
       setBackfill((prev) =>
         prev
           ? {
               ...prev,
-              currentFrom: data.nextFrom ?? currentFrom,
-              currentPage: chunkAdvanced ? 1 : prev.currentPage + 1,
-              chunksDone: chunkAdvanced ? prev.chunksDone + 1 : prev.chunksDone,
+              currentFrom,
+              currentPage: chunkExhausted ? 1 : prev.currentPage + 1,
+              chunksDone: chunkExhausted
+                ? prev.chunksDone + 1
+                : prev.chunksDone,
               totalFetched: prev.totalFetched + (data.result.fetched ?? 0),
               totalStored:
                 prev.totalStored + (data.result.opportunitiesUpserted ?? 0),
@@ -288,22 +305,56 @@ export default function SourcesPage() {
           : prev,
       );
 
-      if (data.done || cancelledRef.current) break;
+      if (cancelledRef.current) break;
 
       if (data.nextCursor) {
-        // More pages in the same chunk — continue with cursor
+        // More pages in this chunk — same window, next page
         currentCursor = data.nextCursor;
-      } else if (data.nextFrom) {
-        // This chunk exhausted — advance to next chunk, reset cursor
-        currentFrom = data.nextFrom;
+      } else if (backwards) {
+        // Chunk done — step backward one week
+        const nextChunkTo = currentFrom;
+        const nextChunkFrom = isoDate(
+          new Date(new Date(currentFrom).getTime() - msPerChunk),
+        );
+        if (new Date(nextChunkTo) <= new Date(fromDate)) {
+          // Reached the earliest date — done
+          setBackfill((prev) =>
+            prev ? { ...prev, running: false, done: true } : prev,
+          );
+          break;
+        }
+        chunkTo = nextChunkTo;
+        currentFrom = nextChunkFrom < fromDate ? fromDate : nextChunkFrom;
         currentCursor = null;
       } else {
-        break;
+        // Forward mode: use the route's nextFrom to advance
+        if (data.done || !data.nextFrom) break;
+        currentFrom = data.nextFrom;
+        currentCursor = null;
       }
     }
 
-    // Refresh source counts after backfill completes
     load();
+  }
+
+  async function startBackfill(sourceName: string) {
+    const form = backfillForms[sourceName];
+    if (!form) return;
+    setBackfillForms((prev) => ({
+      ...prev,
+      [sourceName]: { ...form, open: false },
+    }));
+    await runBackfillLoop(sourceName, form.from, form.to, false);
+  }
+
+  /** One-click: start from today and walk backwards, no config required. */
+  async function startAutoSync(sourceName: string) {
+    const to = isoDate(new Date());
+    // Go back up to 2 years by default
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+    const from = isoDate(twoYearsAgo);
+    await runBackfillLoop(sourceName, from, to, true);
   }
 
   function cancelBackfill() {
@@ -510,7 +561,15 @@ export default function SourcesPage() {
                     )}
                   </div>
 
-                  <div style={{ flexShrink: 0, display: "flex", gap: 6 }}>
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      gap: 6,
+                      flexWrap: "wrap",
+                      justifyContent: "flex-end",
+                    }}
+                  >
                     {hasConnector ? (
                       <>
                         <button
@@ -524,12 +583,23 @@ export default function SourcesPage() {
                           {isSyncing ? "Syncing…" : "Sync now"}
                         </button>
                         <button
+                          className="btn primary"
+                          onClick={() => startAutoSync(source.name)}
+                          disabled={
+                            isSyncing || busyWithBackfill || !source.enabled
+                          }
+                          style={{ fontSize: 12, padding: "5px 14px" }}
+                          title="Fetch from today backwards — newest opportunities first"
+                        >
+                          Sync history ↩
+                        </button>
+                        <button
                           className="btn"
                           onClick={() => openBackfillForm(source.name)}
                           disabled={isSyncing || busyWithBackfill}
                           style={{ fontSize: 12, padding: "5px 14px" }}
                         >
-                          Backfill
+                          Backfill…
                         </button>
                       </>
                     ) : (
@@ -747,10 +817,15 @@ export default function SourcesPage() {
                       >
                         <span>
                           {backfill.done ? (
-                            <b style={{ color: "#059669" }}>Complete</b>
+                            <b style={{ color: "#059669" }}>
+                              {backfill.backwards
+                                ? "All history synced"
+                                : "Complete"}
+                            </b>
                           ) : (
                             <>
-                              Week <b>{backfill.chunksDone + 1}</b> of{" "}
+                              {backfill.backwards ? "↩ Week" : "Week"}{" "}
+                              <b>{backfill.chunksDone + 1}</b> of{" "}
                               <b>{backfill.chunksTotal}</b>
                               {" · "}page <b>{backfill.currentPage}</b>
                             </>
