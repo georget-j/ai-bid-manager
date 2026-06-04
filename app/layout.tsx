@@ -7,6 +7,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getAuthUser } from "@/lib/supabase-server";
 import { getIsAdmin } from "@/lib/admin-auth";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "UK Bid Intelligence Agent",
   description:

@@ -440,6 +440,12 @@ h4 {
 .card-pad {
   padding: 20px 22px;
 }
+.opp-row {
+  transition: background 100ms;
+}
+.opp-row:hover {
+  background: var(--bg-tint);
+}
 .card-pad-sm {
   padding: 14px 16px;
 }

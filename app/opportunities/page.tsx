@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listOpportunities } from "@/lib/procurement/data";
+import { getIsAdmin } from "@/lib/admin-auth";
 import type { OpportunityRow } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,8 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
 
   let opportunities: OpportunityRow[] = [];
   let total = 0;
+  let fetchError: string | null = null;
+  const isAdmin = await getIsAdmin();
 
   try {
     const result = await listOpportunities({
@@ -79,8 +82,9 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
     });
     opportunities = result.opportunities;
     total = result.total;
-  } catch {
-    // show empty state on error
+  } catch (err) {
+    fetchError =
+      err instanceof Error ? err.message : "Failed to load opportunities";
   }
 
   const hasFilters = !!(search || status || stage || region || buyer);
@@ -169,20 +173,39 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             ? "No opportunities found"
             : `${total} opportunit${total === 1 ? "y" : "ies"}`}
         </span>
-        <Link
-          href="/sources"
-          style={{
-            fontSize: 12,
-            color: "var(--accent)",
-            textDecoration: "none",
-          }}
-        >
-          + Connect a source
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/sources"
+            style={{
+              fontSize: 12,
+              color: "var(--accent)",
+              textDecoration: "none",
+            }}
+          >
+            + Connect a source
+          </Link>
+        )}
       </div>
 
+      {/* Error state */}
+      {fetchError && (
+        <div
+          className="card card-pad"
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            padding: "16px 20px",
+            marginBottom: 16,
+          }}
+        >
+          <p style={{ fontSize: 13, color: "#dc2626" }}>
+            Error loading opportunities: {fetchError}
+          </p>
+        </div>
+      )}
+
       {/* Empty state */}
-      {opportunities.length === 0 && (
+      {!fetchError && opportunities.length === 0 && (
         <div
           className="card card-pad"
           style={{ textAlign: "center", padding: "48px 32px" }}
@@ -210,9 +233,11 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           >
             {hasFilters
               ? "Try removing some filters or broadening your search."
-              : "Connect a procurement source and run a sync to start seeing live UK tender opportunities here."}
+              : isAdmin
+                ? "Connect a procurement source and run a sync to start seeing live UK tender opportunities here."
+                : "Your admin is setting up procurement sources. Check back soon."}
           </p>
-          {!hasFilters && (
+          {!hasFilters && isAdmin && (
             <Link href="/sources" className="btn primary">
               Connect a source
             </Link>
@@ -236,6 +261,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
                 style={{ textDecoration: "none" }}
               >
                 <div
+                  className="opp-row"
                   style={{
                     padding: "16px 20px",
                     borderBottom:
@@ -245,14 +271,6 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
                     display: "flex",
                     gap: 16,
                     alignItems: "flex-start",
-                    transition: "background 100ms",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.background =
-                      "var(--bg-tint)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.background = "";
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
