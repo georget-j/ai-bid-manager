@@ -4,14 +4,26 @@ import { getServiceSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
+// Bound the dashboard's DB wait. If the knowledge base is unreachable (e.g. a
+// paused free-tier database), the connection can hang for several seconds before
+// it fails — which would block this server-rendered page. Abort after 2.5s and
+// render without stats rather than make every visitor wait on a dead connection.
+const STATS_TIMEOUT_MS = 2500
+
 async function getKnowledgeBaseStats() {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), STATS_TIMEOUT_MS)
+
   try {
     const supabase = getServiceSupabase()
 
     const [{ data: docs, error: docsError }, { count: chunkCount, error: chunksError }] =
       await Promise.all([
-        supabase.from('documents').select('file_name'),
-        supabase.from('document_chunks').select('id', { count: 'exact', head: true }),
+        supabase.from('documents').select('file_name').abortSignal(controller.signal),
+        supabase
+          .from('document_chunks')
+          .select('id', { count: 'exact', head: true })
+          .abortSignal(controller.signal),
       ])
 
     if (docsError || chunksError) return null
@@ -21,7 +33,10 @@ async function getKnowledgeBaseStats() {
       total_chunks: chunkCount ?? 0,
     }
   } catch {
+    // Timed out or unreachable — degrade gracefully to a stats-free dashboard.
     return null
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
