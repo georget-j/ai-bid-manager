@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOpportunity } from "@/lib/procurement/data";
-import { getAuthUser } from "@/lib/supabase-server";
-import { getOrgIdForUser } from "@/lib/org";
 import { OpportunityActions } from "./OpportunityActions";
 import type {
   OpportunityRow,
@@ -86,13 +84,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default async function OpportunityDetailPage({ params }: PageProps) {
   const { id } = await params;
 
-  const user = await getAuthUser().catch(() => null);
-  const orgId = user ? await getOrgIdForUser(user.id) : undefined;
-
-  const opp: OpportunityRow | null = await getOpportunity(
-    id,
-    orgId ?? undefined,
-  );
+  const opp: OpportunityRow | null = await getOpportunity(id);
 
   if (!opp) notFound();
 

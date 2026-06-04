@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { getRequestOrgId } from "@/lib/org";
 import { syncSource } from "@/lib/procurement/sync";
 import { findTenderConnector } from "@/lib/procurement/connectors/find-tender";
 import { contractsFinderConnector } from "@/lib/procurement/connectors/contracts-finder";
@@ -20,14 +19,6 @@ export async function POST() {
   const denied = await requireAdmin();
   if (denied) return denied;
 
-  const orgId = await getRequestOrgId();
-  if (!orgId) {
-    return NextResponse.json(
-      { error: "Organisation not found" },
-      { status: 401 },
-    );
-  }
-
   const supabase = getServiceSupabase();
   const { data: enabledSources } = await supabase
     .from("sources")
@@ -35,15 +26,12 @@ export async function POST() {
     .eq("enabled", true);
 
   const enabledNames = new Set((enabledSources ?? []).map((s) => s.name));
-
-  const results = await Promise.allSettled(
-    ALL_CONNECTORS.filter((c) => enabledNames.has(c.sourceName)).map((c) =>
-      syncSource(c, { orgId }),
-    ),
-  );
-
   const enabledConnectors = ALL_CONNECTORS.filter((c) =>
     enabledNames.has(c.sourceName),
+  );
+
+  const results = await Promise.allSettled(
+    enabledConnectors.map((c) => syncSource(c)),
   );
 
   const summary = results.map((r, i) => {

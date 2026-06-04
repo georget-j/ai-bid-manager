@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { getRequestOrgId } from "@/lib/org";
 import { syncSource } from "@/lib/procurement/sync";
 import { findTenderConnector } from "@/lib/procurement/connectors/find-tender";
 import { contractsFinderConnector } from "@/lib/procurement/connectors/contracts-finder";
@@ -22,14 +21,6 @@ interface Params {
 export async function POST(request: NextRequest, { params }: Params) {
   const denied = await requireAdmin();
   if (denied) return denied;
-
-  const orgId = await getRequestOrgId();
-  if (!orgId) {
-    return NextResponse.json(
-      { error: "Organisation not found" },
-      { status: 401 },
-    );
-  }
 
   const { name } = await params;
   const connector = CONNECTORS[name];
@@ -57,7 +48,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const result = await syncSource(connector, { fromDate, toDate, orgId });
+    const result = await syncSource(connector, { fromDate, toDate });
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sync failed";

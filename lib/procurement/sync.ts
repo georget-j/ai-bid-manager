@@ -26,7 +26,7 @@ const SYNC_LIMIT = Number(process.env.PROCUREMENT_SYNC_LIMIT ?? "100");
 
 export async function syncSource(
   connector: ProcurementSourceConnector,
-  options: { fromDate?: Date; toDate?: Date; orgId: string },
+  options: { fromDate?: Date; toDate?: Date; orgId?: string } = {},
 ): Promise<SyncResult> {
   const supabase = getServiceSupabase();
   const errors: string[] = [];
@@ -126,7 +126,6 @@ export async function syncSource(
             canonical_ocid: opp.canonicalOcid ?? null,
             source_name: opp.sourceName,
             source_notice_id: opp.sourceNoticeId,
-            org_id: options.orgId,
             source_url: opp.sourceUrl ?? null,
             submission_url: opp.submissionUrl ?? null,
             title: opp.title,
@@ -152,7 +151,7 @@ export async function syncSource(
             updated_at: new Date().toISOString(),
           },
           {
-            onConflict: "source_name,source_notice_id,org_id",
+            onConflict: "source_name,source_notice_id",
             ignoreDuplicates: false,
           },
         )

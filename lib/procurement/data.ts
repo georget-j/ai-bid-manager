@@ -9,7 +9,7 @@ import type {
 // ── Opportunities ─────────────────────────────────────────────────────────────
 
 export interface ListOpportunitiesOptions {
-  orgId: string;
+  orgId?: string;
   status?: string;
   stage?: string;
   region?: string;
@@ -37,7 +37,6 @@ export async function listOpportunities(
   let query = supabase
     .from("opportunities")
     .select("*", { count: "exact" })
-    .eq("org_id", orgId)
     .order("deadline_at", { ascending: true, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
@@ -55,12 +54,13 @@ export async function listOpportunities(
 
 export async function getOpportunity(
   id: string,
-  orgId?: string,
 ): Promise<OpportunityRow | null> {
   const supabase = getServiceSupabase();
-  let query = supabase.from("opportunities").select("*").eq("id", id);
-  if (orgId) query = query.eq("org_id", orgId);
-  const { data, error } = await query.single();
+  const { data, error } = await supabase
+    .from("opportunities")
+    .select("*")
+    .eq("id", id)
+    .single();
   if (error) return null;
   return data as OpportunityRow;
 }

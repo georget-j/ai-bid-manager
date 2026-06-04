@@ -23,7 +23,7 @@ export async function POST(_request: NextRequest, { params }: Params) {
   }
 
   const [opp, profile] = await Promise.all([
-    getOpportunity(id, orgId),
+    getOpportunity(id),
     getOrgProfile(orgId),
   ]);
 

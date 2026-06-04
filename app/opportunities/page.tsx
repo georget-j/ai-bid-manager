@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { listOpportunities } from "@/lib/procurement/data";
-import { getAuthUser } from "@/lib/supabase-server";
-import { getOrgIdForUser } from "@/lib/org";
 import type { OpportunityRow } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -67,28 +65,22 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   const region = params.region ?? "";
   const buyer = params.buyer ?? "";
 
-  const user = await getAuthUser().catch(() => null);
-  const orgId = user ? await getOrgIdForUser(user.id) : null;
-
   let opportunities: OpportunityRow[] = [];
   let total = 0;
 
-  if (orgId) {
-    try {
-      const result = await listOpportunities({
-        orgId,
-        search: search || undefined,
-        status: status || undefined,
-        stage: stage || undefined,
-        region: region || undefined,
-        buyer: buyer || undefined,
-        limit: 50,
-      });
-      opportunities = result.opportunities;
-      total = result.total;
-    } catch {
-      // show empty state on error
-    }
+  try {
+    const result = await listOpportunities({
+      search: search || undefined,
+      status: status || undefined,
+      stage: stage || undefined,
+      region: region || undefined,
+      buyer: buyer || undefined,
+      limit: 50,
+    });
+    opportunities = result.opportunities;
+    total = result.total;
+  } catch {
+    // show empty state on error
   }
 
   const hasFilters = !!(search || status || stage || region || buyer);
