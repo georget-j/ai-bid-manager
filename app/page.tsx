@@ -28,6 +28,20 @@ async function getDashboardStats() {
       Date.now() + 14 * 24 * 60 * 60 * 1000,
     ).toISOString();
 
+    // Fetch org's document IDs first so we can scope chunk count to this org.
+    // document_chunks has no org_id column, so we filter via document_id.
+    const orgDocIds: string[] = orgId
+      ? (
+          (
+            await supabase
+              .from("documents")
+              .select("id")
+              .eq("org_id", orgId)
+              .abortSignal(controller.signal)
+          ).data ?? []
+        ).map((d) => d.id)
+      : [];
+
     const [
       { count: docCount },
       { count: chunkCount },
@@ -38,14 +52,14 @@ async function getDashboardStats() {
       { data: upcomingRaw },
       { data: sourcesRaw },
     ] = await Promise.all([
-      supabase
-        .from("documents")
-        .select("id", { count: "exact", head: true })
-        .abortSignal(controller.signal),
-      supabase
-        .from("document_chunks")
-        .select("id", { count: "exact", head: true })
-        .abortSignal(controller.signal),
+      Promise.resolve({ count: orgDocIds.length }),
+      orgDocIds.length > 0
+        ? supabase
+            .from("document_chunks")
+            .select("id", { count: "exact", head: true })
+            .in("document_id", orgDocIds)
+            .abortSignal(controller.signal)
+        : Promise.resolve({ count: 0 }),
       supabase
         .from("opportunities")
         .select("id", { count: "exact", head: true })
