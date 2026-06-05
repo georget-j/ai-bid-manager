@@ -8,6 +8,7 @@ const NAV_INTELLIGENCE = [
   {
     href: "/clients",
     label: "Clients",
+    adminOnly: true,
     icon: (
       <svg
         width="14"

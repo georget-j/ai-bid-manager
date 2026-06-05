@@ -21,7 +21,7 @@ const PUBLIC_PAGES = [
 ];
 
 // Admin-only page prefixes — non-admins are redirected to /
-const ADMIN_PAGES = ["/sources"];
+const ADMIN_PAGES = ["/sources", "/clients", "/admin"];
 
 function computeIsAdmin(email: string): boolean {
   const adminEmails = (process.env.ADMIN_EMAILS ?? "")
