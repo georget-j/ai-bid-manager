@@ -16,6 +16,7 @@ type IngestInput = {
   extractionWarnings?: string[];
   fileSizeBytes?: number;
   orgId?: string | null;
+  clientId?: string | null;
 };
 
 export async function ingestDocument(
@@ -34,6 +35,7 @@ export async function ingestDocument(
     extractionWarnings,
     fileSizeBytes,
     orgId,
+    clientId,
   } = input;
 
   if (!text.trim()) throw new Error("Document text is empty");
@@ -57,6 +59,7 @@ export async function ingestDocument(
         : null,
       file_size_bytes: fileSizeBytes ?? null,
       org_id: orgId ?? null,
+      client_id: clientId ?? null,
     })
     .select("id")
     .single();

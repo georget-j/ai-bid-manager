@@ -26,11 +26,17 @@ interface PipelineItem {
   next_action: string | null;
   due_date: string | null;
   created_at: string;
+  client_id: string | null;
   opportunity: Opportunity | null;
   question_count: number;
   answered_count: number;
   matrix_count: number;
   first_matrix_id: string | null;
+}
+
+interface Client {
+  id: string;
+  name: string;
 }
 
 interface PipelineTotals {
@@ -108,6 +114,15 @@ export default function PipelinePage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientFilter, setClientFilter] = useState<string>("");
+
+  useEffect(() => {
+    fetch("/api/clients?status=active")
+      .then((r) => r.json())
+      .then((data: Client[]) => setClients(data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/pipeline")
@@ -171,13 +186,16 @@ export default function PipelinePage() {
     { key: "archived", label: "Archived", keys: ["archived"] },
   ];
 
-  const filtered =
-    activeTab === "all"
-      ? items
-      : items.filter((item) => {
-          const tab = tabs.find((t) => t.key === activeTab);
-          return tab?.keys?.includes(item.status);
-        });
+  const filtered = items
+    .filter((item) => {
+      if (activeTab === "all") return true;
+      const tab = tabs.find((t) => t.key === activeTab);
+      return tab?.keys?.includes(item.status);
+    })
+    .filter((item) => {
+      if (!clientFilter) return true;
+      return item.client_id === clientFilter;
+    });
 
   const countsByStatus = items.reduce<Record<string, number>>((acc, item) => {
     acc[item.status] = (acc[item.status] ?? 0) + 1;
@@ -198,6 +216,41 @@ export default function PipelinePage() {
           Manage your active opportunities from first match to submission. Track
           decisions, assign owners, and set next actions.
         </p>
+        {clients.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              Client:
+            </span>
+            <select
+              value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              style={{
+                fontSize: 12.5,
+                padding: "4px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-sm)",
+                background: "var(--surface-2)",
+                color: "var(--ink)",
+              }}
+            >
+              <option value="">All clients</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {clientFilter && (
+              <button
+                className="btn ghost"
+                onClick={() => setClientFilter("")}
+                style={{ fontSize: 11.5, padding: "3px 8px" }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Status summary */}
@@ -458,6 +511,22 @@ export default function PipelinePage() {
                       flexWrap: "wrap",
                     }}
                   >
+                    {item.client_id && clients.length > 0 && (
+                      <>
+                        <Link
+                          href={`/clients/${item.client_id}`}
+                          style={{
+                            color: "var(--accent)",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                          }}
+                        >
+                          {clients.find((c) => c.id === item.client_id)?.name ??
+                            "Client"}
+                        </Link>
+                        <span>·</span>
+                      </>
+                    )}
                     {item.opportunity?.buyer_name && (
                       <span>{item.opportunity.buyer_name}</span>
                     )}

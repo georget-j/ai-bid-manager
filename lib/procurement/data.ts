@@ -84,6 +84,7 @@ export async function getPipelineByOrg(
 export async function addToPipeline(
   opportunityId: string,
   orgId: string,
+  clientId: string | null = null,
 ): Promise<BidPipelineRow> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -93,6 +94,7 @@ export async function addToPipeline(
         opportunity_id: opportunityId,
         org_id: orgId,
         status: "new-match",
+        client_id: clientId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "opportunity_id,org_id" },

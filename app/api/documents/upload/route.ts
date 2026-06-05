@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const clientId = (formData.get("client_id") as string | null) || null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
       extractionWarnings: extraction.warnings,
       fileSizeBytes: file.size,
       orgId,
+      clientId,
     });
 
     return NextResponse.json({ ...result, warnings: extraction.warnings });

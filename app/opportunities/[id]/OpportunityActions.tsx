@@ -4,6 +4,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { RecommendedAction } from "@/lib/procurement/types";
 
+interface Client {
+  id: string;
+  name: string;
+  vertical: string | null;
+}
+
 interface ScoringResult {
   fitScore: number;
   readinessScore: number;
@@ -39,13 +45,22 @@ export function OpportunityActions({
   const [score, setScore] = useState<ScoringResult | null>(null);
   const [pipelineAdded, setPipelineAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
 
   useEffect(() => {
     fetch(`/api/opportunities/${opportunityId}/pipeline-status`)
       .then((r) => r.json())
-      .then((d: { saved?: boolean }) => {
-        if (d.saved) setPipelineAdded(true);
+      .then((d: { saved?: boolean; client_id?: string | null }) => {
+        if (d.saved) {
+          setPipelineAdded(true);
+          if (d.client_id) setSelectedClientId(d.client_id);
+        }
       })
+      .catch(() => {});
+    fetch("/api/clients?status=active")
+      .then((r) => r.json())
+      .then((data: Client[]) => setClients(data))
       .catch(() => {});
   }, [opportunityId]);
 
@@ -82,7 +97,13 @@ export function OpportunityActions({
     try {
       const res = await fetch(
         `/api/opportunities/${opportunityId}/add-to-pipeline`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: selectedClientId || null,
+          }),
+        },
       );
       if (res.ok) {
         setPipelineAdded(true);
@@ -156,6 +177,53 @@ export function OpportunityActions({
 
   return (
     <div>
+      {/* Client selector */}
+      {clients.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          <span
+            style={{ fontSize: 12.5, color: "var(--muted)", flexShrink: 0 }}
+          >
+            Client:
+          </span>
+          <select
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+            disabled={pipelineAdded}
+            style={{
+              fontSize: 12.5,
+              padding: "4px 8px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-sm)",
+              background: "var(--surface-2)",
+              color: selectedClientId ? "var(--ink)" : "var(--muted)",
+              cursor: pipelineAdded ? "default" : "pointer",
+            }}
+          >
+            <option value="">No client assigned</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {selectedClientId && !pipelineAdded && (
+            <Link
+              href={`/clients/${selectedClientId}`}
+              style={{ fontSize: 11.5, color: "var(--muted)" }}
+            >
+              View client →
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Action buttons */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="btn primary" onClick={analyse} disabled={analysing}>

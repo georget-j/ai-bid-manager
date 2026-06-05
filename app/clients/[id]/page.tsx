@@ -419,42 +419,62 @@ export default function ClientDetailPage({
         </div>
       )}
 
-      {/* Placeholder sections for Phase 4+ */}
+      {/* Phase 4+ sections */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 8 }}>
-            Evidence vault
+        {/* Evidence vault — live */}
+        <Link
+          href={`/clients/${client.id}/evidence`}
+          style={{ textDecoration: "none" }}
+        >
+          <div
+            className="card card-pad"
+            style={{ cursor: "pointer", transition: "box-shadow 0.15s" }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLDivElement).style.boxShadow =
+                "0 2px 8px rgba(0,0,0,0.08)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLDivElement).style.boxShadow = "none")
+            }
+          >
+            <div
+              className="eyebrow"
+              style={{ marginBottom: 6, color: "var(--accent)" }}
+            >
+              Evidence vault →
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--ink)", margin: 0 }}>
+              Certifications, policies, case studies, and insurance. Track
+              expiry and flag gaps before they block a bid.
+            </p>
           </div>
-          <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
-            Upload certifications, case studies, and policies for this client.
-            Evidence vault comes in Phase 4.
-          </p>
-        </div>
+        </Link>
+
         <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 8 }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>
             Opportunities
           </div>
           <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
-            Link live tenders to this client to track readiness and draft
-            responses. Filter by client_id coming in Phase 5.
+            Save opportunities to pipeline with this client selected to filter
+            your pipeline view by client.
           </p>
         </div>
         <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 8 }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>
             Knowledge base
           </div>
           <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
-            Documents uploaded for this client will appear here. Scoped RAG
-            retrieval per client comes in Phase 4.
+            Upload documents and select this client to scope them. Scoped RAG
+            retrieval per client comes in Phase 5.
           </p>
         </div>
         <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 8 }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>
             Readiness score
           </div>
           <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
-            Evidence gap analysis against a chosen vertical checklist. Comes in
-            Phase 4.
+            Evidence gap analysis against a vertical checklist. Comes in Phase
+            5.
           </p>
         </div>
       </div>
