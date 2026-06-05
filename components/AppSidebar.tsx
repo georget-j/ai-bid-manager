@@ -208,46 +208,6 @@ const NAV_RESPOND = [
     ),
   },
   {
-    href: "/compliance",
-    label: "Compliance Matrices",
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M2 2h12v12H2z" />
-        <path d="M5 6h6M5 9h4" />
-        <path d="M5 12h2" />
-      </svg>
-    ),
-  },
-  {
-    href: "/rfp",
-    label: "RFP Runs",
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M3 2h7l3 3v9H3V2z" />
-        <path d="M10 2v3h3" />
-        <path d="M6 10l1.5 1.5 3-3" />
-      </svg>
-    ),
-  },
-  {
     href: "/review",
     label: "Review Queue",
     icon: (
@@ -287,24 +247,6 @@ const NAV_RESPOND = [
 ];
 
 const NAV_BOTTOM = [
-  {
-    href: "/demo",
-    label: "Demo Scenarios",
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <polygon points="4,2 13,8 4,14" />
-      </svg>
-    ),
-  },
   {
     href: "/admin",
     label: "Admin",

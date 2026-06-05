@@ -1,42 +1,42 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { DocumentList } from '@/components/DocumentList'
-import { DocumentUpload } from '@/components/DocumentUpload'
-import { SampleDataLoader } from '@/components/SampleDataLoader'
+import { useState } from "react";
+import { DocumentList } from "@/components/DocumentList";
+import { DocumentUpload } from "@/components/DocumentUpload";
 
 export default function DocumentsPage() {
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0);
 
   function handleNewDoc() {
-    setRefreshKey((k) => k + 1)
+    setRefreshKey((k) => k + 1);
   }
 
   return (
     <div>
       <div className="page-head">
         <div className="title-block">
-          <div className="eyebrow" style={{ marginBottom: 6 }}>Knowledge Base</div>
-          <h1>Indexed <em>documents</em></h1>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>
+            Knowledge Base
+          </div>
+          <h1>
+            Indexed <em>documents</em>
+          </h1>
           <p className="subtitle">
-            Manage your knowledge base. Documents are chunked and embedded for semantic search.
+            Manage your knowledge base. Documents are chunked and embedded for
+            semantic search.
           </p>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 36 }}>
-        <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Upload a document</div>
-          <DocumentUpload onSuccess={handleNewDoc} />
+      <div className="card card-pad" style={{ marginBottom: 36 }}>
+        <div className="eyebrow" style={{ marginBottom: 10 }}>
+          Upload a document
         </div>
-        <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Load sample dataset</div>
-          <SampleDataLoader onSuccess={handleNewDoc} />
-        </div>
+        <DocumentUpload onSuccess={handleNewDoc} />
       </div>
 
       <div className="section-title">Indexed documents</div>
       <DocumentList refreshKey={refreshKey} />
     </div>
-  )
+  );
 }

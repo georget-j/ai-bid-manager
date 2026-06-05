@@ -32,7 +32,11 @@ const CHANNEL_BADGE: Record<string, string> = {
 
 type EditState = Partial<RoutingConfig>;
 
-export function RoutingConfigTable() {
+export function RoutingConfigTable({
+  defaultEmail,
+}: {
+  defaultEmail?: string | null;
+}) {
   const [configs, setConfigs] = useState<RoutingConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +97,61 @@ export function RoutingConfigTable() {
     return <p style={{ fontSize: 13, color: "var(--muted)" }}>Loading…</p>;
   if (error)
     return <p style={{ fontSize: 13, color: "var(--danger)" }}>{error}</p>;
+
+  if (configs.length === 0 && defaultEmail) {
+    return (
+      <div>
+        <div className="card" style={{ overflow: "hidden", marginBottom: 12 }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Owner email</th>
+                <th>Backup email</th>
+                <th>Channel</th>
+                <th>Escalation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: 500, color: "var(--ink)" }}>
+                  All topics
+                </td>
+                <td
+                  style={{
+                    color: "var(--muted)",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                  }}
+                >
+                  {defaultEmail}
+                </td>
+                <td style={{ color: "var(--muted-2)", fontSize: 11.5 }}>
+                  <em style={{ opacity: 0.4 }}>—</em>
+                </td>
+                <td>
+                  <span className="badge accent mono">email</span>
+                </td>
+                <td
+                  style={{
+                    color: "var(--muted)",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                  }}
+                >
+                  48h
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6 }}>
+          All review requests are routed to your account by default. Add routing
+          rules above to assign specific topics to team members.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="card" style={{ overflow: "hidden" }}>
