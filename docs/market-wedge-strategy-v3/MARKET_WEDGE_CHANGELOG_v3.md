@@ -1,5 +1,28 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Phases 7+9+10: matrix filter, gap DOCX export, source cron
+
+### Added (commit 171a120)
+
+**Phase 9 — Gap report in DOCX:**
+
+- `ExportGapReport` type + `gapReportSection()` appendix in `lib/export-response-docx.ts`
+- Export route automatically runs `analyseGaps()` when a client is linked via pipeline; appends gap table to DOCX
+
+**Phase 7 — Compliance matrix UX:**
+
+- Status filter dropdown + Mandatory-only checkbox (client-side, no extra requests)
+- "Copy as Markdown" button — copies filtered requirements as pipe table to clipboard
+- Empty state message when filter returns no rows
+
+**Phase 10 — Find a Tender daily sync:**
+
+- Migration 036: seeds all 4 source rows (find-tender, contracts-finder, public-contracts-scotland, sell2wales)
+- `/api/cron/sync-sources`: daily sync at 06:00 UTC via vercel.json cron
+- All remaining `@/lib/supabase` → `@/lib/supabase-service` migration complete (S-004 cleanup done)
+
+---
+
 ## 2026-06-05 — Phases 5+6: readiness score + evidence gap engine
 
 ### Added (commit 2703a03)

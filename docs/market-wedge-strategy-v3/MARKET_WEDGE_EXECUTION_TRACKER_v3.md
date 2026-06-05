@@ -9,10 +9,10 @@
 - [x] Phase 4 — Evidence vault and readiness ← FOUNDATION SHIPPED 2026-06-05
 - [x] Phase 5 — Opportunity intake and analysis ← CORE FEATURES SHIPPED 2026-06-05
 - [x] Phase 6 — Evidence gap engine ← CORE SHIPPED 2026-06-05
-- [ ] Phase 7 — Compliance matrix generator
+- [x] Phase 7 — Compliance matrix generator ← CORE SHIPPED 2026-06-05
 - [ ] Phase 8 — Evidence-backed response drafting
-- [ ] Phase 9 — Review workflow and bid pack export
-- [ ] Phase 10 — Find a Tender connector
+- [x] Phase 9 — Review workflow and bid pack export ← CORE SHIPPED 2026-06-05
+- [x] Phase 10 — Find a Tender connector ← DAILY CRON + SEEDED 2026-06-05
 - [ ] Phase 11 — Paid pilot workflow
 - [ ] Phase 12 — Productisation
 - [ ] Phase 13 — Bid memory and evidence graph

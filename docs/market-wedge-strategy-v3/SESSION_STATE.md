@@ -10,52 +10,59 @@ This file captures the exact working state. Update it at the end of every sessio
 
 ## Current phase
 
-Phases 5 + 6 core features shipped.
+Phases 7 + 9 + 10 core features shipped. Full bid workflow now end-to-end.
 
 ## What was just done
 
-Phase 5 readiness score + Phase 6 evidence gap engine (commit `2703a03`):
+Phase 7 + 9 + 10 (commit `171a120`):
 
-**Readiness score:**
-- `lib/readiness.ts`: IT/Cyber (9-item) and Facilities (7-item) checklists; keyword + type matching; weighted score 0-100
-- `GET /api/clients/[id]/readiness`: full ReadinessScore response
-- `/clients/[id]` page: ReadinessWidget — circular gauge, checklist rows with coverage icons, "Add missing evidence →" link
+**Phase 9 — Evidence gap in DOCX export:**
+- `ExportGapReport` type + `gapReportSection()` in `lib/export-response-docx.ts`
+- Export route: looks up pipeline client_id → runs `analyseGaps()` → appends gap appendix table automatically
+- DOCX bid pack now includes: cover, sections, answers, summary appendix, evidence gap report
 
-**Evidence gap engine:**
-- `lib/evidence-gap.ts`: 14 requirement signal patterns; fast keyword-based matching (no AI tokens); coverage: covered / partial / expired / missing
-- `GET /api/opportunities/[id]/evidence-gaps?clientId=`: maps tender requirements → client evidence
-- New "Evidence Gaps" tab on every opportunity detail page
-- `/opportunities/[id]/gaps` page: client selector (auto-loads from pipeline), score gauge, coverage filter pills, colour-coded requirement cards, risk badges, links to evidence vault
+**Phase 7 — Compliance matrix:**
+- Status filter dropdown + "Mandatory only" checkbox — client-side, no extra requests
+- "Copy as Markdown" button — copies filtered requirements as a pipe table to clipboard
+- Empty state when filter has no results
+
+**Phase 10 — Find a Tender daily cron:**
+- Migration 036: seeds `sources` table with all 4 connectors (idempotent)
+- `/api/cron/sync-sources`: CRON_SECRET-guarded; syncs all enabled sources sequentially
+- `vercel.json`: daily sync cron at 06:00 UTC
+- All remaining `@/lib/supabase` imports migrated to `@/lib/supabase-service`
 
 ## What to do next
 
-### Option A — Phase 1 (founder, not code)
+### Option A — Phase 1 (founder, not code) ← most valuable now
 
-Talk to 10 bid agencies before building more. This is now the most valuable next step.
-Use `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` interview guide.
-Key questions: IT/cyber vs facilities? £500–£2k/month viable?
+The product now demonstrates the full workflow end-to-end. This is the right moment to show it to bid agencies.
+Talk to 10 agencies. Use `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md`.
 
-### Option B — Phase 7: Compliance matrix improvements
+### Option B — Phase 11: Pilot workflow setup
 
-Phase 7 checklist has 3 remaining items:
-- owner/status fields on compliance_requirements
-- risk filtering on matrix UI
-- export/copy to spreadsheet
+Prepare the product for a paid pilot:
+- Create a demo client workspace with sample evidence
+- Run a backfill of recent Find a Tender notices (use the Sources admin → backfill button)
+- Document the pilot onboarding steps
+- Add feedback capture (simple "Was this useful?" on answers)
 
-### Option C — Phase 10: Find a Tender live connector
+### Option C — Phase 12: Productisation / onboarding
 
-`sources` and `raw_notices` tables exist. Wire up the FTS (Find a Tender Service) API.
-Key endpoint: `https://www.find-tender.service.gov.uk/api/1.0/ocds/`
-Requires: API key from CCS, connector in `lib/procurement/sync.ts`, admin trigger UI.
+- Guided onboarding flow for new organisations
+- Empty states with helpful CTAs
+- "Getting started" checklist on dashboard
+- Vertical selector on org setup
 
-### Option D — Bid pack export improvements (Phase 9)
+### Option D — Phase 13: Bid memory (answer bank)
 
-Current DOCX export works. Remaining: include evidence gap report + unresolved risks.
-Evidence gap data is now available — wire it into the export.
+- Store approved answers as reusable entries in `answer_library` 
+- Link approved answers → evidence items used
+- Show previous uses on each answer
 
 ## Last commit
 
-`2703a03` — feat(phase5+6): readiness score + evidence gap engine
+`171a120` — feat(phase7+9+10): matrix improvements, gap export, source sync cron
 
 ## Branch
 
@@ -69,7 +76,6 @@ S-007 through S-014 in `MARKET_WEDGE_SECURITY_PLAN_v3.md`. None block production
 
 | Purpose                | File                                                                      |
 | ---------------------- | ------------------------------------------------------------------------- |
-| Strategy build plan    | `docs/market-wedge-strategy-v3/MARKET_WEDGE_STRATEGY_BUILD_PLAN_v3.md`    |
 | Phase tracker          | `docs/market-wedge-strategy-v3/MARKET_WEDGE_EXECUTION_TRACKER_v3.md`      |
 | Next tasks             | `docs/market-wedge-strategy-v3/MARKET_WEDGE_NEXT_ACTIONS_v3.md`           |
 | Security risks         | `docs/market-wedge-strategy-v3/MARKET_WEDGE_SECURITY_PLAN_v3.md`          |
