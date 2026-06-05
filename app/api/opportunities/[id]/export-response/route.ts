@@ -73,7 +73,7 @@ export async function GET(request: NextRequest, { params }: Params) {
               .maybeSingle(),
             supabase
               .from("evidence_items")
-              .select("id, title, evidence_type, status, notes")
+              .select("id, title, evidence_type, status, notes, expires_at")
               .eq("org_id", orgId)
               .eq("client_id", clientId),
           ])

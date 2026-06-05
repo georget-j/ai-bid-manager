@@ -8,13 +8,16 @@ export interface GapResult {
   question_id: string;
   question_text: string;
   section_ref: string | null;
+  is_mandatory: boolean;
   coverage: GapCoverage;
   risk_level: "low" | "medium" | "high";
+  signals_detected: string[];
   matched_evidence: Array<{
     id: string;
     title: string;
     evidence_type: string;
     status: string;
+    expires_at: string | null;
   }>;
   gap_note: string;
 }
@@ -142,6 +145,7 @@ interface EvidenceRow {
   evidence_type: string;
   status: string;
   notes: string | null;
+  expires_at: string | null;
 }
 
 interface RequirementRow {
@@ -236,13 +240,16 @@ export function analyseGaps(
       question_id: req.id,
       question_text: req.question_text,
       section_ref: req.section_ref,
+      is_mandatory: req.is_mandatory,
       coverage,
       risk_level,
+      signals_detected: signals.map((s) => s.label),
       matched_evidence: matches.map((m) => ({
         id: m.id,
         title: m.title,
         evidence_type: m.evidence_type,
         status: m.status,
+        expires_at: m.expires_at,
       })),
       gap_note,
     };

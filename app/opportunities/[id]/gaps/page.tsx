@@ -14,15 +14,54 @@ interface GapResult {
   question_id: string;
   question_text: string;
   section_ref: string | null;
+  is_mandatory: boolean;
   coverage: "covered" | "partial" | "missing" | "expired";
   risk_level: "low" | "medium" | "high";
+  signals_detected: string[];
   matched_evidence: Array<{
     id: string;
     title: string;
     evidence_type: string;
     status: string;
+    expires_at: string | null;
   }>;
   gap_note: string;
+}
+
+const RISK_SORT: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const COVERAGE_SORT: Record<string, number> = {
+  expired: 0,
+  missing: 1,
+  partial: 2,
+  covered: 3,
+};
+
+function sortByRisk(results: GapResult[]): GapResult[] {
+  return [...results].sort((a, b) => {
+    const coverageDiff = COVERAGE_SORT[a.coverage] - COVERAGE_SORT[b.coverage];
+    if (coverageDiff !== 0) return coverageDiff;
+    const riskDiff = RISK_SORT[a.risk_level] - RISK_SORT[b.risk_level];
+    if (riskDiff !== 0) return riskDiff;
+    // Mandatory items first within same risk level
+    if (a.is_mandatory && !b.is_mandatory) return -1;
+    if (!a.is_mandatory && b.is_mandatory) return 1;
+    return 0;
+  });
+}
+
+function formatExpiry(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function daysUntil(iso: string): number {
+  return Math.ceil(
+    (new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+  );
 }
 
 interface GapReport {
@@ -96,10 +135,22 @@ export default function EvidenceGapsPage({
       .finally(() => setLoading(false));
   }, [opportunityId, selectedClientId]);
 
-  const filtered =
+  const filtered = sortByRisk(
     coverageFilter === "all"
       ? (report?.results ?? [])
-      : (report?.results ?? []).filter((r) => r.coverage === coverageFilter);
+      : (report?.results ?? []).filter((r) => r.coverage === coverageFilter),
+  );
+
+  // Evidence items expiring within 90 days that are referenced in the current results
+  const expiringSoon = (report?.results ?? [])
+    .flatMap((r) => r.matched_evidence)
+    .filter(
+      (ev) =>
+        ev.expires_at &&
+        ev.status === "expiring_soon" &&
+        daysUntil(ev.expires_at) <= 90,
+    )
+    .filter((ev, idx, arr) => arr.findIndex((e) => e.id === ev.id) === idx);
 
   const score = report?.coverage_score ?? 0;
   const scoreColor =
@@ -338,6 +389,36 @@ export default function EvidenceGapsPage({
               </p>
             )}
 
+            {/* Expiring soon callout */}
+            {expiringSoon.length > 0 && (
+              <div
+                style={{
+                  padding: "10px 16px",
+                  background: "#fef3c7",
+                  border: "1px solid #fcd34d",
+                  borderRadius: "var(--r-sm)",
+                  marginBottom: 14,
+                  fontSize: 12,
+                  color: "#92400e",
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>⚠ Expiring soon: </span>
+                {expiringSoon.map((ev, i) => (
+                  <span key={ev.id}>
+                    {i > 0 && " · "}
+                    {ev.title}
+                    {ev.expires_at && (
+                      <span style={{ fontWeight: 400, color: "#b45309" }}>
+                        {" "}
+                        (expires {formatExpiry(ev.expires_at)})
+                      </span>
+                    )}
+                  </span>
+                ))}
+                {" — renew before submission"}
+              </div>
+            )}
+
             {/* Filter pills */}
             {report.results.length > 0 && (
               <div
@@ -387,6 +468,16 @@ export default function EvidenceGapsPage({
                     </button>
                   );
                 })}
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--muted)",
+                    alignSelf: "center",
+                    marginLeft: 4,
+                  }}
+                >
+                  sorted by risk
+                </span>
               </div>
             )}
 
@@ -432,19 +523,44 @@ export default function EvidenceGapsPage({
                       </span>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        {r.section_ref && (
-                          <div
-                            style={{
-                              fontSize: 10.5,
-                              color: "var(--muted)",
-                              fontFamily: "var(--font-mono)",
-                              marginBottom: 3,
-                              letterSpacing: "0.04em",
-                            }}
-                          >
-                            {r.section_ref}
-                          </div>
-                        )}
+                        {/* Section + mandatory badge row */}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 6,
+                            alignItems: "center",
+                            marginBottom: 3,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          {r.section_ref && (
+                            <span
+                              style={{
+                                fontSize: 10.5,
+                                color: "var(--muted)",
+                                fontFamily: "var(--font-mono)",
+                                letterSpacing: "0.04em",
+                              }}
+                            >
+                              {r.section_ref}
+                            </span>
+                          )}
+                          {r.is_mandatory && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: "#dc2626",
+                                background: "#fee2e2",
+                                borderRadius: 999,
+                                padding: "1px 6px",
+                              }}
+                            >
+                              Mandatory
+                            </span>
+                          )}
+                        </div>
+
                         <p
                           style={{
                             fontSize: 13,
@@ -455,6 +571,8 @@ export default function EvidenceGapsPage({
                         >
                           {r.question_text}
                         </p>
+
+                        {/* Gap note */}
                         <p
                           style={{
                             fontSize: 12,
@@ -464,12 +582,89 @@ export default function EvidenceGapsPage({
                                 : r.coverage === "missing"
                                   ? "var(--muted)"
                                   : "#d97706",
-                            margin: 0,
+                            margin: "0 0 4px",
                             lineHeight: 1.5,
                           }}
                         >
                           {r.gap_note}
                         </p>
+
+                        {/* Matched evidence with expiry dates */}
+                        {r.matched_evidence.length > 0 && (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              flexWrap: "wrap",
+                              marginTop: 4,
+                            }}
+                          >
+                            {r.matched_evidence.map((ev) => {
+                              const expiry = formatExpiry(ev.expires_at);
+                              const isExpiring = ev.status === "expiring_soon";
+                              const isExpired = ev.status === "expired";
+                              return (
+                                <span
+                                  key={ev.id}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: "2px 8px",
+                                    borderRadius: 999,
+                                    background: isExpired
+                                      ? "#fee2e2"
+                                      : isExpiring
+                                        ? "#fef3c7"
+                                        : "#d1fae5",
+                                    color: isExpired
+                                      ? "#dc2626"
+                                      : isExpiring
+                                        ? "#92400e"
+                                        : "#065f46",
+                                  }}
+                                >
+                                  {ev.title}
+                                  {expiry && (
+                                    <span style={{ opacity: 0.75 }}>
+                                      {" "}
+                                      · expires {expiry}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Signals hint for missing items */}
+                        {r.coverage === "missing" &&
+                          r.signals_detected.length > 0 && (
+                            <p
+                              style={{
+                                fontSize: 11,
+                                color: "var(--muted)",
+                                marginTop: 4,
+                                marginBottom: 0,
+                              }}
+                            >
+                              We looked for: {r.signals_detected.join(", ")} —
+                              add evidence of this type to cover this
+                              requirement
+                            </p>
+                          )}
+                        {r.coverage === "missing" &&
+                          r.signals_detected.length === 0 && (
+                            <p
+                              style={{
+                                fontSize: 11,
+                                color: "var(--muted)",
+                                marginTop: 4,
+                                marginBottom: 0,
+                              }}
+                            >
+                              No evidence pattern detected — add evidence
+                              manually and re-run
+                            </p>
+                          )}
                       </div>
 
                       <div

@@ -81,7 +81,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   // Fetch client evidence
   const { data: evidence } = await supabase
     .from("evidence_items")
-    .select("id, title, evidence_type, status, notes")
+    .select("id, title, evidence_type, status, notes, expires_at")
     .eq("org_id", orgId)
     .eq("client_id", clientId);
 
