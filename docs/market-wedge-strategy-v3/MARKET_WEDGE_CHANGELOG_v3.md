@@ -1,5 +1,42 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Admin access control, client invite flow, answer visibility
+
+### Fixed (commit 9a7291b)
+
+**Admin-only restrictions:**
+
+- `components/AppSidebar.tsx`: Clients nav item marked `adminOnly: true` — hidden for non-admin accounts (same pattern as Sources)
+- `middleware.ts`: `ADMIN_PAGES` extended with `/clients` and `/admin` — direct URL navigation by non-admins redirects to `/`
+
+---
+
+### Added (commit 39fcf2e)
+
+**Client account provisioning — invite flow:**
+
+- Migration 037: `invited_email`, `invite_sent_at`, `client_org_id` (FK → orgs) on `clients` table; partial index on invited_email
+- `POST /api/clients/[id]/invite`: org-scoped; calls `supabase.auth.admin.inviteUserByEmail` with `redirectTo` containing `client_id`; records invite on client row
+- `app/auth/callback/route.ts`: links `client_org_id = newOrgId` after invite accepted; email-match check prevents URL spoofing; `IS NULL` guard prevents re-linking
+- `lib/org.ts`: import corrected to `@/lib/supabase-service`
+- `/clients/[id]`: invite status chips (green "Active account" / amber "Invite pending"), inline invite form
+- `components/ClientsAdmin.tsx`: create client + optional email invite in one step; shown in `/admin` under "Client accounts"
+- `app/admin/page.tsx`: "Client accounts" section added at top
+- Vercel: `NEXT_PUBLIC_APP_URL` set for Production and Development
+
+---
+
+### Fixed (commit e233a2c)
+
+**AI answer visibility + export button:**
+
+- `QuestionsPanel.tsx`: replaced `<textarea rows={5}>` with full-height pre-wrap `<div>` — entire answer visible without scrolling
+- Edit mode via `editingIds: Set<string>` — click answer or "Edit" button; textarea + Save/Discard appear
+- Green dismissible banner after "Answer All": "✓ N answers generated — scroll down to review, edit, and approve"; auto-dismisses 8s
+- Export button always rendered: DOCX link with count when answers exist, plain hint when none
+
+---
+
 ## 2026-06-05 — Phases 7+9+10: matrix filter, gap DOCX export, source cron
 
 ### Added (commit 171a120)

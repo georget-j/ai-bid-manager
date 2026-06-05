@@ -10,59 +10,41 @@ This file captures the exact working state. Update it at the end of every sessio
 
 ## Current phase
 
-Phases 7 + 9 + 10 core features shipped. Full bid workflow now end-to-end.
+All core product phases complete. Recent work: client account provisioning (invite flow), AI answer visibility fix, admin access control hardening.
 
 ## What was just done
 
-Phase 7 + 9 + 10 (commit `171a120`):
+### `9a7291b` — fix: restrict /clients and /admin to admin users only
 
-**Phase 9 — Evidence gap in DOCX export:**
-- `ExportGapReport` type + `gapReportSection()` in `lib/export-response-docx.ts`
-- Export route: looks up pipeline client_id → runs `analyseGaps()` → appends gap appendix table automatically
-- DOCX bid pack now includes: cover, sections, answers, summary appendix, evidence gap report
+- `components/AppSidebar.tsx`: Clients nav item marked `adminOnly: true` — hidden from non-admin accounts (same pattern as Sources)
+- `middleware.ts`: `ADMIN_PAGES` extended with `/clients` and `/admin` — direct URL access by non-admins now redirects to `/`
 
-**Phase 7 — Compliance matrix:**
-- Status filter dropdown + "Mandatory only" checkbox — client-side, no extra requests
-- "Copy as Markdown" button — copies filtered requirements as a pipe table to clipboard
-- Empty state when filter has no results
+### `39fcf2e` — feat(phase2): client account provisioning via invite flow
 
-**Phase 10 — Find a Tender daily cron:**
-- Migration 036: seeds `sources` table with all 4 connectors (idempotent)
-- `/api/cron/sync-sources`: CRON_SECRET-guarded; syncs all enabled sources sequentially
-- `vercel.json`: daily sync cron at 06:00 UTC
-- All remaining `@/lib/supabase` imports migrated to `@/lib/supabase-service`
+- **Migration 037**: `invited_email`, `invite_sent_at`, `client_org_id` columns on `clients` table; partial index on `invited_email`
+- **`POST /api/clients/[id]/invite`**: org-scoped invite route; calls `supabase.auth.admin.inviteUserByEmail` with `redirectTo` containing `client_id`; records invite on client row
+- **`app/auth/callback/route.ts`**: after `getOrCreateOrgForUser`, links `client_org_id = newOrgId` where `invited_email = user.email AND client_org_id IS NULL` — prevents URL spoofing and re-linking
+- **`lib/org.ts`**: import fixed to `@/lib/supabase-service`
+- **`/clients/[id]`**: invite status chips (green Active / amber Pending), inline invite form, `sendInvite()` function
+- **`components/ClientsAdmin.tsx`**: create client + optional email invite in one form; shown in `/admin` under "Client accounts"
+- **`app/admin/page.tsx`**: "Client accounts" section added at top using `ClientsAdmin`
+- **Vercel**: `NEXT_PUBLIC_APP_URL=https://ai-rfp-agent-ten.vercel.app` set for Production and Development environments
+
+### `e233a2c` — fix(phase1): make AI draft answers visible + always-present export button
+
+- **`app/opportunities/[id]/QuestionsPanel.tsx`**:
+  - Replaced `<textarea rows={5}>` with a full-height `<div style={{ whiteSpace: "pre-wrap" }}>` read-only block — entire answer visible immediately
+  - Edit mode toggled via `editingIds: Set<string>` — click answer or "Edit" button; Save / Discard buttons appear
+  - Green dismissible banner after "Answer All": "✓ N answers generated — scroll down to review, edit, and approve"; auto-dismisses after 8s
+  - Export button always rendered: shows DOCX link with count when answers exist, plain-text hint "Export (answer questions first)" when none
 
 ## What to do next
 
-### Option A — Phase 1 (founder, not code) ← most valuable now
-
-The product now demonstrates the full workflow end-to-end. This is the right moment to show it to bid agencies.
-Talk to 10 agencies. Use `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md`.
-
-### Option B — Phase 11: Pilot workflow setup
-
-Prepare the product for a paid pilot:
-- Create a demo client workspace with sample evidence
-- Run a backfill of recent Find a Tender notices (use the Sources admin → backfill button)
-- Document the pilot onboarding steps
-- Add feedback capture (simple "Was this useful?" on answers)
-
-### Option C — Phase 12: Productisation / onboarding
-
-- Guided onboarding flow for new organisations
-- Empty states with helpful CTAs
-- "Getting started" checklist on dashboard
-- Vertical selector on org setup
-
-### Option D — Phase 13: Bid memory (answer bank)
-
-- Store approved answers as reusable entries in `answer_library` 
-- Link approved answers → evidence items used
-- Show previous uses on each answer
+See `MARKET_WEDGE_NEXT_ACTIONS_v3.md`.
 
 ## Last commit
 
-`171a120` — feat(phase7+9+10): matrix improvements, gap export, source sync cron
+`9a7291b` — fix: restrict /clients and /admin to admin users only
 
 ## Branch
 
@@ -74,9 +56,9 @@ S-007 through S-014 in `MARKET_WEDGE_SECURITY_PLAN_v3.md`. None block production
 
 ## Key files
 
-| Purpose                | File                                                                      |
-| ---------------------- | ------------------------------------------------------------------------- |
-| Phase tracker          | `docs/market-wedge-strategy-v3/MARKET_WEDGE_EXECUTION_TRACKER_v3.md`      |
-| Next tasks             | `docs/market-wedge-strategy-v3/MARKET_WEDGE_NEXT_ACTIONS_v3.md`           |
-| Security risks         | `docs/market-wedge-strategy-v3/MARKET_WEDGE_SECURITY_PLAN_v3.md`          |
-| Re-entry prompt        | `docs/market-wedge-strategy-v3/MARKET_WEDGE_CLAUDE_CODE_PROMPTS_v3.md`    |
+| Purpose         | File                                                                   |
+| --------------- | ---------------------------------------------------------------------- |
+| Phase tracker   | `docs/market-wedge-strategy-v3/MARKET_WEDGE_EXECUTION_TRACKER_v3.md`   |
+| Next tasks      | `docs/market-wedge-strategy-v3/MARKET_WEDGE_NEXT_ACTIONS_v3.md`        |
+| Security risks  | `docs/market-wedge-strategy-v3/MARKET_WEDGE_SECURITY_PLAN_v3.md`       |
+| Re-entry prompt | `docs/market-wedge-strategy-v3/MARKET_WEDGE_CLAUDE_CODE_PROMPTS_v3.md` |

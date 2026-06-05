@@ -33,9 +33,14 @@ Shipped
 
 ## Current objective
 
-Phases 3 + 4 complete. Clients model, evidence vault, and client_id wiring all live.
+All core product phases shipped (Phases 2–10 + client invite flow + UX fixes). Last commits 2026-06-05:
 
-Next: Phase 1 (founder outreach) in parallel with Phase 5 (fit scoring + scoped RAG).
+- `9a7291b` — Admin access control: /clients and /admin restricted to admin accounts only
+- `39fcf2e` — Client account provisioning: invite email flow, auth callback linking, admin UI
+- `e233a2c` — Answer visibility fix: full-height answer blocks, edit toggle, answers-ready banner
+
+Next: Phase 1 (founder outreach — no code needed) or Phase 11 (pilot workflow setup).
+See MARKET_WEDGE_NEXT_ACTIONS_v3.md for options.
 
 ## Current blocker
 

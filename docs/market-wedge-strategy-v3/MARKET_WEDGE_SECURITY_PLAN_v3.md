@@ -95,12 +95,12 @@ This product cannot onboard real organisations until customer data isolation is 
 
 ### Admin protection
 
-| Control                       | Status             | Notes                                        |
-| ----------------------------- | ------------------ | -------------------------------------------- |
-| Admin routes protected        | ✅ Implemented     | `requireAdmin()` enforced                    |
-| Source sync routes protected  | ✅ Implemented     | Admin-only                                   |
-| `/api/admin/integrations` GET | 🔴 NOT protected   | Any authenticated user can read webhook URLs |
-| Cron route                    | 🔴 Optional secret | If `CRON_SECRET` unset, publicly accessible  |
+| Control                       | Status             | Notes                                                         |
+| ----------------------------- | ------------------ | ------------------------------------------------------------- |
+| Admin routes protected        | ✅ Implemented     | `requireAdmin()` enforced                                     |
+| Source sync routes protected  | ✅ Implemented     | Admin-only                                                    |
+| `/api/admin/integrations` GET | ✅ Protected       | `requireAdmin()` added — S-002 fixed 2026-06-05               |
+| Cron route                    | ✅ Required secret | `CRON_SECRET` required; 500 if unset — S-003 fixed 2026-06-05 |
 
 ### Safe rendering
 
@@ -112,12 +112,12 @@ This product cannot onboard real organisations until customer data isolation is 
 
 ### Secrets
 
-| Control                    | Status       | Notes                                                 |
-| -------------------------- | ------------ | ----------------------------------------------------- |
-| No secrets committed       | ✅ Confirmed | .gitignore covers .env files                          |
-| Service role server-only   | ✅ Confirmed | Not prefixed NEXT*PUBLIC*; only in server routes      |
-| OpenAI key server-only     | ✅ Confirmed | Server-only usage confirmed                           |
-| Both keys in same lib file | ⚠️ Risk      | `lib/supabase.ts` exports both anon + service clients |
+| Control                    | Status       | Notes                                                                                                   |
+| -------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| No secrets committed       | ✅ Confirmed | .gitignore covers .env files                                                                            |
+| Service role server-only   | ✅ Confirmed | Not prefixed NEXT*PUBLIC*; only in server routes                                                        |
+| OpenAI key server-only     | ✅ Confirmed | Server-only usage confirmed                                                                             |
+| Both keys in same lib file | ✅ Fixed     | Split into `lib/supabase.ts` (anon) + `lib/supabase-service.ts` (service role) — S-004 fixed 2026-06-05 |
 
 ### DEMO_MODE risk
 
