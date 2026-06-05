@@ -36,7 +36,11 @@ function DocExtractRow({
         error?: string;
       };
       if (!res.ok) {
-        setError(data.error ?? "Extraction failed");
+        if (res.status === 403 || data.error === "access-denied") {
+          setError("portal-blocked");
+        } else {
+          setError(data.error ?? "Extraction failed");
+        }
       } else {
         setDone(true);
         onExtracted();
@@ -72,8 +76,24 @@ function DocExtractRow({
         >
           {doc.title}
         </span>
-        {error && (
+        {error && error !== "portal-blocked" && (
           <span style={{ fontSize: 11.5, color: "#dc2626" }}>{error}</span>
+        )}
+        {error === "portal-blocked" && (
+          <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
+            Requires authentication.{" "}
+            {doc.url && (
+              <a
+                href={doc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#b45309", textDecoration: "underline" }}
+              >
+                Download directly
+              </a>
+            )}{" "}
+            then use Upload file below.
+          </span>
         )}
       </div>
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>

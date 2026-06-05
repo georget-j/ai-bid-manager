@@ -137,9 +137,17 @@ async function checkAccessibility(url: string): Promise<{
     return { accessibility: "portal-required", portal };
   }
 
+  const BROWSER_HEADERS = {
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    Accept: "*/*",
+    "Accept-Language": "en-GB,en;q=0.9",
+  };
+
   try {
     const res = await fetch(url, {
       method: "HEAD",
+      headers: BROWSER_HEADERS,
       signal: AbortSignal.timeout(5_000),
       redirect: "follow",
     });

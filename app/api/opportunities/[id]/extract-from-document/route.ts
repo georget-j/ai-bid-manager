@@ -69,20 +69,44 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "url required" }, { status: 400 });
   }
 
+  const BROWSER_HEADERS = {
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    Accept:
+      "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/octet-stream,*/*;q=0.8",
+    "Accept-Language": "en-GB,en;q=0.9",
+    "Cache-Control": "no-cache",
+  };
+
   let docRes: Response;
   try {
     docRes = await fetch(url, {
-      headers: { "User-Agent": "BidIntelligence/1.0" },
+      headers: BROWSER_HEADERS,
       redirect: "follow",
+      signal: AbortSignal.timeout(30_000),
     });
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Request failed";
+    const isTimeout = msg.toLowerCase().includes("abort");
     return NextResponse.json(
-      { error: "Failed to fetch document from URL" },
+      {
+        error: isTimeout
+          ? "Document download timed out — download it manually and upload on the RFP Response tab"
+          : "Failed to fetch document from URL",
+      },
       { status: 502 },
     );
   }
 
   if (!docRes.ok) {
+    if (docRes.status === 403 || docRes.status === 401) {
+      return NextResponse.json(
+        {
+          error: "access-denied",
+        },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(
       { error: `Document server returned ${docRes.status}` },
       { status: 502 },

@@ -100,7 +100,11 @@ function DocRow({
         error?: string;
       };
       if (!res.ok) {
-        setExtractError(data.error ?? "Extraction failed");
+        if (res.status === 403 || data.error === "access-denied") {
+          setExtractError("portal-blocked");
+        } else {
+          setExtractError(data.error ?? "Extraction failed");
+        }
       } else {
         router.push(`/opportunities/${opportunityId}/rfp`);
       }
@@ -211,6 +215,27 @@ function DocRow({
             .
           </p>
         )}
+        {extractError === "portal-blocked" && (
+          <p style={{ fontSize: 11.5, color: "#b45309", marginTop: 4 }}>
+            This document requires authentication to download.{" "}
+            <a
+              href={doc.url ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#b45309", textDecoration: "underline" }}
+            >
+              Download it directly
+            </a>
+            , then upload on the{" "}
+            <a
+              href={`/opportunities/${opportunityId}/rfp`}
+              style={{ color: "#b45309", textDecoration: "underline" }}
+            >
+              RFP Response tab
+            </a>
+            .
+          </p>
+        )}
         {(doc.accessibility === "unknown" || doc.accessibility === "error") &&
           doc.errorMessage && (
             <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
@@ -275,7 +300,7 @@ function DocRow({
             ✓ In KB
           </span>
         )}
-        {extractError && (
+        {extractError && extractError !== "portal-blocked" && (
           <span style={{ fontSize: 11, color: "#dc2626", maxWidth: 140 }}>
             {extractError}
           </span>
