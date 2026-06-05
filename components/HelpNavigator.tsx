@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
-const STORAGE_KEY = "rfp_agent_welcomed_v2";
+const STORAGE_KEY = "rfp_agent_welcomed_v3";
 
-type Tab = "tips" | "scenarios" | "features" | "pipeline";
+type Tab = "tips" | "workflow" | "features" | "pipeline";
 
 const TAB_LABELS: Record<Tab, string> = {
   tips: "Tips",
-  scenarios: "Scenarios",
+  workflow: "Workflow",
   features: "Features",
   pipeline: "How it works",
 };
@@ -17,6 +17,57 @@ const TAB_LABELS: Record<Tab, string> = {
 // ── Data ──────────────────────────────────────────────────────────────────
 
 const TIP_GROUPS = [
+  {
+    label: "Opportunities",
+    href: "/opportunities",
+    tips: [
+      {
+        text: 'Click "Save opportunity" on any tender to add it to My Opportunities. The button shows "✓ Saved" if it\'s already in your pipeline.',
+      },
+      {
+        text: 'Click "Analyse fit" to get an AI fit score, reasons, and missing evidence gaps based on your Organisation Profile.',
+      },
+      {
+        text: 'On the "RFP Response" tab of an opportunity, click "Extract questions" next to an accessible tender document to download it and extract all questions automatically.',
+      },
+      {
+        text: "Portal-required documents can be downloaded directly from the procurement portal — then upload them manually on the RFP Response tab.",
+      },
+    ],
+  },
+  {
+    label: "RFP Response",
+    href: "/opportunities",
+    tips: [
+      {
+        text: 'The RFP Response tab lives on each opportunity page. Open any opportunity and click the "RFP Response" tab to start.',
+      },
+      {
+        text: 'After extracting questions, click "Answer All" to generate AI-powered draft responses for every question at once using your knowledge base.',
+      },
+      {
+        text: "Each question shows a confidence score based on how well your KB covered it. Low-confidence answers are flagged for review.",
+      },
+      {
+        text: "Generate a Compliance Matrix directly from your extracted questions to track mandatory requirements and completion status.",
+      },
+    ],
+  },
+  {
+    label: "My Opportunities",
+    href: "/my-opportunities",
+    tips: [
+      {
+        text: 'The "Opportunities" tab shows AI-recommended tenders matched to your profile, plus saved opportunities.',
+      },
+      {
+        text: 'Switch to the "RFP Runs" tab to see all past RFP processing sessions with question counts and confidence breakdowns.',
+      },
+      {
+        text: "Set up your Organisation Profile to receive AI-matched recommendations. Profile keywords, CPV codes and regions drive the matching engine.",
+      },
+    ],
+  },
   {
     label: "Ask",
     href: "/ask",
@@ -28,28 +79,28 @@ const TIP_GROUPS = [
         text: 'Use "Add RFP context" to narrow by industry, response type, and tone — it improves relevance significantly for specialised topics.',
       },
       {
-        text: "The confidence badge shows how well your knowledge base covered the question. Below 75% surfaces a review prompt; you can skip it or send it to the queue.",
+        text: "The confidence badge shows how well your knowledge base covered the question. Below 75% surfaces a review prompt.",
       },
       {
-        text: 'Off-topic test: ask something completely unrelated to your documents. A healthy system returns "no relevant sources" rather than a plausible-sounding invention.',
+        text: 'Off-topic test: ask something unrelated to your documents. A healthy system returns "no relevant sources" rather than a plausible-sounding invention.',
       },
     ],
   },
   {
-    label: "RFP Runs",
-    href: "/rfp",
+    label: "Knowledge base",
+    href: "/documents",
     tips: [
       {
-        text: "Upload a PDF or DOCX and the agent extracts every numbered requirement automatically — no copy-pasting.",
+        text: "Upload any PDF, DOCX, XLSX, CSV, HTML, JSON, or Markdown file. Documents are chunked and embedded for semantic search.",
       },
       {
-        text: "Deselect individual questions before running. Only answer what is relevant to this specific submission.",
+        text: 'Documents with clear headings chunk better. The section prefix (e.g. "Security Policy › Access Control") is what makes vector search accurate.',
       },
       {
-        text: "Low-confidence answers show a confirmation prompt before going to the review queue — you control what gets routed.",
+        text: "Re-upload updated documents to refresh embeddings. Stale docs produce stale answers.",
       },
       {
-        text: "Export to Word after reviewing. The document includes all answers, citations, and context tags.",
+        text: 'Accessible tender documents can also be added directly to your KB from an opportunity\'s Documents section using "Add to KB".',
       },
     ],
   },
@@ -61,28 +112,10 @@ const TIP_GROUPS = [
         text: "Filter by risk level or status to focus on what needs attention first.",
       },
       {
-        text: "Edit and approval are separate steps — save your edits first, then approve when you are satisfied.",
-      },
-      {
-        text: 'Hover the "Edited by reviewer" badge on any approved answer to see the original AI draft before changes.',
+        text: "Edit and approval are separate steps — save your edits first, then approve when satisfied.",
       },
       {
         text: 'Use "Notify [Team]" on a missing-information item to send an email to the right owner without leaving the card.',
-      },
-    ],
-  },
-  {
-    label: "Knowledge base",
-    href: "/documents",
-    tips: [
-      {
-        text: "Click any document to see how it was chunked. Each chunk is its own embedding — this is the unit of retrieval.",
-      },
-      {
-        text: 'Documents with clear headings chunk better. The section title prefix (e.g. "Security Policy › Access Control") is what makes vector search accurate.',
-      },
-      {
-        text: "Re-upload updated documents to refresh the embeddings. Stale docs produce stale answers.",
       },
     ],
   },
@@ -91,10 +124,10 @@ const TIP_GROUPS = [
     href: "/admin",
     tips: [
       {
-        text: "Each topic (Legal, Engineering, Commercial) can have its own owner email, notification channel, and escalation SLA.",
+        text: "When you have no routing rules, all reviews default to your account. Add rules to assign specific topics to team members.",
       },
       {
-        text: "Escalation hours: items not reviewed within that window are automatically escalated to the backup contact.",
+        text: "Each topic (Legal, Engineering, Commercial) can have its own owner email, notification channel, and escalation SLA.",
       },
       {
         text: 'Set the notification channel to "Both" to send email and Slack simultaneously for high-risk topics.',
@@ -103,90 +136,34 @@ const TIP_GROUPS = [
   },
 ];
 
-const SCENARIOS = [
+const WORKFLOW_STEPS = [
   {
-    id: "fintech-aml",
-    title: "Fintech AML RFP",
-    description:
-      "A digital bank evaluating AI vendors to improve AML compliance. Covers past success, implementation approach, and security posture.",
-    industry: "Fintech",
-    questions: [
-      {
-        label: "Reduction in AML review time",
-        query:
-          "Draft a response to a fintech customer asking how we reduce AML review time. Include quantified evidence if available.",
-        context: { industry: "fintech", response_type: "case-study" },
-      },
-      {
-        label: "Security and data handling",
-        query:
-          "The customer is a regulated financial institution asking about our data handling and security certifications. What can we tell them?",
-        context: { industry: "fintech", response_type: "security-compliance" },
-      },
-      {
-        label: "Implementation timeline",
-        query:
-          "What is our standard implementation timeline and what do we need from the customer team?",
-        context: {
-          industry: "fintech",
-          response_type: "implementation-approach",
-        },
-      },
-    ],
+    step: "1",
+    colour: "var(--accent)",
+    title: "Find tenders",
+    desc: "Browse the Opportunities catalog or check My Opportunities for AI-matched recommendations. Use filters to narrow by region, stage, or keyword.",
+    action: { label: "Browse opportunities →", href: "/opportunities" },
   },
   {
-    id: "legaltech",
-    title: "Legaltech Contract Review",
-    description:
-      "A law firm wanting to reduce associate time on first-pass contract review. Evaluating AI for clause extraction and playbook comparison.",
-    industry: "Legaltech",
-    questions: [
-      {
-        label: "Contract review case study",
-        query:
-          "Which case studies are relevant to a legaltech workflow automation pitch for contract review?",
-        context: { industry: "legaltech", response_type: "case-study" },
-      },
-      {
-        label: "First-pass review time reduction",
-        query:
-          "What evidence do we have that our platform reduces first-pass contract review time?",
-        context: { industry: "legaltech" },
-      },
-      {
-        label: "Human-in-the-loop oversight",
-        query:
-          "The law firm wants to understand how we maintain human oversight and accountability when using AI for legal document review.",
-        context: { industry: "legaltech", response_type: "technical-answer" },
-      },
-    ],
+    step: "2",
+    colour: "var(--warn)",
+    title: "Save & analyse",
+    desc: 'Click "Save opportunity" on any tender to add it to your pipeline. Run "Analyse fit" to get an AI score, reasons, and missing evidence gaps based on your Organisation Profile.',
+    action: { label: "Set up your profile →", href: "/profile" },
   },
   {
-    id: "enterprise-security",
-    title: "Enterprise Security Due Diligence",
-    description:
-      "An enterprise buyer's infosec team reviewing the platform before procurement. Specifics on certifications, data handling, and access controls.",
-    industry: "Enterprise SaaS",
-    questions: [
-      {
-        label: "SOC 2 and certifications",
-        query:
-          "Do we have SOC 2 certification? What security certifications do we hold?",
-        context: { response_type: "security-compliance" },
-      },
-      {
-        label: "Data isolation and residency",
-        query:
-          "The customer wants to know how we isolate their data and whether they can choose data residency.",
-        context: { response_type: "security-compliance" },
-      },
-      {
-        label: "Off-topic test — hallucination check",
-        query:
-          "Can this platform help with hospital staffing optimisation and NHS workforce planning?",
-        context: {},
-      },
-    ],
+    step: "3",
+    colour: "var(--terra)",
+    title: "Extract & respond",
+    desc: 'Go to the "RFP Response" tab on an opportunity. Click "Extract questions" next to a tender document to download it and extract all questions automatically. Click "Answer All" to generate draft responses from your knowledge base.',
+    action: { label: "View knowledge base →", href: "/documents" },
+  },
+  {
+    step: "4",
+    colour: "var(--success)",
+    title: "Review & export",
+    desc: "Low-confidence answers route to the Review Queue with topic-owner assignment and SLA timers. Approve or edit drafts, then export to Word or generate a Compliance Matrix.",
+    action: { label: "Go to review queue →", href: "/review" },
   },
 ];
 
@@ -194,27 +171,32 @@ const FEATURES = [
   {
     icon: "⬆",
     title: "Document ingestion",
-    desc: "PDF, DOCX, CSV, XLSX, HTML, JSON, Markdown, plain text. ~500-token overlapping chunks, pgvector embeddings.",
+    desc: "PDF, DOCX, CSV, XLSX, HTML, JSON, Markdown. ~500-token overlapping chunks, pgvector embeddings.",
   },
   {
     icon: "⌕",
     title: "Hybrid search + rerank",
-    desc: "BM25 + vector search in parallel, Reciprocal Rank Fusion, then gpt-4o-mini reranks top 14 down to 6.",
+    desc: "BM25 + vector search in parallel, Reciprocal Rank Fusion, gpt-4o-mini reranks top 14 to 6.",
   },
   {
     icon: "≋",
     title: "Streaming generation",
-    desc: "Token-by-token SSE stream. Executive summary appears within ~1 second.",
+    desc: "Token-by-token SSE stream with structured Zod output. Executive summary appears within ~1 second.",
   },
   {
     icon: "✓",
     title: "Citation verification",
-    desc: "Cited chunk IDs are checked against retrieved set post-generation. Invented citations are stripped.",
+    desc: "Cited chunk IDs are checked against the retrieved set post-generation. Invented citations are stripped.",
   },
   {
     icon: "⬡",
-    title: "RFP batch processing",
-    desc: "Extract requirements from a full RFP PDF/DOCX, answer in parallel, export as Word.",
+    title: "Tender document extraction",
+    desc: "Download a PDF, DOCX, or XLSX tender document and extract all vendor questions automatically.",
+  },
+  {
+    icon: "✦",
+    title: "Opportunity RFP response",
+    desc: "Per-opportunity RFP Response tab with question extraction, AI-powered answers, and compliance matrix generation.",
   },
   {
     icon: "⚐",
@@ -224,17 +206,12 @@ const FEATURES = [
   {
     icon: "✎",
     title: "Review editing",
-    desc: "Edit and approval are separate. Edited answers show a badge revealing the original AI draft on hover.",
+    desc: "Edit and approval are separate. Edited answers show a badge with the original AI draft on hover.",
   },
   {
     icon: "⚙",
     title: "Admin routing",
-    desc: "Per-topic owner, email/Slack channel, and escalation SLA.",
-  },
-  {
-    icon: "▶",
-    title: "Demo scenarios",
-    desc: "3 preloaded industry scenarios with one-click launch links.",
+    desc: "Per-topic owner, email/Slack channel, escalation SLA. Defaults to your account when no rules are set.",
   },
   {
     icon: "◷",
@@ -245,6 +222,11 @@ const FEATURES = [
     icon: "✉",
     title: "Info requests",
     desc: "Notify a specific team about missing information directly from a review card.",
+  },
+  {
+    icon: "★",
+    title: "Opportunity matching",
+    desc: "AI scoring against your Organisation Profile — CPV codes, keywords, regions, and contract value range.",
   },
 ];
 
@@ -403,98 +385,71 @@ function TipsTab() {
   );
 }
 
-function ScenariosTab({ onClose }: { onClose: () => void }) {
+function WorkflowTab({ onClose }: { onClose: () => void }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p
         style={{
-          padding: "8px 12px",
-          background: "color-mix(in oklch, var(--warn) 10%, var(--surface))",
-          border: "1px solid color-mix(in oklch, var(--warn) 25%, transparent)",
-          borderRadius: "var(--r-sm)",
-          fontSize: 12,
+          fontSize: 12.5,
           color: "var(--muted)",
+          lineHeight: 1.6,
+          margin: 0,
         }}
       >
-        Load the sample dataset from the Dashboard before running these
-        scenarios.
-      </div>
-      {SCENARIOS.map((scenario) => (
-        <div key={scenario.id} className="card" style={{ overflow: "hidden" }}>
-          <div className="card-head">
-            <h3 style={{ fontSize: 13, fontWeight: 600 }}>{scenario.title}</h3>
-            <span className="badge mono" style={{ fontSize: 10.5 }}>
-              {scenario.industry}
-            </span>
-          </div>
+        Four steps from finding a tender to a reviewed, exportable response.
+      </p>
+      {WORKFLOW_STEPS.map((step) => (
+        <div
+          key={step.step}
+          className="card card-pad"
+          style={{ borderLeft: `3px solid ${step.colour}` }}
+        >
           <div
             style={{
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--border)",
-              background: "var(--bg)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 6,
             }}
           >
-            <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
-              {scenario.description}
-            </p>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: "var(--font-mono)",
+                color: step.colour,
+                background: `color-mix(in oklch, ${step.colour} 12%, var(--surface))`,
+                padding: "2px 7px",
+                borderRadius: 4,
+                letterSpacing: "0.06em",
+              }}
+            >
+              Step {step.step}
+            </span>
+            <span
+              style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}
+            >
+              {step.title}
+            </span>
           </div>
-          <div>
-            {scenario.questions.map((q, i) => {
-              const params = new URLSearchParams({ q: q.query });
-              if (q.context)
-                Object.entries(q.context).forEach(([k, v]) => params.set(k, v));
-              return (
-                <div
-                  key={i}
-                  style={{
-                    padding: "11px 16px",
-                    borderBottom:
-                      i < scenario.questions.length - 1
-                        ? "1px solid var(--border)"
-                        : "none",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p
-                      style={{
-                        fontSize: 12.5,
-                        fontWeight: 500,
-                        color: "var(--ink)",
-                        marginBottom: 2,
-                      }}
-                    >
-                      {q.label}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: 11.5,
-                        color: "var(--muted)",
-                        lineHeight: 1.4,
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical" as const,
-                      }}
-                    >
-                      {q.query}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/ask?${params.toString()}`}
-                    className="btn sm"
-                    style={{ flexShrink: 0, fontSize: 11.5 }}
-                    onClick={onClose}
-                  >
-                    Ask →
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
+          <p
+            style={{
+              fontSize: 12.5,
+              color: "var(--muted)",
+              lineHeight: 1.6,
+              marginBottom: 10,
+            }}
+          >
+            {step.desc}
+          </p>
+          <Link
+            href={step.action.href}
+            className="btn ghost sm"
+            style={{ fontSize: 11 }}
+            onClick={onClose}
+          >
+            {step.action.label}
+          </Link>
         </div>
       ))}
     </div>
@@ -719,7 +674,7 @@ export function HelpNavigator() {
 
         <div className="drawer-body">
           {tab === "tips" && <TipsTab />}
-          {tab === "scenarios" && <ScenariosTab onClose={dismiss} />}
+          {tab === "workflow" && <WorkflowTab onClose={dismiss} />}
           {tab === "features" && <FeaturesTab />}
           {tab === "pipeline" && <PipelineTab />}
         </div>
