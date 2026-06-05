@@ -101,11 +101,18 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (!docRes.ok) {
     if (docRes.status === 403 || docRes.status === 401) {
+      return NextResponse.json({ error: "access-denied" }, { status: 403 });
+    }
+    if (docRes.status === 429) {
+      const body = await docRes.text().catch(() => "");
+      const retryAfter = docRes.headers.get("retry-after");
       return NextResponse.json(
         {
-          error: "access-denied",
+          error: "rate-limited",
+          message: body || "Rate limit exceeded on the document server.",
+          retryAfter: retryAfter ?? null,
         },
-        { status: 403 },
+        { status: 429 },
       );
     }
     return NextResponse.json(

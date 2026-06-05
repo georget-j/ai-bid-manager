@@ -33,10 +33,16 @@ function DocExtractRow({
       const data = (await res.json()) as {
         questions_saved?: number;
         error?: string;
+        message?: string;
       };
       if (!res.ok) {
         if (res.status === 403 || data.error === "access-denied") {
           setError("portal-blocked");
+        } else if (res.status === 429 || data.error === "rate-limited") {
+          setError(
+            "rate-limited:" +
+              (data.message ?? "Rate limited — try again in up to 60 minutes."),
+          );
         } else {
           setError(data.error ?? "Extraction failed");
         }
@@ -75,9 +81,11 @@ function DocExtractRow({
         >
           {doc.title}
         </span>
-        {error && error !== "portal-blocked" && (
-          <span style={{ fontSize: 11.5, color: "#dc2626" }}>{error}</span>
-        )}
+        {error &&
+          error !== "portal-blocked" &&
+          !error.startsWith("rate-limited:") && (
+            <span style={{ fontSize: 11.5, color: "#dc2626" }}>{error}</span>
+          )}
         {error === "portal-blocked" && (
           <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
             Requires authentication.{" "}
@@ -92,6 +100,11 @@ function DocExtractRow({
               </a>
             )}{" "}
             then use Upload file below.
+          </span>
+        )}
+        {error?.startsWith("rate-limited:") && (
+          <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
+            {error.slice("rate-limited:".length)}
           </span>
         )}
       </div>
@@ -174,12 +187,17 @@ export function RFPResponseContent({
         const data = (await res.json()) as {
           questions_saved?: number;
           error?: string;
+          message?: string;
         };
         if (!res.ok) {
-          const msg =
-            res.status === 403 || data.error === "access-denied"
-              ? `${doc.title}: requires authentication`
-              : `${doc.title}: ${data.error ?? "extraction failed"}`;
+          let msg: string;
+          if (res.status === 403 || data.error === "access-denied") {
+            msg = `${doc.title}: requires authentication — download manually and upload below`;
+          } else if (res.status === 429 || data.error === "rate-limited") {
+            msg = `${doc.title}: rate limited — ${data.message ?? "try again in up to 60 minutes"}`;
+          } else {
+            msg = `${doc.title}: ${data.error ?? "extraction failed"}`;
+          }
           errors.push(msg);
         }
       } catch {
