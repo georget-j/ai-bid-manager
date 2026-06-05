@@ -1,32 +1,41 @@
-# AI RFP Agent
+# UK Bid Intelligence Agent
 
-> Draft RFP responses grounded in your internal knowledge base — with source citations, confidence scoring, missing information flags, and a human-in-the-loop review queue.
+> Find, qualify, and respond to UK public-sector tenders with AI — grounded in your knowledge base, with source citations, confidence scoring, and a human-in-the-loop review queue.
 
----
-
-## Why I built this
-
-Answering RFPs and proposal questions is one of the most time-consuming things a B2B team does. The knowledge you need already exists somewhere — a case study, a security note, an implementation playbook — but pulling it together under deadline pressure is painful. Generic AI tools make it worse because they invent answers, and in enterprise sales that gets you into trouble fast.
-
-This project is my attempt to build what that workflow should actually look like: a structured retrieval and generation pipeline where every claim is grounded in a source document and every gap is flagged explicitly, so the output is a strong, reviewable first draft — one you refine into a proposal rather than copy-paste, with the AI's uncertainty surfaced instead of hidden.
+Live demo: **[ai-rfp-agent-ten.vercel.app](https://ai-rfp-agent-ten.vercel.app)**  
+Demo account: `demo@fortis-cyber.co.uk` / `FortisDemo2024!` (Fortis Cyber Solutions Ltd — a pre-built cyber security persona)
 
 ---
 
 ## What it does
 
-You load your knowledge base (case studies, security docs, implementation guides, answer libraries). You ask a question or upload an RFP. It finds the most relevant content, generates a structured response in enterprise proposal style, and shows you exactly where every claim came from.
+The platform covers the full bid lifecycle for UK public-sector opportunities:
+
+**Find** — Browse the Opportunities catalog (sourced from Find a Tender / Contracts Finder / NHS) or check AI-matched recommendations on My Opportunities. Save interesting tenders to your pipeline with one click.
+
+**Qualify** — Run an AI fit analysis against your Organisation Profile (CPV codes, keywords, regions, certifications, contract value range). Get a fit score, reasons, risks, and a list of missing evidence to address.
+
+**Extract** — On the RFP Response tab of any opportunity, click "Extract questions" next to an accessible tender document. The tool downloads the PDF, DOCX, or XLSX, runs text extraction, and uses GPT-4o to pull out every vendor requirement.
+
+**Respond** — Click "Answer All" to generate structured draft responses for every question using your knowledge base. Each answer includes an executive summary, supporting evidence, source citations (server-verified), missing information flags, and a confidence level.
+
+**Review** — Low-confidence or high-risk answers route to the Review Queue with SLA timers and topic-owner assignment. Approve, edit, and export to Word or generate a Compliance Matrix.
+
+---
+
+## How it works
 
 ```
-Your question / RFP batch
-  → embed with text-embedding-3-small
-  → hybrid search: cosine similarity + full-text (pgvector)
-  → top chunks retrieved
-  → gpt-4o-mini generates structured response (Zod-validated JSON)
-  → response includes:
-      draft answer · executive summary · supporting evidence
-      source citations (server-verified) · missing info flags
-      confidence level · next actions
-  → low-confidence / high-risk answers routed to review queue
+Opportunity → extract questions from tender document
+  → for each question:
+      embed with text-embedding-3-small
+      → hybrid search: pgvector cosine + full-text (BM25)
+      → Reciprocal Rank Fusion → gpt-4o-mini rerank (14 → 6 chunks)
+      → GPT-4o structured output (Zod-validated):
+            draft answer · executive summary · citations
+            confidence level · missing information · next actions
+      → server-side citation verification
+      → route low-confidence / high-risk to review queue
 ```
 
 ---
@@ -35,16 +44,18 @@ Your question / RFP batch
 
 ```mermaid
 flowchart LR
-    A[User] --> B[Next.js UI]
-    B --> C[Route Handlers]
-    C --> D[Ingestion Pipeline\nchunking + embeddings]
-    C --> E[Retrieval Pipeline\nhybrid vector + keyword]
-    D --> F[Supabase Postgres\n+ pgvector]
+    A[Procurement\nAPIs] -->|OCDS notices| B[Sync Engine]
+    B --> F[Supabase Postgres\n+ pgvector]
+    U[User] --> N[Next.js UI]
+    N --> C[Route Handlers]
+    C -->|ingest| D[Chunking + Embeddings\ntext-embedding-3-small]
+    C -->|retrieve| E[Hybrid Search\nBM25 + cosine + RRF]
+    D --> F
     E --> F
-    E --> G[LLM Generation\ngpt-4o-mini]
-    G --> H[Zod Schema Validation]
-    H --> I[Review Routing]
-    I --> B
+    E --> G[GPT-4o\nstructured output]
+    G --> H[Zod Validation\n+ Citation Check]
+    H --> I[Review Queue\nSLA + routing]
+    I --> N
 ```
 
 ---
@@ -54,10 +65,10 @@ flowchart LR
 | Layer               | Technology                                |
 | ------------------- | ----------------------------------------- |
 | Framework           | Next.js 16 (App Router) + TypeScript      |
-| Styling             | Tailwind CSS v4                           |
 | Database            | Supabase Postgres + pgvector              |
 | Embeddings          | OpenAI text-embedding-3-small (1536 dims) |
-| Generation          | OpenAI gpt-4o-mini with structured output |
+| Generation          | OpenAI GPT-4o with structured output      |
+| Auth                | Supabase Auth (magic link OTP)            |
 | Email notifications | Resend                                    |
 | Testing             | Vitest                                    |
 | Deployment          | Vercel + Supabase Cloud                   |
@@ -66,26 +77,45 @@ flowchart LR
 
 ## Features
 
-- **Multi-format ingestion** — PDF, DOCX, XLSX, CSV, Markdown, JSON, HTML, and plain text
-- **Markdown-aware chunking** — documents split on `##` section boundaries, each chunk prefixed with `[Document > Section]` for better embedding quality and cleaner citations
-- **Hybrid search** — pgvector cosine similarity combined with full-text keyword search for better recall on exact-match queries
-- **Batch RFP processing** — upload an RFP, extract questions, process up to 100 in parallel with SSE streaming progress
-- **Structured generation** — gpt-4o-mini with a Zod schema as the response format, so the type flows from the database straight to the UI with no manual parsing
-- **Source citations (server-verified)** — every key claim links to the source document, chunk content, and similarity score; citations are verified server-side against retrieved chunk IDs
-- **Missing information flags** — explicit acknowledgement of what isn't covered, with a suggested owner for each gap
-- **Confidence levels** — high/medium/low with a plain-English reason, grounded in how well the retrieved content actually answers the question
-- **Human-in-the-loop review queue** — low-confidence and high-risk answers are automatically routed to the right reviewer with email/Slack notification and SLA escalation
-- **Word export** — export single responses or full RFP batches to a formatted `.docx` file
-- **Run history** — browse past RFP runs and individual question results
-- **One-click sample dataset** — 8 realistic enterprise documents loaded with a single button
+### Intelligence
+
+- **Opportunity catalog** — UK public-sector tenders from Find a Tender, Contracts Finder, and NHS sources, normalised to OCDS format
+- **AI opportunity matching** — scored against your Organisation Profile (CPV codes, keywords, regions, contract value range, certifications)
+- **Fit analysis** — per-opportunity fit score, readiness score, bid/no-bid recommendation, risks, and missing evidence gaps
+- **Bid pipeline** — track opportunities through new-match → reviewing → bid → in-progress → awaiting-review → won/lost
+- **Alerts** — saved searches with email notifications for new matching opportunities
+- **Buyer intelligence** — browse buyers by region and sector
+
+### Respond
+
+- **Tender document extraction** — download a PDF, DOCX, or XLSX tender document and extract all vendor questions automatically using GPT-4o
+- **Opportunity RFP Response tab** — per-opportunity question list with AI-powered draft answers, editable inline, with compliance matrix generation
+- **Knowledge base** — upload any PDF, DOCX, XLSX, CSV, HTML, JSON, or Markdown file; documents are chunked and embedded for hybrid semantic search
+- **Ask** — single-question RAG with streaming answers, confidence scores, and source citations
+- **Hybrid search** — pgvector cosine similarity + Postgres full-text, merged with Reciprocal Rank Fusion, reranked by gpt-4o-mini
+- **Structured generation** — GPT-4o with a Zod schema: draft answer, executive summary, evidence, citations, confidence, missing information, next actions
+- **Server-verified citations** — cited chunk IDs are cross-checked against the retrieved set; hallucinated citations are stripped before reaching the UI
+- **Review queue** — low-confidence and high-risk answers route to reviewers with email/Slack notification and SLA escalation
+- **Word export** — export responses or full RFP batches to formatted `.docx`
+- **Compliance matrices** — generate a requirement-by-requirement matrix from extracted questions, track status (not started → drafted → needs evidence → approved)
+- **RFP Runs** — browse all past processing sessions from My Opportunities → RFP Runs tab
+- **Query history** — every Ask answer stored and expandable
+
+### Organisation
+
+- **Organisation Profile** — set services, keywords, CPV codes, regions, certifications, accreditations, contract value range, and buyer preferences
+- **Multi-org isolation** — each user gets a private org; all data (documents, queries, pipeline) is org-scoped
+- **Admin routing** — per-topic owner, notification channel (email/Slack/both), escalation SLA; defaults to your own account when no rules are set
 
 ---
 
-## What it won't do
+## Navigation
 
-- Invent facts, metrics, customer names, or certifications that aren't in your documents
-- Make decisions for you — outputs are drafts for human review
-- Replace a subject-matter expert — it pulls together what you have, it doesn't know what you don't
+| Section      | Pages                                                                                                     |
+| ------------ | --------------------------------------------------------------------------------------------------------- |
+| Intelligence | Opportunities · My Opportunities (+ RFP Runs tab) · Bid Pipeline · Buyers · Alerts · Organisation Profile |
+| Respond      | Dashboard · Ask · Knowledge Base · Review Queue · History                                                 |
+| Bottom       | Admin · Help                                                                                              |
 
 ---
 
@@ -131,19 +161,29 @@ CRON_SECRET=<random string>                        # secures the escalation cron
 
 ### 3. Database setup
 
-Run the migration files in your Supabase project's SQL editor in order:
+Run migrations in order from `supabase/migrations/` in your Supabase SQL editor:
 
-1. `001_enable_vector.sql` — pgvector extension
-2. `002_create_tables.sql` — documents, chunks, queries, results
-3. `003_match_function.sql` — vector similarity function
-4. `004_hybrid_search.sql` — hybrid search function
-5. `005_fix_hybrid_search.sql` — hybrid search fix
-6. `006_extended_metadata.sql` — document metadata columns
-7. `007_rate_limits.sql` — rate limiting table and function
-8. `008_review_workflow.sql` — review queue, routing config, approved answers
-9. `009_review_enhancements.sql` — escalation columns, comments, audit log
-10. `010_engineering_topic.sql` — engineering routing topic
-11. `011_rls.sql` — Row Level Security policies
+```
+001–010  core schema (vector, tables, hybrid search, rate limits, review workflow)
+011      Row Level Security policies
+012      Orgs + org_memberships
+013      Answer library
+014      RFP run questions (checkpoint/resume)
+015      Fix conflicting RLS policies
+016      Org-scoped retrieval (hybrid_search_chunks)
+017      Procurement tables (opportunities, buyers, sources, profiles, pipeline)
+018      RFP → opportunity link
+019      Compliance matrix
+020      Alert rules
+021      Tighten RLS (org-scope remaining tables)
+022+     Additional procurement and feature tables
+```
+
+Or push all at once with the Supabase CLI:
+
+```bash
+supabase db push
+```
 
 ### 4. Run locally
 
@@ -153,38 +193,24 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### 5. Load sample data
+### 5. Try the demo account
 
-Click **"Load Sample Documents"** on the dashboard. It ingests 8 sample enterprise documents, chunks them, generates embeddings, and stores everything in Supabase.
-
-> This makes roughly 8 batched embedding API calls — total cost is under $0.01.
+Log in at `/login` with `demo@fortis-cyber.co.uk` / `FortisDemo2024!` to explore the system with a pre-populated knowledge base for a fictional UK cyber security consultancy (Fortis Cyber Solutions Ltd). The KB contains 13 documents covering company overview, case studies, certifications, service catalogue, team profiles, methodology, and more.
 
 ---
 
 ## Environment variables
 
-| Variable                        | Required      | Description                                    |
-| ------------------------------- | ------------- | ---------------------------------------------- |
-| `OPENAI_API_KEY`                | Yes           | OpenAI API key — server-side only              |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Yes           | Supabase project URL                           |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes           | Supabase anon/public key                       |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Yes           | Supabase service role key — server-side only   |
-| `NEXT_PUBLIC_APP_URL`           | Recommended   | App URL for CSRF origin check                  |
-| `RESEND_API_KEY`                | Optional      | Resend key for review email notifications      |
-| `DEMO_MODE`                     | Dev/demo only | `true` bypasses auth (never set in production) |
-| `CRON_SECRET`                   | Production    | Secret for the `/api/cron/escalate` endpoint   |
-
----
-
-## Example questions to try
-
-After loading the sample documents:
-
-1. _"Draft a response to a fintech customer asking how we reduce AML review time."_
-2. _"Do we have SOC 2 certification? What's our current compliance status?"_
-3. _"Which case studies are relevant to a legaltech workflow automation pitch?"_
-4. _"What does our standard implementation timeline look like, and what do we need from the customer?"_
-5. _"Can this platform help with hospital staffing optimisation?"_ — off-topic test, should return low confidence with no invented healthcare capabilities
+| Variable                        | Required    | Description                                    |
+| ------------------------------- | ----------- | ---------------------------------------------- |
+| `OPENAI_API_KEY`                | Yes         | OpenAI API key — server-side only              |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes         | Supabase project URL                           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes         | Supabase anon/public key                       |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Yes         | Supabase service role key — server-side only   |
+| `NEXT_PUBLIC_APP_URL`           | Recommended | App URL for CSRF origin check                  |
+| `RESEND_API_KEY`                | Optional    | Resend key for review email notifications      |
+| `DEMO_MODE`                     | Dev only    | `true` bypasses auth — never set in production |
+| `CRON_SECRET`                   | Production  | Secret for the `/api/cron/escalate` endpoint   |
 
 ---
 
@@ -194,61 +220,48 @@ After loading the sample documents:
 npm test
 ```
 
-Unit tests across chunking, prompt construction, and schema validation.
+Unit tests across chunking, prompt construction, schema validation, and extraction logic.
 
 ---
 
 ## How chunking works
 
-Documents are split on `##` and `###` headings. Each section becomes a chunk (or several if it's long), prefixed with `[Document Title > Section Name]`. This keeps semantically related content together and gives the embedding model a clear topic signal rather than arbitrary character slices.
+Documents are split on `##` and `###` headings. Each section becomes a chunk prefixed with `[Document Title > Section Name]`. This keeps semantically related content together, gives the embedding model a clear topic signal, and makes citations navigable — when the system says it found something in "Capability Statement › Certifications", you can go directly to that section.
 
-For plain text documents without headers, it falls back to paragraph/sentence boundary splitting with 150-character overlap.
-
-The `[Title > Section]` prefix also shows up in citations, so when the LLM says it found something in "Implementation Playbook > Discovery Phase", you can go find that section directly.
-
----
-
-## Evaluation
-
-See [/docs/evaluation.md](./docs/evaluation.md) for test cases, expected retrieval behaviour, pass/fail criteria, known failure modes, and suggested improvements.
+For plain text without headers, it falls back to paragraph/sentence boundary splitting with 150-character overlap.
 
 ---
 
 ## Deploying
 
-The project is set up for Vercel + Supabase:
+The project is configured for Vercel + Supabase:
 
 1. Push to GitHub
 2. Import to Vercel — Next.js is auto-detected
-3. Add environment variables in Vercel project settings (see table above)
-4. Run the SQL migrations in your Supabase SQL editor
+3. Add environment variables in Vercel project settings
+4. Run SQL migrations in your Supabase SQL editor (or `supabase db push`)
 5. Set `DEMO_MODE=false` (or leave unset) in production
 
-The `vercel.json` in this repo configures a cron job that runs hourly to escalate overdue review items. Add `CRON_SECRET` to your Vercel environment variables to secure it.
+The `vercel.json` configures a cron job that runs hourly to escalate overdue review items. Add `CRON_SECRET` to your Vercel env vars to secure it.
 
 ---
 
-## What this demonstrates
+## Security
 
-A complete RAG pipeline in TypeScript: document ingestion → multi-format extraction → markdown-aware chunking → batch embeddings → hybrid pgvector search → structured gpt-4o-mini generation → Zod-validated typed response → server-verified citations → human-in-the-loop review routing.
-
-Design choices worth noting:
-
-- **Zod as the OpenAI response format** — one source of truth, types flow all the way through from database to UI
-- **SQL-native vector search** via pgvector rather than a separate vector database — simpler ops, joins work normally, no sync issues
-- **Hybrid search** — pgvector cosine similarity plus Postgres full-text, giving better recall on exact-match terms
-- **Explicit missing information** in the response schema — the model is forced to surface gaps rather than paper over them
-- **Section-aware chunking** — keeps the embedding meaningful and makes citations navigable
-- **Server-verified citations** — chunk IDs are cross-checked server-side; hallucinated citations are stripped before the response reaches the UI
+- Row Level Security is enabled on all tables; all data access is additionally filtered by `org_id` at the application layer
+- Multi-tenant: each user provisioned with a private org on first login; no cross-org data access
+- Export routes require authentication
+- `DEMO_MODE=true` is blocked in `NODE_ENV=production`
+- Service role key is server-side only; anon key has no write access to sensitive tables
 
 ---
 
-## Security note
+## What it won't do
 
-Documents are stored as plain text in Supabase. Row Level Security is enabled on all tables (`011_rls.sql`). For multi-user deployments, configure Supabase Auth and tighten RLS policies to org scope before going live.
-
-Never set `DEMO_MODE=true` in production — this flag bypasses auth enforcement and is only safe in local development or isolated demo environments.
+- Invent facts, metrics, customer names, or certifications not in your documents
+- Make bid/no-bid decisions for you — outputs are drafts for human review
+- Replace a subject-matter expert — it pulls together what you have
 
 ---
 
-_George Terpitsas — [github.com/georget-j](https://github.com/georget-j) — georgeterpitsas1@hotmail.co.uk_
+_George Terpitsas · [github.com/georget-j](https://github.com/georget-j) · georgeterpitsas1@hotmail.co.uk_
