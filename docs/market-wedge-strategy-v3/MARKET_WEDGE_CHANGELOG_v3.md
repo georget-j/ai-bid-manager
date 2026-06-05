@@ -1,5 +1,23 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Phase 3 foundation shipped
+
+### Added (commit b674c7d)
+
+- Migration 031: `clients` table — org_id FK, vertical enum, status, website, notes; RLS scoped to org_memberships
+- Migration 032: nullable `client_id` FK on documents, opportunity_questions, bid_pipeline, compliance_matrices with partial indexes
+- `GET/POST /api/clients` + `GET/PATCH/DELETE /api/clients/[id]` — org-scoped CRUD with Zod validation; DELETE is soft-archive
+- `/clients` list page — inline create form, status filter, hover cards
+- `/clients/[id]` detail page — inline edit, archive confirmation, vertical/status badges, placeholder cards for Phase 4
+- Clients nav item added to sidebar and topbar breadcrumb map
+- 3 client isolation tests added to `tests/tenant-isolation.test.ts`
+
+### Architecture
+
+Clients modelled as a separate table linked to agency org (Option A / ADR-005). Existing single-org constraint preserved. client_id is nullable on all tables — no migration impact on existing data.
+
+---
+
 ## 2026-06-05 — Phase 2 security fixes complete
 
 ### Security (commit 83573dc)

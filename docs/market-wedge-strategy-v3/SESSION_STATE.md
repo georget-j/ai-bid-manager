@@ -10,41 +10,48 @@ This file captures the exact working state. Update it at the end of every sessio
 
 ## Current phase
 
-Phase 2 complete. Phase gate cleared.
+Phase 3 foundation shipped. Clients model live.
 
-Next active phases: Phase 1 (founder outreach — parallel) + Phase 3 (agency/client workspace design).
+Next: Phase 1 (founder outreach — parallel) + continue Phase 3 (link clients to opportunities/documents in UI).
 
 ## What was just done
 
-Implemented all 6 Phase 2 security fixes:
+Phase 3 agency/client workspace foundation:
 
-- S-001: `tender_doc_cache` — org_id + RLS (migration 030)
-- S-002: `GET /api/admin/integrations` — now requires admin
-- S-003: `CRON_SECRET` — now required (500 if missing)
-- S-004: `lib/supabase-service.ts` — service role key isolated from anon client
-- S-005: `tests/tenant-isolation.test.ts` — 5 cross-tenant tests
-- S-006: Rate limit fail-open — now logs console.error
+- Migration 031: `clients` table (org_id, name, vertical, status, website, notes) + RLS
+- Migration 032: nullable `client_id` FK added to documents, opportunity_questions, bid_pipeline, compliance_matrices
+- API: `GET/POST /api/clients` + `GET/PATCH/DELETE /api/clients/[id]` (org-scoped, Zod-validated)
+- UI: `/clients` list page + `/clients/[id]` detail page with inline edit, archive, placeholder Phase 4 cards
+- Clients nav item added to sidebar (top of Intelligence section)
+- 3 new isolation tests in `tests/tenant-isolation.test.ts`
 
-All committed and pushed. Tracking files updated.
+All committed (`b674c7d`) and pushed.
 
 ## What to do next
 
 ### Option A — Phase 1 (founder, not code)
 
-Talk to 10 bid agencies before building Phase 3.
-See `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` for interview script.
-Key question: Is IT/cyber the right vertical, or facilities management?
+Talk to 10 bid agencies before building more.
+See `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` for interview guide.
+Key question: Is IT/cyber the right vertical? Would they pay £500–£2k/month?
 
-### Option B — Phase 3 (next build phase)
+### Option B — Continue Phase 3
 
-Design the agency/client workspace schema.
-Decision needed: are clients sub-orgs, or a separate clients table linked to an agency org?
-Read `MARKET_WEDGE_PRODUCT_REQUIREMENTS_v3.md` before writing any code.
-Do NOT start coding Phase 3 until the schema is decided.
+Wire `client_id` into the opportunity/documents UI so agency users can filter by client.
+Steps:
+
+1. Add client selector to opportunity detail page (set `client_id` on opportunity_questions and bid_pipeline rows)
+2. Add client filter to `/pipeline` page
+3. Add client selector to document upload
+
+### Option C — Phase 4: Evidence vault
+
+Start the evidence item model (certifications, policies, case studies) for a selected client.
+Design needed first: evidence types for IT/cyber vertical.
 
 ## Last commit
 
-`13bb53c` — docs(phase2): mark security phase gate cleared in tracking files
+`b674c7d` — feat(phase3): agency/client workspace foundation
 
 ## Branch
 
