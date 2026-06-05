@@ -6,6 +6,27 @@ import { useState, useEffect } from "react";
 
 const NAV_INTELLIGENCE = [
   {
+    href: "/clients",
+    label: "Clients",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="5" cy="5" r="2.5" />
+        <path d="M1 14c0-3.3 1.8-5 4-5s4 1.7 4 5" />
+        <circle cx="12" cy="6" r="2" />
+        <path d="M10 14c0-2.5 1.3-4 3-4" />
+      </svg>
+    ),
+  },
+  {
     href: "/opportunities",
     label: "Opportunities",
     icon: (

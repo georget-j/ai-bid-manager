@@ -208,3 +208,67 @@ describe("Tenant isolation — answer_library", () => {
     expect((data ?? []).length).toBe(0);
   });
 });
+
+describe("Tenant isolation — clients", () => {
+  async function insertClient(orgId: string, name: string): Promise<string> {
+    const { data, error } = await supabase
+      .from("clients")
+      .insert({ org_id: orgId, name, vertical: "it_cyber", status: "active" })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
+    insertedIds.push({ table: "clients", id: data.id });
+    return data.id;
+  }
+
+  it("clients inserted for org A are not returned when queried as org B", async () => {
+    await insertClient(ORG_A, "Org A Secret Client");
+
+    const { data } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("org_id", ORG_B);
+
+    const leak = (data ?? []).find((c) => c.name === "Org A Secret Client");
+    expect(leak).toBeUndefined();
+  });
+
+  it("clients inserted for org A are returned when queried as org A", async () => {
+    await insertClient(ORG_A, "Org A Own Client");
+
+    const { data } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("org_id", ORG_A);
+
+    const own = (data ?? []).find((c) => c.name === "Org A Own Client");
+    expect(own).toBeDefined();
+  });
+
+  it("documents scoped to a client are not visible to a different org", async () => {
+    const clientId = await insertClient(ORG_A, "Org A Client for Doc Test");
+
+    const { data: doc } = await supabase
+      .from("documents")
+      .insert({
+        title: "Client-scoped confidential doc",
+        org_id: ORG_A,
+        client_id: clientId,
+        source_type: "upload",
+        raw_text: "Sensitive client content",
+        collection: "main",
+      })
+      .select("id")
+      .single();
+
+    if (doc?.id) insertedIds.push({ table: "documents", id: doc.id });
+
+    const { data } = await supabase
+      .from("documents")
+      .select("id, title")
+      .eq("org_id", ORG_B)
+      .eq("client_id", clientId);
+
+    expect((data ?? []).length).toBe(0);
+  });
+});

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 const CRUMB_MAP: Record<string, string> = {
   "/": "Dashboard",
+  "/clients": "Clients",
   "/opportunities": "Opportunities",
   "/pipeline": "Bid Pipeline",
   "/buyers": "Buyers",
