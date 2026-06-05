@@ -12,13 +12,15 @@ interface Params {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, { params }: Params) {
   const orgId = await getRequestOrgId();
   if (!orgId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: opportunityId } = await params;
+  const approvedOnly =
+    new URL(request.url).searchParams.get("mode") === "approved";
   const supabase = getServiceSupabase();
 
   // Fetch opportunity + pipeline (for client_id) in parallel
@@ -123,6 +125,14 @@ export async function GET(_request: NextRequest, { params }: Params) {
     }
   }
 
+  // Filter to approved-only if requested
+  const exportQuestions = approvedOnly
+    ? (questions as ResponseQuestion[]).filter(
+        (q) =>
+          q.question_class === "guidance" || q.answer_status === "approved",
+      )
+    : (questions as ResponseQuestion[]);
+
   const docxBuffer = await generateResponseDocx(
     {
       title: opp.title ?? "Tender",
@@ -130,8 +140,9 @@ export async function GET(_request: NextRequest, { params }: Params) {
       source_id: opp.source_id ?? null,
     },
     orgName,
-    questions as ResponseQuestion[],
+    exportQuestions,
     gapReport,
+    approvedOnly,
   );
 
   const slug = (opp.title ?? "response")

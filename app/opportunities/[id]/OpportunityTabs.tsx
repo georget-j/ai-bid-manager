@@ -7,8 +7,11 @@ export function OpportunityTabs({ id }: { id: string }) {
   const pathname = usePathname();
   const rfpPath = `/opportunities/${id}/rfp`;
   const gapsPath = `/opportunities/${id}/gaps`;
+  const buyerPath = `/opportunities/${id}/buyer`;
   const isRfp = pathname === rfpPath || pathname.startsWith(rfpPath + "/");
   const isGaps = pathname === gapsPath || pathname.startsWith(gapsPath + "/");
+  const isBuyer =
+    pathname === buyerPath || pathname.startsWith(buyerPath + "/");
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     fontSize: 13.5,
@@ -30,7 +33,10 @@ export function OpportunityTabs({ id }: { id: string }) {
         marginBottom: 20,
       }}
     >
-      <Link href={`/opportunities/${id}`} style={tabStyle(!isRfp)}>
+      <Link
+        href={`/opportunities/${id}`}
+        style={tabStyle(!isRfp && !isGaps && !isBuyer)}
+      >
         Details
       </Link>
       <Link href={rfpPath} style={tabStyle(isRfp)}>
@@ -38,6 +44,9 @@ export function OpportunityTabs({ id }: { id: string }) {
       </Link>
       <Link href={gapsPath} style={tabStyle(isGaps)}>
         Evidence Gaps
+      </Link>
+      <Link href={buyerPath} style={tabStyle(isBuyer)}>
+        Buyer
       </Link>
     </div>
   );

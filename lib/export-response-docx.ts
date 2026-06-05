@@ -327,6 +327,36 @@ function renderSection(
 
     // Answer body
     if (draft) {
+      // Label unreviewed answers so the reader knows the review status
+      if (item.answer_status === "needs-review") {
+        out.push(
+          new Paragraph({
+            spacing: { after: 60 },
+            children: [
+              t("AI DRAFT — flagged for review", {
+                size: 18,
+                color: "D97706",
+                italics: true,
+                bold: true,
+              }),
+            ],
+          }),
+        );
+      } else if (item.answer_status === "drafted") {
+        out.push(
+          new Paragraph({
+            spacing: { after: 60 },
+            children: [
+              t("AI DRAFT — awaiting review", {
+                size: 18,
+                color: "6B7280",
+                italics: true,
+              }),
+            ],
+          }),
+        );
+      }
+
       const paragraphs = draft.split(/\n\n+/).filter(Boolean);
       for (const p of paragraphs) {
         out.push(
@@ -660,6 +690,7 @@ export async function generateResponseDocx(
   orgName: string,
   questions: ResponseQuestion[],
   gapReport?: ExportGapReport | null,
+  approvedOnly?: boolean,
 ): Promise<ArrayBuffer> {
   // Sort by sort_order
   const sorted = questions.slice().sort((a, b) => {
