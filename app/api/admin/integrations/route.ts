@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { requireAdmin } from "@/lib/admin-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 

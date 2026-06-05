@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { sendSlackTestNotification } from "@/lib/notifications";
 import { requireAdmin } from "@/lib/admin-auth";
 import { checkRateLimit } from "@/lib/rate-limit";

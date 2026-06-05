@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import {
   generateResponseDocx,
   type ResponseQuestion,
+  type ExportGapReport,
 } from "@/lib/export-response-docx";
+import { analyseGaps } from "@/lib/evidence-gap";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -19,12 +21,20 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const { id: opportunityId } = await params;
   const supabase = getServiceSupabase();
 
-  // Fetch opportunity details
-  const { data: opp } = await supabase
-    .from("opportunities")
-    .select("title, buyer_name, source_id")
-    .eq("id", opportunityId)
-    .maybeSingle();
+  // Fetch opportunity + pipeline (for client_id) in parallel
+  const [{ data: opp }, { data: pipelineRow }] = await Promise.all([
+    supabase
+      .from("opportunities")
+      .select("title, buyer_name, source_id")
+      .eq("id", opportunityId)
+      .maybeSingle(),
+    supabase
+      .from("bid_pipeline")
+      .select("client_id")
+      .eq("opportunity_id", opportunityId)
+      .eq("org_id", orgId)
+      .maybeSingle(),
+  ]);
 
   if (!opp) {
     return NextResponse.json(
@@ -33,31 +43,84 @@ export async function GET(_request: NextRequest, { params }: Params) {
     );
   }
 
-  // Fetch org name
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, orgs(name)")
-    .eq("org_id", orgId)
-    .maybeSingle();
+  // Fetch org name, questions, and (optionally) client evidence in parallel
+  const clientId = pipelineRow?.client_id ?? null;
+
+  const [{ data: membership }, { data: questions }, clientData] =
+    await Promise.all([
+      supabase
+        .from("org_memberships")
+        .select("org_id, orgs(name)")
+        .eq("org_id", orgId)
+        .maybeSingle(),
+      supabase
+        .from("opportunity_questions")
+        .select(
+          "id, question_text, section_ref, question_class, sort_order, word_limit, ai_draft, answer_status, is_mandatory",
+        )
+        .eq("opportunity_id", opportunityId)
+        .eq("org_id", orgId)
+        .order("sort_order", { ascending: true, nullsFirst: false }),
+      clientId
+        ? Promise.all([
+            supabase
+              .from("clients")
+              .select("id, name")
+              .eq("id", clientId)
+              .eq("org_id", orgId)
+              .maybeSingle(),
+            supabase
+              .from("evidence_items")
+              .select("id, title, evidence_type, status, notes")
+              .eq("org_id", orgId)
+              .eq("client_id", clientId),
+          ])
+        : null,
+    ]);
 
   const orgName =
     (membership?.orgs as { name?: string } | null)?.name ?? "Our Organisation";
-
-  // Fetch questions for this org × opportunity
-  const { data: questions } = await supabase
-    .from("opportunity_questions")
-    .select(
-      "id, question_text, section_ref, question_class, sort_order, word_limit, ai_draft, answer_status",
-    )
-    .eq("opportunity_id", opportunityId)
-    .eq("org_id", orgId)
-    .order("sort_order", { ascending: true, nullsFirst: false });
 
   if (!questions || questions.length === 0) {
     return NextResponse.json(
       { error: "No questions found for this opportunity" },
       { status: 404 },
     );
+  }
+
+  // Build gap report if a client is linked
+  let gapReport: ExportGapReport | null = null;
+  if (clientData) {
+    const [{ data: client }, { data: evidence }] = clientData;
+    if (client && evidence) {
+      const nonGuidance = questions.filter(
+        (q) => q.question_class !== "guidance",
+      );
+      const report = analyseGaps(
+        nonGuidance.map((q) => ({
+          id: q.id,
+          question_text: q.question_text,
+          section_ref: q.section_ref,
+          is_mandatory: q.is_mandatory,
+        })),
+        evidence,
+      );
+      gapReport = {
+        client_name: client.name,
+        coverage_score: report.coverage_score,
+        covered: report.covered,
+        partial: report.partial,
+        missing: report.missing,
+        expired: report.expired,
+        results: report.results.map((r) => ({
+          question_text: r.question_text,
+          section_ref: r.section_ref,
+          coverage: r.coverage,
+          risk_level: r.risk_level,
+          gap_note: r.gap_note,
+        })),
+      };
+    }
   }
 
   const docxBuffer = await generateResponseDocx(
@@ -68,6 +131,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
     },
     orgName,
     questions as ResponseQuestion[],
+    gapReport,
   );
 
   const slug = (opp.title ?? "response")

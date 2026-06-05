@@ -5,7 +5,7 @@ import { findTenderConnector } from "@/lib/procurement/connectors/find-tender";
 import { contractsFinderConnector } from "@/lib/procurement/connectors/contracts-finder";
 import { publicContractsScotlandConnector } from "@/lib/procurement/connectors/public-contracts-scotland";
 import { sell2walesConnector } from "@/lib/procurement/connectors/sell2wales";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import type { ProcurementSourceConnector } from "@/lib/procurement/types";
 
 const ALL_CONNECTORS: ProcurementSourceConnector[] = [

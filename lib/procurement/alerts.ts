@@ -1,4 +1,4 @@
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import type { OpportunityRow } from "./types";
 
 export interface AlertRule {

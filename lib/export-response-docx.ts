@@ -33,6 +33,24 @@ export interface ResponseOpportunity {
   source_id?: string | null;
 }
 
+export interface ExportGapResult {
+  question_text: string;
+  section_ref: string | null;
+  coverage: "covered" | "partial" | "missing" | "expired";
+  risk_level: "low" | "medium" | "high";
+  gap_note: string;
+}
+
+export interface ExportGapReport {
+  client_name: string;
+  coverage_score: number;
+  covered: number;
+  partial: number;
+  missing: number;
+  expired: number;
+  results: ExportGapResult[];
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const FONT = "Calibri";
@@ -501,12 +519,147 @@ function summaryAppendix(
   ];
 }
 
+// ── Evidence gap report appendix ─────────────────────────────────────────────
+
+const COVERAGE_COLORS: Record<string, string> = {
+  covered: "059669",
+  partial: "D97706",
+  missing: "6B7280",
+  expired: "DC2626",
+};
+
+const COVERAGE_LABELS: Record<string, string> = {
+  covered: "Covered",
+  partial: "Expiring",
+  missing: "Missing",
+  expired: "Expired",
+};
+
+function gapReportSection(report: ExportGapReport): (Paragraph | Table)[] {
+  const out: (Paragraph | Table)[] = [];
+  out.push(new Paragraph({ children: [new PageBreak()] }));
+  out.push(heading1("Appendix: Evidence Gap Report"));
+  out.push(gap(80));
+
+  // Summary line
+  out.push(
+    para(
+      [
+        t(`Client: `, { bold: true, color: "374151" }),
+        t(`${report.client_name}   `, { color: "374151" }),
+        t(`Evidence coverage: `, { bold: true, color: "374151" }),
+        t(
+          `${report.coverage_score}%   (${report.covered} covered · ${report.partial} expiring · ${report.missing} missing · ${report.expired} expired)`,
+          { color: "374151" },
+        ),
+      ],
+      160,
+    ),
+  );
+
+  // Table of gaps
+  const headerCells = ["Requirement", "Section", "Status", "Gap / Action"].map(
+    (h) =>
+      new TableCell({
+        shading: {
+          type: ShadingType.SOLID,
+          color: BRAND_COLOR,
+          fill: BRAND_COLOR,
+        },
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: h,
+                font: FONT,
+                bold: true,
+                size: 20,
+                color: "FFFFFF",
+              }),
+            ],
+          }),
+        ],
+      }),
+  );
+
+  const rows: TableRow[] = [new TableRow({ children: headerCells })];
+
+  for (const r of report.results) {
+    const color = COVERAGE_COLORS[r.coverage] ?? "6B7280";
+    const label = COVERAGE_LABELS[r.coverage] ?? r.coverage;
+
+    rows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 45, type: WidthType.PERCENTAGE },
+            children: [
+              new Paragraph({
+                children: [t(r.question_text, { size: 18, color: "111827" })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 15, type: WidthType.PERCENTAGE },
+            children: [
+              new Paragraph({
+                children: [
+                  t(r.section_ref ?? "General", { size: 18, color: "6B7280" }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            shading: {
+              type: ShadingType.SOLID,
+              color: "F9FAFB",
+              fill: "F9FAFB",
+            },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: label,
+                    font: FONT,
+                    bold: true,
+                    size: 18,
+                    color,
+                  }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 28, type: WidthType.PERCENTAGE },
+            children: [
+              new Paragraph({
+                children: [t(r.gap_note, { size: 18, color: "374151" })],
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  }
+
+  out.push(
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows,
+    }),
+  );
+
+  return out;
+}
+
 // ── Main export function ───────────────────────────────────────────────────────
 
 export async function generateResponseDocx(
   opportunity: ResponseOpportunity,
   orgName: string,
   questions: ResponseQuestion[],
+  gapReport?: ExportGapReport | null,
 ): Promise<ArrayBuffer> {
   // Sort by sort_order
   const sorted = questions.slice().sort((a, b) => {
@@ -539,6 +692,10 @@ export async function generateResponseDocx(
   }
 
   children.push(...summaryAppendix(sections));
+
+  if (gapReport && gapReport.results.length > 0) {
+    children.push(...gapReportSection(gapReport));
+  }
 
   const doc = new Document({
     creator: orgName,

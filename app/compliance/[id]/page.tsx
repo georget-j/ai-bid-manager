@@ -53,6 +53,9 @@ export default function ComplianceDetailPage({
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [mandatoryOnly, setMandatoryOnly] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
 
   useEffect(() => {
     fetch(`/api/compliance-matrix/${id}`)
@@ -154,6 +157,30 @@ export default function ComplianceDetailPage({
     return acc;
   }, {});
 
+  const filtered = reqs
+    .filter((r) => statusFilter === "all" || r.status === statusFilter)
+    .filter((r) => !mandatoryOnly || r.mandatory);
+
+  function copyAsMarkdown() {
+    const rows = filtered.map((r) => {
+      const status = STATUS_STYLES[r.status]?.label ?? r.status;
+      const section = r.section_reference ? `§${r.section_reference}` : "";
+      const mandatory = r.mandatory ? "M" : "";
+      const answer = r.draft_answer
+        ? r.draft_answer.slice(0, 120) +
+          (r.draft_answer.length > 120 ? "…" : "")
+        : "(no draft)";
+      return `| ${section} | ${mandatory} | ${r.requirement_text} | ${status} | ${answer} |`;
+    });
+    const header =
+      "| Section | M | Requirement | Status | Draft answer |\n|---------|---|-------------|--------|--------------|";
+    const text = `# ${matrix?.title ?? "Matrix"}\n\n${header}\n${rows.join("\n")}`;
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopyDone(true);
+      setTimeout(() => setCopyDone(false), 2000);
+    });
+  }
+
   return (
     <div style={{ maxWidth: 900 }}>
       <Link
@@ -225,6 +252,13 @@ export default function ComplianceDetailPage({
               View opportunity
             </Link>
           )}
+          <button
+            className="btn ghost"
+            onClick={copyAsMarkdown}
+            style={{ fontSize: 12 }}
+          >
+            {copyDone ? "✓ Copied!" : "Copy as Markdown"}
+          </button>
         </div>
       </div>
 
@@ -237,12 +271,68 @@ export default function ComplianceDetailPage({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
-          <div className="eyebrow">Requirements ({reqs.length})</div>
+          <div className="eyebrow">
+            Requirements ({filtered.length}
+            {filtered.length !== reqs.length ? ` of ${reqs.length}` : ""})
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+                color: "var(--muted)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={mandatoryOnly}
+                onChange={(e) => setMandatoryOnly(e.target.checked)}
+                style={{ cursor: "pointer" }}
+              />
+              Mandatory only
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                fontSize: 12,
+                padding: "3px 8px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-sm)",
+                background: "var(--surface-2)",
+                color: "var(--ink)",
+              }}
+            >
+              <option value="all">All statuses</option>
+              {Object.entries(STATUS_STYLES).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {reqs.map((req, i) => {
+        {filtered.length === 0 && (
+          <p
+            style={{
+              padding: "24px 20px",
+              fontSize: 13,
+              color: "var(--muted)",
+            }}
+          >
+            No requirements match this filter.
+          </p>
+        )}
+
+        {filtered.map((req, i) => {
           const s = STATUS_STYLES[req.status] ?? STATUS_STYLES["not-started"];
           const isExpanded = expandedId === req.id;
           const isEditing = editing === req.id;
@@ -252,7 +342,7 @@ export default function ComplianceDetailPage({
               key={req.id}
               style={{
                 borderBottom:
-                  i < reqs.length - 1 ? "1px solid var(--border)" : "none",
+                  i < filtered.length - 1 ? "1px solid var(--border)" : "none",
               }}
             >
               {/* Row header */}

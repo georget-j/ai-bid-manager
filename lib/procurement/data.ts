@@ -1,4 +1,4 @@
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import type {
   OpportunityRow,
   BidPipelineRow,

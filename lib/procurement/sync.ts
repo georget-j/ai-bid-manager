@@ -1,4 +1,4 @@
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { hashPayload } from "./hash";
 import { matchAlertsForOpportunities } from "./alerts";
 import type {
