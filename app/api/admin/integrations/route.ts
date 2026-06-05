@@ -15,6 +15,8 @@ const UpsertIntegrationSchema = z.object({
 export async function GET(req: NextRequest) {
   const limited = await checkRateLimit(req, "admin_read");
   if (limited) return limited;
+  const denied = await requireAdmin();
+  if (denied) return denied;
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from("integration_settings")

@@ -54,11 +54,13 @@ function urlHash(url: string): string {
 async function getFromCache(
   supabase: ReturnType<typeof getServiceSupabase>,
   hash: string,
+  orgId: string,
 ): Promise<{ buffer: Buffer; fileName: string; contentType: string } | null> {
   const { data: cacheRow } = await supabase
     .from("tender_doc_cache")
     .select("storage_path, content_type")
     .eq("url_hash", hash)
+    .eq("org_id", orgId)
     .maybeSingle();
 
   if (!cacheRow) return null;
@@ -78,11 +80,12 @@ async function saveToCache(
   supabase: ReturnType<typeof getServiceSupabase>,
   hash: string,
   url: string,
+  orgId: string,
   buffer: Buffer,
   fileName: string,
   contentType: string,
 ): Promise<void> {
-  const storagePath = `${hash}/${fileName}`;
+  const storagePath = `${orgId}/${hash}/${fileName}`;
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
@@ -97,6 +100,7 @@ async function saveToCache(
     {
       url_hash: hash,
       url,
+      org_id: orgId,
       storage_path: storagePath,
       content_type: contentType || null,
       byte_size: buffer.length,
@@ -142,7 +146,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   let fileName: string;
   let fromCache = false;
 
-  const cached = await getFromCache(supabase, hash);
+  const cached = await getFromCache(supabase, hash, orgId);
   if (cached) {
     buffer = cached.buffer;
     fileName = cached.fileName;
@@ -212,7 +216,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     // Cache for future requests — fire and forget
-    void saveToCache(supabase, hash, url, buffer, fileName, contentType);
+    void saveToCache(supabase, hash, url, orgId, buffer, fileName, contentType);
   }
 
   // ── Extract text ──────────────────────────────────────────────────────────
