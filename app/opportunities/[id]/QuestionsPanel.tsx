@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import type { ExtractedQuestion } from "@/app/api/opportunities/[id]/extract-questions/route";
+
+type QuestionClass = "question" | "requirement" | "guidance";
 
 interface SavedQuestion {
   id: string;
   question_text: string;
   section_ref: string | null;
   question_type: string;
+  question_class: QuestionClass;
+  sort_order: number | null;
   word_limit: number | null;
   is_mandatory: boolean;
   ai_draft: string | null;
@@ -22,6 +26,8 @@ interface ProgressEvent {
   answered: number;
   total: number;
 }
+
+type FilterTab = "all" | "question" | "requirement" | "guidance";
 
 const TYPE_BADGE: Record<string, { label: string; color: string; bg: string }> =
   {
@@ -68,6 +74,90 @@ function Chip({
   );
 }
 
+function SectionHeader({
+  label,
+  counts,
+}: {
+  label: string;
+  counts: { question: number; requirement: number; guidance: number };
+}) {
+  const parts: string[] = [];
+  if (counts.question > 0)
+    parts.push(
+      `${counts.question} question${counts.question !== 1 ? "s" : ""}`,
+    );
+  if (counts.requirement > 0)
+    parts.push(
+      `${counts.requirement} requirement${counts.requirement !== 1 ? "s" : ""}`,
+    );
+  if (counts.guidance > 0)
+    parts.push(`${counts.guidance} note${counts.guidance !== 1 ? "s" : ""}`);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 20px 6px",
+        borderBottom: "1px solid var(--border)",
+        borderTop: "1px solid var(--border)",
+        background: "var(--bg)",
+      }}
+    >
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink)" }}>
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: 11,
+          color: "var(--muted)",
+          fontStyle: "italic",
+        }}
+      >
+        {parts.join(" · ")}
+      </span>
+    </div>
+  );
+}
+
+function GuidanceBanner({ text }: { text: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        padding: "10px 20px",
+        background: "color-mix(in oklch, #f59e0b 6%, var(--surface))",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 13,
+          color: "#b45309",
+          flexShrink: 0,
+          marginTop: 1,
+          lineHeight: 1,
+        }}
+      >
+        ℹ
+      </span>
+      <p
+        style={{
+          fontSize: 12.5,
+          color: "#92400e",
+          lineHeight: 1.55,
+          fontStyle: "italic",
+          margin: 0,
+        }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
 export function QuestionsPanel({
   opportunityId,
   opportunityTitle,
@@ -90,13 +180,21 @@ export function QuestionsPanel({
   const [generatingMatrix, setGeneratingMatrix] = useState(false);
   const [matrixId, setMatrixId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filterTab, setFilterTab] = useState<FilterTab>("all");
 
   // Load saved questions on mount
   useEffect(() => {
     fetch(`/api/opportunities/${opportunityId}/questions`)
       .then((r) => r.json())
       .then((d: { questions?: SavedQuestion[] }) => {
-        setSavedQuestions(d.questions ?? []);
+        const qs = (d.questions ?? []).slice().sort((a, b) => {
+          if (a.sort_order !== null && b.sort_order !== null)
+            return a.sort_order - b.sort_order;
+          if (a.sort_order !== null) return -1;
+          if (b.sort_order !== null) return 1;
+          return 0;
+        });
+        setSavedQuestions(qs);
       })
       .catch(() => setSavedQuestions([]));
   }, [opportunityId]);
@@ -242,11 +340,13 @@ export function QuestionsPanel({
         body: JSON.stringify({
           opportunity_id: opportunityId,
           title: opportunityTitle,
-          requirements: savedQuestions.map((q) => ({
-            requirement_text: q.question_text,
-            section_reference: q.section_ref ?? undefined,
-            mandatory: q.is_mandatory,
-          })),
+          requirements: savedQuestions
+            .filter((q) => q.question_class !== "guidance")
+            .map((q) => ({
+              requirement_text: q.question_text,
+              section_reference: q.section_ref ?? undefined,
+              mandatory: q.is_mandatory,
+            })),
         }),
       });
       const data = (await res.json()) as { matrix_id?: string; error?: string };
@@ -261,6 +361,61 @@ export function QuestionsPanel({
       setGeneratingMatrix(false);
     }
   }
+
+  // ── Derived counts ─────────────────────────────────────────────────────────
+  const counts = useMemo(() => {
+    if (!savedQuestions) return { question: 0, requirement: 0, guidance: 0 };
+    return {
+      question: savedQuestions.filter((q) => q.question_class === "question")
+        .length,
+      requirement: savedQuestions.filter(
+        (q) => q.question_class === "requirement",
+      ).length,
+      guidance: savedQuestions.filter((q) => q.question_class === "guidance")
+        .length,
+    };
+  }, [savedQuestions]);
+
+  const unansweredAnswerable = useMemo(
+    () =>
+      (savedQuestions ?? []).filter(
+        (q) =>
+          q.question_class !== "guidance" && q.answer_status === "unanswered",
+      ),
+    [savedQuestions],
+  );
+
+  const draftedCount = useMemo(
+    () =>
+      (savedQuestions ?? []).filter(
+        (q) =>
+          q.question_class !== "guidance" &&
+          (q.answer_status === "drafted" || q.answer_status === "approved"),
+      ).length,
+    [savedQuestions],
+  );
+
+  const filteredQuestions = useMemo(() => {
+    if (!savedQuestions) return [];
+    if (filterTab === "all") return savedQuestions;
+    return savedQuestions.filter((q) => q.question_class === filterTab);
+  }, [savedQuestions, filterTab]);
+
+  // Group filtered questions by section_ref
+  const sections = useMemo(() => {
+    const map = new Map<string, { label: string; items: SavedQuestion[] }>();
+    for (const q of filteredQuestions) {
+      const key = q.section_ref ?? "__general__";
+      if (!map.has(key)) {
+        map.set(key, {
+          label: q.section_ref ?? "General",
+          items: [],
+        });
+      }
+      map.get(key)!.items.push(q);
+    }
+    return Array.from(map.values());
+  }, [filteredQuestions]);
 
   // ── Render: not yet loaded ────────────────────────────────────────────────
   if (savedQuestions === null) {
@@ -277,13 +432,6 @@ export function QuestionsPanel({
       </div>
     );
   }
-
-  const unansweredCount = savedQuestions.filter(
-    (q) => q.answer_status === "unanswered",
-  ).length;
-  const draftedCount = savedQuestions.filter(
-    (q) => q.answer_status === "drafted" || q.answer_status === "approved",
-  ).length;
 
   // ── Render: extraction preview (before saving) ────────────────────────────
   if (extracted !== null) {
@@ -306,7 +454,7 @@ export function QuestionsPanel({
           <div>
             <div className="eyebrow">ITT Questions</div>
             <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-              {extracted.length} questions extracted — review and save
+              {extracted.length} items extracted — review and save
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -323,7 +471,7 @@ export function QuestionsPanel({
               disabled={saving || extracted.length === 0}
               style={{ fontSize: 12, padding: "4px 14px" }}
             >
-              {saving ? "Saving…" : `Save ${extracted.length} questions`}
+              {saving ? "Saving…" : `Save ${extracted.length} items`}
             </button>
           </div>
         </div>
@@ -448,17 +596,23 @@ export function QuestionsPanel({
         <div>
           <div className="eyebrow">ITT Questions</div>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-            {savedQuestions.length} questions
+            {counts.question > 0 && <span>{counts.question} questions</span>}
+            {counts.requirement > 0 && (
+              <span>
+                {counts.question > 0 ? " · " : ""}
+                {counts.requirement} requirements
+              </span>
+            )}
+            {counts.guidance > 0 && (
+              <span>
+                {counts.question + counts.requirement > 0 ? " · " : ""}
+                {counts.guidance} notes
+              </span>
+            )}
             {draftedCount > 0 && (
               <span style={{ color: "#059669" }}>
                 {" "}
                 · {draftedCount} drafted
-              </span>
-            )}
-            {unansweredCount > 0 && (
-              <span style={{ color: "var(--muted)" }}>
-                {" "}
-                · {unansweredCount} unanswered
               </span>
             )}
           </p>
@@ -472,16 +626,16 @@ export function QuestionsPanel({
           >
             {extracting ? "Extracting…" : "Re-extract"}
           </button>
-          {unansweredCount > 0 && (
+          {unansweredAnswerable.length > 0 && (
             <button
               className="btn primary"
-              onClick={() => answerAll()}
+              onClick={() => answerAll(unansweredAnswerable.map((q) => q.id))}
               disabled={answering}
               style={{ fontSize: 12, padding: "4px 14px" }}
             >
               {answering
                 ? `Answering ${progress.answered}/${progress.total}…`
-                : `Answer All (${unansweredCount})`}
+                : `Answer All (${unansweredAnswerable.length})`}
             </button>
           )}
           {matrixId ? (
@@ -534,121 +688,272 @@ export function QuestionsPanel({
         </div>
       )}
 
-      {/* Question rows */}
-      {savedQuestions.map((q) => {
-        const typeBadge = TYPE_BADGE[q.question_type] ?? TYPE_BADGE.general;
-        const statusBadge =
-          STATUS_BADGE[q.answer_status] ?? STATUS_BADGE.unanswered;
-        const isAnsweringThis = answeringId === q.id;
-        const localDraft = draftEdits[q.id];
-        const displayDraft = localDraft !== undefined ? localDraft : q.ai_draft;
-
-        return (
-          <div
-            key={q.id}
+      {/* Filter bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          padding: "8px 20px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--bg)",
+          flexWrap: "wrap",
+        }}
+      >
+        {(
+          [
+            ["all", `All (${savedQuestions.length})`],
+            ["question", `Questions (${counts.question})`],
+            ["requirement", `Requirements (${counts.requirement})`],
+            ["guidance", `Notes (${counts.guidance})`],
+          ] as [FilterTab, string][]
+        ).map(([tab, label]) => (
+          <button
+            key={tab}
+            onClick={() => setFilterTab(tab)}
             style={{
-              padding: "14px 20px",
-              borderBottom: "1px solid var(--border)",
+              background:
+                filterTab === tab
+                  ? "var(--ink)"
+                  : "color-mix(in oklch, var(--ink) 8%, transparent)",
+              color: filterTab === tab ? "var(--bg)" : "var(--muted)",
+              border: "none",
+              borderRadius: 999,
+              padding: "3px 12px",
+              fontSize: 12,
+              fontWeight: filterTab === tab ? 600 : 400,
+              cursor: "pointer",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: 12,
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  gap: 6,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  flex: 1,
-                }}
-              >
-                <Chip
-                  label={typeBadge.label}
-                  color={typeBadge.color}
-                  bg={typeBadge.bg}
-                />
-                <Chip
-                  label={statusBadge.label}
-                  color={statusBadge.color}
-                  bg={statusBadge.bg}
-                />
-                {!q.is_mandatory && (
-                  <Chip label="Optional" color="#6b7280" bg="#f3f4f6" />
-                )}
-                {q.word_limit && (
-                  <Chip
-                    label={`${q.word_limit}w`}
-                    color="#6b7280"
-                    bg="#f3f4f6"
-                  />
-                )}
-                {q.section_ref && (
-                  <span
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sections */}
+      {sections.length === 0 && (
+        <p
+          style={{ padding: "16px 20px", fontSize: 13, color: "var(--muted)" }}
+        >
+          No items in this category.
+        </p>
+      )}
+
+      {sections.map((section) => {
+        const sectionCounts = {
+          question: section.items.filter((q) => q.question_class === "question")
+            .length,
+          requirement: section.items.filter(
+            (q) => q.question_class === "requirement",
+          ).length,
+          guidance: section.items.filter((q) => q.question_class === "guidance")
+            .length,
+        };
+
+        return (
+          <div key={section.label}>
+            {sections.length > 1 && (
+              <SectionHeader label={section.label} counts={sectionCounts} />
+            )}
+
+            {section.items.map((q) => {
+              // ── Guidance banner ──────────────────────────────────────────
+              if (q.question_class === "guidance") {
+                return <GuidanceBanner key={q.id} text={q.question_text} />;
+              }
+
+              const typeBadge =
+                TYPE_BADGE[q.question_type] ?? TYPE_BADGE.general;
+              const statusBadge =
+                STATUS_BADGE[q.answer_status] ?? STATUS_BADGE.unanswered;
+              const isAnsweringThis = answeringId === q.id;
+              const localDraft = draftEdits[q.id];
+              const displayDraft =
+                localDraft !== undefined ? localDraft : q.ai_draft;
+              const isRequirement = q.question_class === "requirement";
+
+              // ── Requirement row ──────────────────────────────────────────
+              if (isRequirement && !displayDraft) {
+                return (
+                  <div
+                    key={q.id}
                     style={{
-                      fontSize: 11,
-                      color: "var(--muted)",
-                      fontStyle: "italic",
+                      padding: "10px 20px",
+                      borderBottom: "1px solid var(--border)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
                     }}
                   >
-                    {q.section_ref}
-                  </span>
-                )}
-              </div>
-              {q.answer_status === "unanswered" && (
-                <button
-                  className="btn ghost"
-                  onClick={() => answerAll([q.id])}
-                  disabled={isAnsweringThis || answering}
-                  style={{ fontSize: 11, padding: "3px 10px", flexShrink: 0 }}
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#b45309",
+                        background: "#fef3c7",
+                        borderRadius: 999,
+                        padding: "2px 8px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      REQ
+                    </span>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--ink)",
+                        lineHeight: 1.5,
+                        flex: 1,
+                        margin: 0,
+                      }}
+                    >
+                      {q.question_text}
+                    </p>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <Chip
+                        label={statusBadge.label}
+                        color={statusBadge.color}
+                        bg={statusBadge.bg}
+                      />
+                      {q.answer_status === "unanswered" && (
+                        <button
+                          className="btn ghost"
+                          onClick={() => answerAll([q.id])}
+                          disabled={isAnsweringThis || answering}
+                          style={{
+                            fontSize: 11,
+                            padding: "3px 10px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isAnsweringThis ? "Confirming…" : "Confirm"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── Standard question card ───────────────────────────────────
+              return (
+                <div
+                  key={q.id}
+                  style={{
+                    padding: "14px 20px",
+                    borderBottom: "1px solid var(--border)",
+                  }}
                 >
-                  {isAnsweringThis ? "Answering…" : "Answer"}
-                </button>
-              )}
-            </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        flex: 1,
+                      }}
+                    >
+                      <Chip
+                        label={typeBadge.label}
+                        color={typeBadge.color}
+                        bg={typeBadge.bg}
+                      />
+                      <Chip
+                        label={statusBadge.label}
+                        color={statusBadge.color}
+                        bg={statusBadge.bg}
+                      />
+                      {!q.is_mandatory && (
+                        <Chip label="Optional" color="#6b7280" bg="#f3f4f6" />
+                      )}
+                      {q.word_limit && (
+                        <Chip
+                          label={`${q.word_limit}w`}
+                          color="#6b7280"
+                          bg="#f3f4f6"
+                        />
+                      )}
+                    </div>
+                    {q.answer_status === "unanswered" && (
+                      <button
+                        className="btn ghost"
+                        onClick={() => answerAll([q.id])}
+                        disabled={isAnsweringThis || answering}
+                        style={{
+                          fontSize: 11,
+                          padding: "3px 10px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isAnsweringThis ? "Answering…" : "Answer"}
+                      </button>
+                    )}
+                  </div>
 
-            <p
-              style={{
-                fontSize: 13.5,
-                color: "var(--ink)",
-                lineHeight: 1.5,
-                marginBottom: displayDraft ? 10 : 0,
-              }}
-            >
-              {q.question_text}
-            </p>
+                  <p
+                    style={{
+                      fontSize: 13.5,
+                      color: "var(--ink)",
+                      lineHeight: 1.5,
+                      marginBottom: displayDraft ? 10 : 0,
+                    }}
+                  >
+                    {q.question_text}
+                  </p>
 
-            {displayDraft && (
-              <textarea
-                value={displayDraft}
-                onChange={(e) =>
-                  setDraftEdits((prev) => ({
-                    ...prev,
-                    [q.id]: e.target.value,
-                  }))
-                }
-                rows={4}
-                style={{
-                  width: "100%",
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  color: "var(--ink-2)",
-                  background: "var(--bg-tint)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--r-sm)",
-                  padding: "8px 10px",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box",
-                }}
-              />
-            )}
+                  {displayDraft && (
+                    <>
+                      <textarea
+                        value={displayDraft}
+                        onChange={(e) =>
+                          setDraftEdits((prev) => ({
+                            ...prev,
+                            [q.id]: e.target.value,
+                          }))
+                        }
+                        rows={4}
+                        style={{
+                          width: "100%",
+                          fontSize: 13,
+                          lineHeight: 1.6,
+                          color: "var(--ink-2)",
+                          background: "var(--bg-tint)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--r-sm)",
+                          padding: "8px 10px",
+                          resize: "vertical",
+                          fontFamily: "inherit",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                      {q.word_limit && (
+                        <p
+                          style={{
+                            fontSize: 11.5,
+                            color: "var(--muted)",
+                            textAlign: "right",
+                            marginTop: 4,
+                          }}
+                        >
+                          {
+                            displayDraft.trim().split(/\s+/).filter(Boolean)
+                              .length
+                          }{" "}
+                          / {q.word_limit} words
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         );
       })}
