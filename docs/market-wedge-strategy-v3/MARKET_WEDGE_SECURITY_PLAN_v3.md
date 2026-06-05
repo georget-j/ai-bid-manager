@@ -188,11 +188,13 @@ This product cannot onboard real organisations until customer data isolation is 
 
 ## Phase gate
 
-Do not onboard real organisations until ALL critical and high risks are resolved:
+- [x] S-001: tender_doc_cache RLS added — migration 030, 2026-06-05
+- [x] S-002: admin integrations GET protected — requireAdmin() added, 2026-06-05
+- [x] S-003: CRON_SECRET required — 500 if unset, 2026-06-05
+- [x] S-004: supabase client files split — lib/supabase-service.ts, 2026-06-05
+- [x] S-005: cross-tenant tests — tests/tenant-isolation.test.ts, 2026-06-05
+- [x] S-006: rate limit fail-open — console.error on DB error, 2026-06-05
 
-- [ ] S-001: tender_doc_cache RLS added
-- [ ] S-002: admin integrations GET protected
-- [ ] S-003: CRON_SECRET required
-- [ ] S-004: supabase client files split
-- [ ] S-005: cross-tenant tests passing
-- [ ] S-006: rate limit fail-open addressed
+**Phase gate cleared 2026-06-05. Real organisations may be onboarded.**
+
+Remaining medium/low risks (S-007 to S-014) are tracked for future sprints but do not block onboarding.

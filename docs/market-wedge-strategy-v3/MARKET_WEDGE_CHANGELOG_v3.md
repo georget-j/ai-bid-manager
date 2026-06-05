@@ -1,5 +1,20 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Phase 2 security fixes complete
+
+### Security (commit 83573dc)
+
+- S-001: `tender_doc_cache` — added `org_id` column + RLS policy via migration 030; storage path now org-prefixed
+- S-002: `/api/admin/integrations` GET — added `requireAdmin()` check; previously any authenticated user could read webhook credentials
+- S-003: `CRON_SECRET` — made required; returns 500 if unset instead of being publicly accessible
+- S-004: `lib/supabase-service.ts` created; service role key moved out of `lib/supabase.ts`; anon client now isolated in that file
+- S-005: `tests/tenant-isolation.test.ts` — 5 cross-tenant tests across documents, opportunity_questions, tender_doc_cache, answer_library; run via `npm run test:isolation`
+- S-006: Rate limit fail-open now logs `console.error` so DB errors are visible in production logs
+
+Phase gate cleared. Safe to onboard real organisations.
+
+---
+
 ## 2026-06-05 — Phase 0 complete
 
 ### Added

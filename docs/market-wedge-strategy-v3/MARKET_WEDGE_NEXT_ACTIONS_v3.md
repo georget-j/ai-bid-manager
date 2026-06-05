@@ -2,11 +2,26 @@
 
 ## Current objective
 
-Phase 0 complete. Move to Phase 2 security fixes.
+Phase 2 security fixes complete (2026-06-05). Phase gate cleared.
+
+Move to Phase 1 (founder outreach) and Phase 3 design (agency/client workspace).
 
 ---
 
-## Immediate next tasks (Phase 2 — security)
+## Completed Phase 2 tasks (S-001 through S-006)
+
+All resolved in commit 83573dc.
+
+- [x] S-001: tender_doc_cache RLS + org_id (migration 030)
+- [x] S-002: admin integrations GET protected
+- [x] S-003: CRON_SECRET required
+- [x] S-004: lib/supabase-service.ts created; service key isolated
+- [x] S-005: tests/tenant-isolation.test.ts — 5 cross-tenant tests
+- [x] S-006: rate limit fail-open logs console.error
+
+---
+
+## Completed Phase 2 tasks (reference)
 
 These are small, focused changes. Each should be a separate commit.
 

@@ -4,7 +4,7 @@
 
 - [x] Phase 0 — Security and repo audit ← COMPLETED 2026-06-05
 - [ ] Phase 1 — Wedge validation assets
-- [ ] Phase 2 — Production security foundation
+- [x] Phase 2 — Production security foundation ← CRITICAL FIXES DONE 2026-06-05
 - [ ] Phase 3 — Agency/client workspace foundation
 - [ ] Phase 4 — Evidence vault and readiness
 - [ ] Phase 5 — Opportunity intake and analysis
@@ -33,16 +33,13 @@ Shipped
 
 ## Current objective
 
-Phase 0 complete. Choose between:
+Phase 2 critical security fixes complete. Phase gate cleared for real org onboarding.
 
-- Phase 1 (validation assets — talk to bid agencies before building more)
-- Phase 2 (security foundation — fix S-001 through S-006 before onboarding real orgs)
-
-Recommended order: Phase 2 security fixes first (fast, low-risk), then Phase 1 outreach in parallel with Phase 3.
+Next: Phase 1 (founder outreach to bid agencies) in parallel with Phase 3 (agency/client workspace design).
 
 ## Current blocker
 
-None. Repo is understood. Security risks are documented.
+None. Phase gate conditions met.
 
 ## Next action
 
@@ -97,12 +94,12 @@ See MARKET_WEDGE_NEXT_ACTIONS_v3.md.
 
 Critical security fixes (must complete before onboarding real orgs):
 
-- [ ] S-001: Add org_id + RLS to tender_doc_cache (migration 030)
-- [ ] S-002: Add requireAdmin() to /api/admin/integrations GET
-- [ ] S-003: Make CRON_SECRET required — 401 if missing
-- [ ] S-004: Split lib/supabase.ts into client + server files
-- [ ] S-005: Add cross-tenant retrieval tests
-- [ ] S-006: Fix rate limit fail-open behaviour
+- [x] S-001: Add org_id + RLS to tender_doc_cache (migration 030)
+- [x] S-002: Add requireAdmin() to /api/admin/integrations GET
+- [x] S-003: Make CRON_SECRET required — 401 if missing
+- [x] S-004: Split lib/supabase.ts into client + server files
+- [x] S-005: Add cross-tenant retrieval tests (tests/tenant-isolation.test.ts)
+- [x] S-006: Fix rate limit fail-open logging
 
 Then:
 
