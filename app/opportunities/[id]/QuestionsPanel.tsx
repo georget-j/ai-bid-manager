@@ -38,7 +38,7 @@ interface ProgressEvent {
   total: number;
 }
 
-type FilterTab = "all" | "question" | "requirement" | "guidance";
+type FilterTab = "all" | "question" | "requirement" | "guidance" | "attention";
 
 const TYPE_BADGE: Record<string, { label: string; color: string; bg: string }> =
   {
@@ -549,6 +549,13 @@ export function QuestionsPanel({
   const filteredQuestions = useMemo(() => {
     if (!savedQuestions) return [];
     if (filterTab === "all") return savedQuestions;
+    if (filterTab === "attention")
+      return savedQuestions.filter(
+        (q) =>
+          q.question_class !== "guidance" &&
+          (q.answer_status === "needs-review" ||
+            q.answer_status === "unanswered"),
+      );
     return savedQuestions.filter((q) => q.question_class === filterTab);
   }, [savedQuestions, filterTab]);
 
@@ -1075,7 +1082,7 @@ export function QuestionsPanel({
             )}
             {statusCounts.needsReview > 0 && (
               <button
-                onClick={() => setFilterTab("all")}
+                onClick={() => setFilterTab("attention")}
                 style={{
                   background: "none",
                   border: "none",
@@ -1090,7 +1097,20 @@ export function QuestionsPanel({
               </button>
             )}
             {statusCounts.unanswered > 0 && (
-              <span>{statusCounts.unanswered} unanswered</span>
+              <button
+                onClick={() => setFilterTab("attention")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  color: "var(--muted)",
+                  padding: 0,
+                  textDecoration: "underline",
+                }}
+              >
+                {statusCounts.unanswered} unanswered
+              </button>
             )}
             {statusCounts.highConfidenceDrafted > 0 && !approvingAll && (
               <button
@@ -1171,6 +1191,24 @@ export function QuestionsPanel({
             {label}
           </button>
         ))}
+        {statusCounts.needsReview + statusCounts.unanswered > 0 && (
+          <button
+            onClick={() => setFilterTab("attention")}
+            style={{
+              background: filterTab === "attention" ? "#d97706" : "#fef3c7",
+              color: filterTab === "attention" ? "#fff" : "#92400e",
+              border: "none",
+              borderRadius: 999,
+              padding: "3px 12px",
+              fontSize: 12,
+              fontWeight: filterTab === "attention" ? 600 : 500,
+              cursor: "pointer",
+            }}
+          >
+            ⚠ Needs attention (
+            {statusCounts.needsReview + statusCounts.unanswered})
+          </button>
+        )}
       </div>
 
       {/* Answers-ready banner */}
