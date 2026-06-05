@@ -53,10 +53,10 @@ const STATUS_BADGE: Record<
   string,
   { label: string; color: string; bg: string }
 > = {
-  unanswered: { label: "Unanswered", color: "#6b7280", bg: "#f3f4f6" },
-  drafted: { label: "Drafted", color: "#059669", bg: "#d1fae5" },
+  unanswered: { label: "No answer", color: "#6b7280", bg: "#f3f4f6" },
+  drafted: { label: "AI answered", color: "#1d4ed8", bg: "#dbeafe" },
   "needs-review": { label: "Needs review", color: "#d97706", bg: "#fef3c7" },
-  approved: { label: "Approved", color: "#1d4ed8", bg: "#dbeafe" },
+  approved: { label: "✓ Approved", color: "#059669", bg: "#d1fae5" },
 };
 
 const CONF_BADGE: Record<string, { label: string; color: string; bg: string }> =
@@ -207,6 +207,10 @@ export function QuestionsPanel({
   const [answersReadyCount, setAnswersReadyCount] = useState<number | null>(
     null,
   );
+  const [fetchError, setFetchError] = useState(false);
+  const [confirmReextract, setConfirmReextract] = useState(false);
+  const [approvingAll, setApprovingAll] = useState(false);
+  const [showExportPanel, setShowExportPanel] = useState(false);
 
   // Load saved questions on mount
   useEffect(() => {
@@ -222,7 +226,10 @@ export function QuestionsPanel({
         });
         setSavedQuestions(qs);
       })
-      .catch(() => setSavedQuestions([]));
+      .catch(() => {
+        setSavedQuestions([]);
+        setFetchError(true);
+      });
   }, [opportunityId]);
 
   async function extractQuestions() {
@@ -406,28 +413,66 @@ export function QuestionsPanel({
     }
   }
 
-  async function saveDraft(qId: string, text: string) {
+  async function approveQuestion(qId: string) {
+    await fetch(`/api/opportunities/${opportunityId}/questions/${qId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer_status: "approved" }),
+    });
+    setSavedQuestions((prev) =>
+      (prev ?? []).map((sq) =>
+        sq.id === qId ? { ...sq, answer_status: "approved" } : sq,
+      ),
+    );
+  }
+
+  async function approveAllHighConfidence() {
+    const targets = (savedQuestions ?? []).filter(
+      (q) =>
+        q.question_class !== "guidance" &&
+        q.answer_status === "drafted" &&
+        q.confidence_level === "high",
+    );
+    if (targets.length === 0) return;
+    setApprovingAll(true);
+    for (const q of targets) {
+      await approveQuestion(q.id);
+    }
+    setApprovingAll(false);
+  }
+
+  async function saveDraft(
+    qId: string,
+    text: string,
+    approve: boolean = false,
+  ) {
     setSavingIds((prev) => new Set(prev).add(qId));
     try {
+      const newStatus = approve ? "approved" : "drafted";
       const res = await fetch(
         `/api/opportunities/${opportunityId}/questions/${qId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ai_draft: text, answer_status: "approved" }),
+          body: JSON.stringify({ ai_draft: text, answer_status: newStatus }),
         },
       );
       if (res.ok) {
         setSavedQuestions((prev) =>
           (prev ?? []).map((q) =>
             q.id === qId
-              ? { ...q, ai_draft: text, answer_status: "approved" }
+              ? { ...q, ai_draft: text, answer_status: newStatus }
               : q,
           ),
         );
         setDraftEdits((prev) => {
           const next = { ...prev };
           delete next[qId];
+          return next;
+        });
+        setEditingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(qId);
           return next;
         });
       }
@@ -483,6 +528,24 @@ export function QuestionsPanel({
     [savedQuestions],
   );
 
+  const statusCounts = useMemo(() => {
+    const answerable = (savedQuestions ?? []).filter(
+      (q) => q.question_class !== "guidance",
+    );
+    return {
+      total: answerable.length,
+      approved: answerable.filter((q) => q.answer_status === "approved").length,
+      drafted: answerable.filter((q) => q.answer_status === "drafted").length,
+      needsReview: answerable.filter((q) => q.answer_status === "needs-review")
+        .length,
+      unanswered: answerable.filter((q) => q.answer_status === "unanswered")
+        .length,
+      highConfidenceDrafted: answerable.filter(
+        (q) => q.answer_status === "drafted" && q.confidence_level === "high",
+      ).length,
+    };
+  }, [savedQuestions]);
+
   const filteredQuestions = useMemo(() => {
     if (!savedQuestions) return [];
     if (filterTab === "all") return savedQuestions;
@@ -514,9 +577,50 @@ export function QuestionsPanel({
         style={{ marginBottom: 16 }}
       >
         <div className="eyebrow">ITT Questions</div>
-        <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 8 }}>
-          Loading…
-        </p>
+        {fetchError ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 8,
+            }}
+          >
+            <p style={{ fontSize: 13, color: "#dc2626", margin: 0 }}>
+              Could not load questions.
+            </p>
+            <button
+              className="btn ghost"
+              style={{ fontSize: 12, padding: "3px 10px" }}
+              onClick={() => {
+                setFetchError(false);
+                setSavedQuestions(null);
+                fetch(`/api/opportunities/${opportunityId}/questions`)
+                  .then((r) => r.json())
+                  .then((d: { questions?: SavedQuestion[] }) => {
+                    const qs = (d.questions ?? []).slice().sort((a, b) => {
+                      if (a.sort_order !== null && b.sort_order !== null)
+                        return a.sort_order - b.sort_order;
+                      if (a.sort_order !== null) return -1;
+                      if (b.sort_order !== null) return 1;
+                      return 0;
+                    });
+                    setSavedQuestions(qs);
+                  })
+                  .catch(() => {
+                    setSavedQuestions([]);
+                    setFetchError(true);
+                  });
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 8 }}>
+            Loading…
+          </p>
+        )}
       </div>
     );
   }
@@ -697,18 +801,18 @@ export function QuestionsPanel({
                 {counts.guidance} notes
               </span>
             )}
-            {draftedCount > 0 && (
-              <span style={{ color: "#059669" }}>
-                {" "}
-                · {draftedCount} drafted
-              </span>
-            )}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             className="btn ghost"
-            onClick={extractQuestions}
+            onClick={() => {
+              if (savedQuestions.length > 0) {
+                setConfirmReextract(true);
+              } else {
+                extractQuestions();
+              }
+            }}
             disabled={extracting || answering}
             style={{ fontSize: 12, padding: "4px 10px" }}
           >
@@ -741,14 +845,13 @@ export function QuestionsPanel({
             </button>
           )}
           {draftedCount > 0 ? (
-            <a
-              href={`/api/opportunities/${opportunityId}/export-response`}
+            <button
               className="btn primary"
+              onClick={() => setShowExportPanel((v) => !v)}
               style={{ fontSize: 12, padding: "4px 12px" }}
             >
-              Export DOCX ({draftedCount}/{counts.question + counts.requirement}
-              )
-            </a>
+              Export DOCX ({statusCounts.approved}/{statusCounts.total})
+            </button>
           ) : (
             <span
               style={{
@@ -764,7 +867,127 @@ export function QuestionsPanel({
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Re-extract confirmation */}
+      {confirmReextract && (
+        <div
+          style={{
+            padding: "12px 20px",
+            background: "#fef3c7",
+            borderBottom: "1px solid #fcd34d",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <p style={{ fontSize: 13, color: "#92400e", margin: 0 }}>
+            ⚠ This will delete {savedQuestions.length} existing questions and
+            all their answers. Any approved answers will be lost.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button
+              className="btn ghost"
+              style={{ fontSize: 12, padding: "3px 10px" }}
+              onClick={() => setConfirmReextract(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn primary"
+              style={{
+                fontSize: 12,
+                padding: "3px 10px",
+                background: "#dc2626",
+              }}
+              onClick={() => {
+                setConfirmReextract(false);
+                extractQuestions();
+              }}
+            >
+              Yes, re-extract
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Export panel */}
+      {showExportPanel && (
+        <div
+          style={{
+            padding: "14px 20px",
+            background: "var(--surface-2)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--ink)",
+              marginBottom: 10,
+            }}
+          >
+            Export bid pack
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr",
+              gap: "4px 12px",
+              fontSize: 12,
+              color: "var(--ink)",
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ color: "#059669" }}>✓ Approved</span>
+            <span>{statusCounts.approved}</span>
+            <span style={{ color: "#1d4ed8" }}>~ AI answered (draft)</span>
+            <span>
+              {statusCounts.drafted} — will be labelled &quot;AI DRAFT – not
+              reviewed&quot;
+            </span>
+            <span style={{ color: "#d97706" }}>⚠ Needs review</span>
+            <span>
+              {statusCounts.needsReview} — will be labelled &quot;AI DRAFT –
+              flagged&quot;
+            </span>
+            <span style={{ color: "var(--muted)" }}>✕ No answer</span>
+            <span style={{ color: "var(--muted)" }}>
+              {statusCounts.unanswered} — excluded from export
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {statusCounts.approved > 0 && (
+              <a
+                href={`/api/opportunities/${opportunityId}/export-response?mode=approved`}
+                className="btn primary"
+                style={{ fontSize: 12, padding: "4px 12px" }}
+                onClick={() => setShowExportPanel(false)}
+              >
+                Export approved only ({statusCounts.approved})
+              </a>
+            )}
+            <a
+              href={`/api/opportunities/${opportunityId}/export-response`}
+              className="btn"
+              style={{ fontSize: 12, padding: "4px 12px" }}
+              onClick={() => setShowExportPanel(false)}
+            >
+              Export all answered ({draftedCount})
+            </a>
+            <button
+              className="btn ghost"
+              style={{ fontSize: 12, padding: "4px 10px" }}
+              onClick={() => setShowExportPanel(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Generation progress bar */}
       {answering && progress.total > 0 && (
         <div
           style={{
@@ -781,6 +1004,118 @@ export function QuestionsPanel({
               transition: "width 0.3s ease",
             }}
           />
+        </div>
+      )}
+
+      {/* Status progress bar */}
+      {statusCounts.total > 0 && (
+        <div
+          style={{
+            padding: "10px 20px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--bg)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              height: 6,
+              borderRadius: 999,
+              overflow: "hidden",
+              background: "#e5e7eb",
+              marginBottom: 6,
+            }}
+          >
+            {statusCounts.approved > 0 && (
+              <div
+                title={`${statusCounts.approved} approved`}
+                style={{
+                  width: `${(statusCounts.approved / statusCounts.total) * 100}%`,
+                  background: "#059669",
+                }}
+              />
+            )}
+            {statusCounts.drafted > 0 && (
+              <div
+                title={`${statusCounts.drafted} AI answered`}
+                style={{
+                  width: `${(statusCounts.drafted / statusCounts.total) * 100}%`,
+                  background: "#3b82f6",
+                }}
+              />
+            )}
+            {statusCounts.needsReview > 0 && (
+              <div
+                title={`${statusCounts.needsReview} needs review`}
+                style={{
+                  width: `${(statusCounts.needsReview / statusCounts.total) * 100}%`,
+                  background: "#f59e0b",
+                }}
+              />
+            )}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              fontSize: 11,
+              color: "var(--muted)",
+              flexWrap: "wrap",
+            }}
+          >
+            {statusCounts.approved > 0 && (
+              <span style={{ color: "#059669" }}>
+                ✓ {statusCounts.approved} approved
+              </span>
+            )}
+            {statusCounts.drafted > 0 && (
+              <span style={{ color: "#3b82f6" }}>
+                {statusCounts.drafted} AI answered
+              </span>
+            )}
+            {statusCounts.needsReview > 0 && (
+              <button
+                onClick={() => setFilterTab("all")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  color: "#d97706",
+                  padding: 0,
+                  textDecoration: "underline",
+                }}
+              >
+                ⚠ {statusCounts.needsReview} needs review
+              </button>
+            )}
+            {statusCounts.unanswered > 0 && (
+              <span>{statusCounts.unanswered} unanswered</span>
+            )}
+            {statusCounts.highConfidenceDrafted > 0 && !approvingAll && (
+              <button
+                onClick={approveAllHighConfidence}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  color: "#059669",
+                  padding: 0,
+                  marginLeft: "auto",
+                  textDecoration: "underline",
+                }}
+              >
+                ✓ Approve all high-confidence (
+                {statusCounts.highConfidenceDrafted})
+              </button>
+            )}
+            {approvingAll && (
+              <span style={{ marginLeft: "auto", color: "#059669" }}>
+                Approving…
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -979,7 +1314,7 @@ export function QuestionsPanel({
                             flexShrink: 0,
                           }}
                         >
-                          {isAnsweringThis ? "Confirming…" : "Confirm"}
+                          {isAnsweringThis ? "Generating…" : "Generate answer"}
                         </button>
                       )}
                     </div>
@@ -1047,38 +1382,20 @@ export function QuestionsPanel({
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      {q.answer_status !== "unanswered" &&
-                        (q.answer_status === "drafted" ||
-                          q.answer_status === "needs-review") && (
-                          <button
-                            className="btn primary"
-                            onClick={() =>
-                              fetch(
-                                `/api/opportunities/${opportunityId}/questions/${q.id}`,
-                                {
-                                  method: "PATCH",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    answer_status: "approved",
-                                  }),
-                                },
-                              ).then(() =>
-                                setSavedQuestions((prev) =>
-                                  (prev ?? []).map((sq) =>
-                                    sq.id === q.id
-                                      ? { ...sq, answer_status: "approved" }
-                                      : sq,
-                                  ),
-                                ),
-                              )
-                            }
-                            style={{ fontSize: 11, padding: "3px 10px" }}
-                          >
-                            Approve
-                          </button>
-                        )}
+                      {(q.answer_status === "drafted" ||
+                        q.answer_status === "needs-review") && (
+                        <button
+                          className="btn primary"
+                          onClick={() => approveQuestion(q.id)}
+                          style={{
+                            fontSize: 11,
+                            padding: "3px 10px",
+                            background: "#059669",
+                          }}
+                        >
+                          ✓ Approve
+                        </button>
+                      )}
                       <button
                         className="btn ghost"
                         onClick={() => answerAll([q.id])}
@@ -1089,7 +1406,7 @@ export function QuestionsPanel({
                           ? "Answering…"
                           : q.answer_status === "unanswered"
                             ? "Answer"
-                            : "Regenerate"}
+                            : "Re-answer"}
                       </button>
                     </div>
                   </div>
@@ -1107,40 +1424,49 @@ export function QuestionsPanel({
 
                   {displayDraft && (
                     <>
-                      {/* AI Draft label + confidence reason */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          justifyContent: "space-between",
-                          marginBottom: 6,
-                          gap: 8,
-                        }}
-                      >
-                        <span
+                      {/* Label row + needs-review reason */}
+                      <div style={{ marginBottom: 6 }}>
+                        <div
                           style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: "var(--muted)",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.06em",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom:
+                              q.answer_status === "needs-review" &&
+                              q.confidence_reason
+                                ? 4
+                                : 0,
                           }}
                         >
-                          AI Draft
-                        </span>
-                        {q.confidence_reason && (
                           <span
                             style={{
                               fontSize: 11,
-                              color: confBadge?.color ?? "var(--muted)",
-                              fontStyle: "italic",
-                              flex: 1,
-                              textAlign: "right",
+                              fontWeight: 700,
+                              color: "var(--muted)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.06em",
                             }}
                           >
-                            {q.confidence_reason}
+                            AI Draft
                           </span>
-                        )}
+                        </div>
+                        {q.answer_status === "needs-review" &&
+                          q.confidence_reason && (
+                            <p
+                              style={{
+                                fontSize: 12,
+                                color: "#92400e",
+                                background: "#fef3c7",
+                                borderLeft: "3px solid #f59e0b",
+                                padding: "5px 10px",
+                                margin: 0,
+                                borderRadius: "0 4px 4px 0",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              ⚠ {q.confidence_reason}
+                            </p>
+                          )}
                       </div>
                       {/* Read-only answer block / edit textarea */}
                       {isEditingThis ? (
@@ -1208,25 +1534,36 @@ export function QuestionsPanel({
                           gap: 8,
                         }}
                       >
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 6 }}>
                           {isEditingThis && isDirty && (
-                            <button
-                              className="btn primary"
-                              onClick={() => {
-                                saveDraft(q.id, displayDraft);
-                                setEditingIds((prev) => {
-                                  const next = new Set(prev);
-                                  next.delete(q.id);
-                                  return next;
-                                });
-                              }}
-                              disabled={isSavingThis}
-                              style={{ fontSize: 11, padding: "3px 12px" }}
-                            >
-                              {isSavingThis ? "Saving…" : "Save edits"}
-                            </button>
+                            <>
+                              <button
+                                className="btn ghost"
+                                onClick={() =>
+                                  saveDraft(q.id, displayDraft, false)
+                                }
+                                disabled={isSavingThis}
+                                style={{ fontSize: 11, padding: "3px 10px" }}
+                              >
+                                {isSavingThis ? "Saving…" : "Save draft"}
+                              </button>
+                              <button
+                                className="btn primary"
+                                onClick={() =>
+                                  saveDraft(q.id, displayDraft, true)
+                                }
+                                disabled={isSavingThis}
+                                style={{
+                                  fontSize: 11,
+                                  padding: "3px 10px",
+                                  background: "#059669",
+                                }}
+                              >
+                                Save & approve
+                              </button>
+                            </>
                           )}
-                          {isEditingThis && (
+                          {isEditingThis && !isDirty && (
                             <button
                               className="btn ghost"
                               onClick={() => {
@@ -1243,7 +1580,7 @@ export function QuestionsPanel({
                               }}
                               style={{ fontSize: 11, padding: "3px 8px" }}
                             >
-                              {isDirty ? "Discard" : "Done"}
+                              Done
                             </button>
                           )}
                           {!isEditingThis && (
@@ -1262,9 +1599,15 @@ export function QuestionsPanel({
                                   }));
                                 }
                               }}
-                              style={{ fontSize: 11, padding: "3px 8px" }}
+                              style={{
+                                fontSize: 11,
+                                padding: "3px 10px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
                             >
-                              Edit
+                              ✎ Edit
                             </button>
                           )}
                         </div>
