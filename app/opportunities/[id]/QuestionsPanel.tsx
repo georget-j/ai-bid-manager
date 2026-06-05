@@ -6,6 +6,13 @@ import type { ExtractedQuestion } from "@/app/api/opportunities/[id]/extract-que
 
 type QuestionClass = "question" | "requirement" | "guidance";
 
+interface Citation {
+  source_title: string;
+  chunk_id: string;
+  excerpt: string;
+  relevance: string;
+}
+
 interface SavedQuestion {
   id: string;
   question_text: string;
@@ -17,6 +24,9 @@ interface SavedQuestion {
   is_mandatory: boolean;
   ai_draft: string | null;
   answer_status: string;
+  confidence_level: "high" | "medium" | "low" | null;
+  confidence_score: number | null;
+  citations: Citation[] | null;
 }
 
 interface ProgressEvent {
@@ -47,6 +57,13 @@ const STATUS_BADGE: Record<
   "needs-review": { label: "Needs review", color: "#d97706", bg: "#fef3c7" },
   approved: { label: "Approved", color: "#1d4ed8", bg: "#dbeafe" },
 };
+
+const CONF_BADGE: Record<string, { label: string; color: string; bg: string }> =
+  {
+    high: { label: "High confidence", color: "#059669", bg: "#d1fae5" },
+    medium: { label: "Medium confidence", color: "#d97706", bg: "#fef3c7" },
+    low: { label: "Low confidence", color: "#dc2626", bg: "#fee2e2" },
+  };
 
 function Chip({
   label,
@@ -181,6 +198,10 @@ export function QuestionsPanel({
   const [matrixId, setMatrixId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Load saved questions on mount
   useEffect(() => {
@@ -362,6 +383,49 @@ export function QuestionsPanel({
     }
   }
 
+  async function saveDraft(qId: string, text: string) {
+    setSavingIds((prev) => new Set(prev).add(qId));
+    try {
+      const res = await fetch(
+        `/api/opportunities/${opportunityId}/questions/${qId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ai_draft: text, answer_status: "approved" }),
+        },
+      );
+      if (res.ok) {
+        setSavedQuestions((prev) =>
+          (prev ?? []).map((q) =>
+            q.id === qId
+              ? { ...q, ai_draft: text, answer_status: "approved" }
+              : q,
+          ),
+        );
+        setDraftEdits((prev) => {
+          const next = { ...prev };
+          delete next[qId];
+          return next;
+        });
+      }
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(qId);
+        return next;
+      });
+    }
+  }
+
+  function toggleSources(qId: string) {
+    setExpandedSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(qId)) next.delete(qId);
+      else next.add(qId);
+      return next;
+    });
+  }
+
   // ── Derived counts ─────────────────────────────────────────────────────────
   const counts = useMemo(() => {
     if (!savedQuestions) return { question: 0, requirement: 0, guidance: 0 };
@@ -390,7 +454,8 @@ export function QuestionsPanel({
       (savedQuestions ?? []).filter(
         (q) =>
           q.question_class !== "guidance" &&
-          (q.answer_status === "drafted" || q.answer_status === "approved"),
+          q.ai_draft &&
+          q.answer_status !== "unanswered",
       ).length,
     [savedQuestions],
   );
@@ -782,10 +847,18 @@ export function QuestionsPanel({
                 TYPE_BADGE[q.question_type] ?? TYPE_BADGE.general;
               const statusBadge =
                 STATUS_BADGE[q.answer_status] ?? STATUS_BADGE.unanswered;
+              const confBadge = q.confidence_level
+                ? CONF_BADGE[q.confidence_level]
+                : null;
               const isAnsweringThis = answeringId === q.id;
+              const isSavingThis = savingIds.has(q.id);
+              const sourcesExpanded = expandedSources.has(q.id);
               const localDraft = draftEdits[q.id];
               const displayDraft =
                 localDraft !== undefined ? localDraft : q.ai_draft;
+              const isDirty =
+                localDraft !== undefined && localDraft !== q.ai_draft;
+              const citations = q.citations ?? [];
               const isRequirement = q.question_class === "requirement";
 
               // ── Requirement row ──────────────────────────────────────────
@@ -887,6 +960,17 @@ export function QuestionsPanel({
                         color={statusBadge.color}
                         bg={statusBadge.bg}
                       />
+                      {confBadge && (
+                        <Chip
+                          label={
+                            q.confidence_score
+                              ? `${confBadge.label} (${q.confidence_score}%)`
+                              : confBadge.label
+                          }
+                          color={confBadge.color}
+                          bg={confBadge.bg}
+                        />
+                      )}
                       {!q.is_mandatory && (
                         <Chip label="Optional" color="#6b7280" bg="#f3f4f6" />
                       )}
@@ -935,14 +1019,14 @@ export function QuestionsPanel({
                             [q.id]: e.target.value,
                           }))
                         }
-                        rows={4}
+                        rows={5}
                         style={{
                           width: "100%",
                           fontSize: 13,
                           lineHeight: 1.6,
                           color: "var(--ink-2)",
                           background: "var(--bg-tint)",
-                          border: "1px solid var(--border)",
+                          border: `1px solid ${isDirty ? "var(--accent)" : "var(--border)"}`,
                           borderRadius: "var(--r-sm)",
                           padding: "8px 10px",
                           resize: "vertical",
@@ -950,21 +1034,156 @@ export function QuestionsPanel({
                           boxSizing: "border-box",
                         }}
                       />
-                      {q.word_limit && (
-                        <p
-                          style={{
-                            fontSize: 11.5,
-                            color: "var(--muted)",
-                            textAlign: "right",
-                            marginTop: 4,
-                          }}
-                        >
-                          {
-                            displayDraft.trim().split(/\s+/).filter(Boolean)
-                              .length
-                          }{" "}
-                          / {q.word_limit} words
-                        </p>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginTop: 6,
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {isDirty && (
+                            <button
+                              className="btn primary"
+                              onClick={() => saveDraft(q.id, displayDraft)}
+                              disabled={isSavingThis}
+                              style={{ fontSize: 11, padding: "3px 12px" }}
+                            >
+                              {isSavingThis ? "Saving…" : "Save edits"}
+                            </button>
+                          )}
+                          {isDirty && (
+                            <button
+                              className="btn ghost"
+                              onClick={() =>
+                                setDraftEdits((prev) => {
+                                  const next = { ...prev };
+                                  delete next[q.id];
+                                  return next;
+                                })
+                              }
+                              style={{ fontSize: 11, padding: "3px 8px" }}
+                            >
+                              Discard
+                            </button>
+                          )}
+                        </div>
+                        {q.word_limit ? (
+                          <p
+                            style={{
+                              fontSize: 11.5,
+                              color:
+                                displayDraft.trim().split(/\s+/).filter(Boolean)
+                                  .length > q.word_limit
+                                  ? "#dc2626"
+                                  : "var(--muted)",
+                              margin: 0,
+                            }}
+                          >
+                            {
+                              displayDraft.trim().split(/\s+/).filter(Boolean)
+                                .length
+                            }{" "}
+                            / {q.word_limit} words
+                          </p>
+                        ) : (
+                          <p
+                            style={{
+                              fontSize: 11.5,
+                              color: "var(--muted)",
+                              margin: 0,
+                            }}
+                          >
+                            {
+                              displayDraft.trim().split(/\s+/).filter(Boolean)
+                                .length
+                            }{" "}
+                            words
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Sources panel */}
+                      {citations.length > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <button
+                            onClick={() => toggleSources(q.id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: 11.5,
+                              color: "var(--muted)",
+                              padding: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                transform: sourcesExpanded
+                                  ? "rotate(90deg)"
+                                  : "none",
+                                transition: "transform 0.15s",
+                                fontSize: 10,
+                              }}
+                            >
+                              ▶
+                            </span>
+                            Sources ({citations.length})
+                          </button>
+
+                          {sourcesExpanded && (
+                            <div style={{ marginTop: 8 }}>
+                              {citations.map((c, ci) => (
+                                <div
+                                  key={ci}
+                                  style={{
+                                    padding: "8px 10px",
+                                    marginBottom: 6,
+                                    background: "var(--bg-tint)",
+                                    borderLeft: "3px solid var(--accent)",
+                                    borderRadius: "0 var(--r-sm) var(--r-sm) 0",
+                                  }}
+                                >
+                                  <p
+                                    style={{
+                                      fontSize: 11.5,
+                                      fontWeight: 600,
+                                      color: "var(--ink)",
+                                      marginBottom: 3,
+                                    }}
+                                  >
+                                    {c.source_title}
+                                  </p>
+                                  <p
+                                    style={{
+                                      fontSize: 11.5,
+                                      color: "var(--ink-2)",
+                                      fontStyle: "italic",
+                                      lineHeight: 1.5,
+                                      marginBottom: 3,
+                                    }}
+                                  >
+                                    "{c.excerpt}"
+                                  </p>
+                                  <p
+                                    style={{
+                                      fontSize: 11,
+                                      color: "var(--muted)",
+                                    }}
+                                  >
+                                    {c.relevance}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </>
                   )}
