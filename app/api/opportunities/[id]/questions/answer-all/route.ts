@@ -106,6 +106,7 @@ export async function POST(request: NextRequest, { params }: Params) {
                   answer_status: confScore >= 60 ? "drafted" : "needs-review",
                   confidence_level: confLevel,
                   confidence_score: confScore,
+                  confidence_reason: response.confidence?.reason ?? null,
                   citations: response.citations ?? [],
                   updated_at: new Date().toISOString(),
                 })

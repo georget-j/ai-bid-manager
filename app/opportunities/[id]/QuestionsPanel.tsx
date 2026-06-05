@@ -26,6 +26,7 @@ interface SavedQuestion {
   answer_status: string;
   confidence_level: "high" | "medium" | "low" | null;
   confidence_score: number | null;
+  confidence_reason: string | null;
   citations: Citation[] | null;
 }
 
@@ -334,14 +335,21 @@ export function QuestionsPanel({
         }
       }
 
-      // Refresh from DB to get full drafts
+      // Refresh from DB to get full drafts + new confidence/citations
       const refreshed = await fetch(
         `/api/opportunities/${opportunityId}/questions`,
       );
       const refreshedData = (await refreshed.json()) as {
         questions?: SavedQuestion[];
       };
-      setSavedQuestions(refreshedData.questions ?? []);
+      const sorted = (refreshedData.questions ?? []).slice().sort((a, b) => {
+        if (a.sort_order !== null && b.sort_order !== null)
+          return a.sort_order - b.sort_order;
+        if (a.sort_order !== null) return -1;
+        if (b.sort_order !== null) return 1;
+        return 0;
+      });
+      setSavedQuestions(sorted);
     } catch {
       setError("Network error during answer generation.");
     } finally {
@@ -982,20 +990,52 @@ export function QuestionsPanel({
                         />
                       )}
                     </div>
-                    {q.answer_status === "unanswered" && (
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      {q.answer_status !== "unanswered" &&
+                        (q.answer_status === "drafted" ||
+                          q.answer_status === "needs-review") && (
+                          <button
+                            className="btn primary"
+                            onClick={() =>
+                              fetch(
+                                `/api/opportunities/${opportunityId}/questions/${q.id}`,
+                                {
+                                  method: "PATCH",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({
+                                    answer_status: "approved",
+                                  }),
+                                },
+                              ).then(() =>
+                                setSavedQuestions((prev) =>
+                                  (prev ?? []).map((sq) =>
+                                    sq.id === q.id
+                                      ? { ...sq, answer_status: "approved" }
+                                      : sq,
+                                  ),
+                                ),
+                              )
+                            }
+                            style={{ fontSize: 11, padding: "3px 10px" }}
+                          >
+                            Approve
+                          </button>
+                        )}
                       <button
                         className="btn ghost"
                         onClick={() => answerAll([q.id])}
                         disabled={isAnsweringThis || answering}
-                        style={{
-                          fontSize: 11,
-                          padding: "3px 10px",
-                          flexShrink: 0,
-                        }}
+                        style={{ fontSize: 11, padding: "3px 10px" }}
                       >
-                        {isAnsweringThis ? "Answering…" : "Answer"}
+                        {isAnsweringThis
+                          ? "Answering…"
+                          : q.answer_status === "unanswered"
+                            ? "Answer"
+                            : "Regenerate"}
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   <p
@@ -1011,6 +1051,41 @@ export function QuestionsPanel({
 
                   {displayDraft && (
                     <>
+                      {/* AI Draft label + confidence reason */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          justifyContent: "space-between",
+                          marginBottom: 6,
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "var(--muted)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          AI Draft
+                        </span>
+                        {q.confidence_reason && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: confBadge?.color ?? "var(--muted)",
+                              fontStyle: "italic",
+                              flex: 1,
+                              textAlign: "right",
+                            }}
+                          >
+                            {q.confidence_reason}
+                          </span>
+                        )}
+                      </div>
                       <textarea
                         value={displayDraft}
                         onChange={(e) =>
