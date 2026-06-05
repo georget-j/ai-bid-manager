@@ -15,6 +15,23 @@ interface Client {
   updated_at: string;
 }
 
+interface ReadinessResult {
+  supported: boolean;
+  vertical: string;
+  score?: number;
+  covered?: number;
+  expiring_soon?: number;
+  expired?: number;
+  missing?: number;
+  total_items?: number;
+  results?: Array<{
+    item: { id: string; title: string; description: string; weight: number };
+    coverage: "covered" | "expiring_soon" | "expired" | "missing";
+    matched_evidence_title: string | null;
+  }>;
+  message?: string;
+}
+
 const VERTICAL_LABELS: Record<string, string> = {
   it_cyber: "IT / Cyber",
   facilities: "Facilities",
@@ -48,6 +65,7 @@ export default function ClientDetailPage({
     status: "active",
   });
   const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [readiness, setReadiness] = useState<ReadinessResult | null>(null);
 
   useEffect(() => {
     fetch(`/api/clients/${id}`)
@@ -61,6 +79,11 @@ export default function ClientDetailPage({
           notes: data.notes ?? "",
           status: data.status,
         });
+        // Load readiness score in parallel
+        fetch(`/api/clients/${id}/readiness`)
+          .then((r) => r.json())
+          .then((rd: ReadinessResult) => setReadiness(rd))
+          .catch(() => {});
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -469,13 +492,21 @@ export default function ClientDetailPage({
           </p>
         </div>
         <div className="card card-pad">
-          <div className="eyebrow" style={{ marginBottom: 6 }}>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>
             Readiness score
           </div>
-          <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
-            Evidence gap analysis against a vertical checklist. Comes in Phase
-            5.
-          </p>
+          {!readiness ? (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
+              Loading…
+            </p>
+          ) : !readiness.supported ? (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
+              {readiness.message ??
+                "Select a supported vertical to see a readiness score."}
+            </p>
+          ) : (
+            <ReadinessWidget readiness={readiness} clientId={client.id} />
+          )}
         </div>
       </div>
 
@@ -504,6 +535,194 @@ export default function ClientDetailPage({
           </>
         )}
       </p>
+    </div>
+  );
+}
+
+// ── Readiness widget ──────────────────────────────────────────────────────────
+
+const COVERAGE_STYLE = {
+  covered: { color: "#059669", label: "✓" },
+  expiring_soon: { color: "#d97706", label: "⚠" },
+  expired: { color: "#dc2626", label: "✕" },
+  missing: { color: "#9ca3af", label: "–" },
+} as const;
+
+function ReadinessWidget({
+  readiness,
+  clientId,
+}: {
+  readiness: ReadinessResult;
+  clientId: string;
+}) {
+  const score = readiness.score ?? 0;
+  const scoreColor =
+    score >= 75 ? "#059669" : score >= 50 ? "#d97706" : "#dc2626";
+
+  return (
+    <div>
+      {/* Score gauge */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          marginBottom: 12,
+        }}
+      >
+        <div
+          style={{ position: "relative", width: 56, height: 56, flexShrink: 0 }}
+        >
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle
+              cx="28"
+              cy="28"
+              r="22"
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth="5"
+            />
+            <circle
+              cx="28"
+              cy="28"
+              r="22"
+              fill="none"
+              stroke={scoreColor}
+              strokeWidth="5"
+              strokeDasharray={`${(score / 100) * 138.2} 138.2`}
+              strokeLinecap="round"
+              transform="rotate(-90 28 28)"
+            />
+          </svg>
+          <span
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: "var(--font-mono)",
+              color: scoreColor,
+            }}
+          >
+            {score}
+          </span>
+        </div>
+        <div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--ink)",
+              marginBottom: 2,
+            }}
+          >
+            {score >= 75
+              ? "Ready to bid"
+              : score >= 50
+                ? "Partially ready"
+                : "Evidence gaps found"}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+            {readiness.covered ?? 0} covered · {readiness.expiring_soon ?? 0}{" "}
+            expiring · {readiness.missing ?? 0} missing
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div
+        style={{
+          height: 4,
+          borderRadius: 99,
+          background: "var(--border)",
+          marginBottom: 12,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${score}%`,
+            background: scoreColor,
+            borderRadius: 99,
+            transition: "width 0.4s ease",
+          }}
+        />
+      </div>
+
+      {/* Checklist */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {(readiness.results ?? []).map((r) => {
+          const st = COVERAGE_STYLE[r.coverage];
+          return (
+            <div
+              key={r.item.id}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                fontSize: 12,
+              }}
+            >
+              <span
+                style={{
+                  color: st.color,
+                  fontWeight: 700,
+                  width: 14,
+                  flexShrink: 0,
+                  marginTop: 1,
+                }}
+              >
+                {st.label}
+              </span>
+              <span
+                style={{
+                  color:
+                    r.coverage === "missing" ? "var(--muted)" : "var(--ink)",
+                  flex: 1,
+                }}
+              >
+                {r.item.title}
+                {r.matched_evidence_title && r.coverage !== "covered" && (
+                  <span style={{ color: "#d97706", fontSize: 11 }}>
+                    {" "}
+                    — {r.matched_evidence_title}
+                  </span>
+                )}
+              </span>
+              {r.item.weight === 3 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: "var(--muted)",
+                    flexShrink: 0,
+                  }}
+                >
+                  required
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {(readiness.missing ?? 0) > 0 && (
+        <Link
+          href={`/clients/${clientId}/evidence`}
+          style={{
+            display: "inline-block",
+            marginTop: 12,
+            fontSize: 12,
+            color: "var(--accent)",
+            fontWeight: 600,
+          }}
+        >
+          Add missing evidence →
+        </Link>
+      )}
     </div>
   );
 }

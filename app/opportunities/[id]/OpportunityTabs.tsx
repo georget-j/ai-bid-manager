@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 export function OpportunityTabs({ id }: { id: string }) {
   const pathname = usePathname();
   const rfpPath = `/opportunities/${id}/rfp`;
+  const gapsPath = `/opportunities/${id}/gaps`;
   const isRfp = pathname === rfpPath || pathname.startsWith(rfpPath + "/");
+  const isGaps = pathname === gapsPath || pathname.startsWith(gapsPath + "/");
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     fontSize: 13.5,
@@ -33,6 +35,9 @@ export function OpportunityTabs({ id }: { id: string }) {
       </Link>
       <Link href={rfpPath} style={tabStyle(isRfp)}>
         RFP Response
+      </Link>
+      <Link href={gapsPath} style={tabStyle(isGaps)}>
+        Evidence Gaps
       </Link>
     </div>
   );

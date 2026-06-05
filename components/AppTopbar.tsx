@@ -8,6 +8,7 @@ const CRUMB_MAP: Record<string, string> = {
   "/clients": "Clients",
   "/clients/[id]/evidence": "Evidence vault",
   "/opportunities": "Opportunities",
+  "/opportunities/[id]/gaps": "Evidence Gaps",
   "/pipeline": "Bid Pipeline",
   "/buyers": "Buyers",
   "/sources": "Sources",
