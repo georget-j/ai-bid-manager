@@ -1,5 +1,6 @@
 export const maxDuration = 60;
 
+import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { extractText } from "@/lib/extractors";
@@ -8,6 +9,7 @@ import { getServiceSupabase } from "@/lib/supabase";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 const MAX_DOC_SIZE = 10 * 1024 * 1024;
+const BUCKET = "tender-docs";
 
 function guessFileName(url: string, contentType: string | null): string {
   try {
@@ -43,6 +45,68 @@ interface Params {
   params: Promise<{ id: string }>;
 }
 
+// ── Document cache helpers ────────────────────────────────────────────────────
+
+function urlHash(url: string): string {
+  return createHash("sha256").update(url).digest("hex");
+}
+
+async function getFromCache(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  hash: string,
+): Promise<{ buffer: Buffer; fileName: string; contentType: string } | null> {
+  const { data: cacheRow } = await supabase
+    .from("tender_doc_cache")
+    .select("storage_path, content_type")
+    .eq("url_hash", hash)
+    .maybeSingle();
+
+  if (!cacheRow) return null;
+
+  const { data: blob, error } = await supabase.storage
+    .from(BUCKET)
+    .download(cacheRow.storage_path);
+
+  if (error || !blob) return null;
+
+  const buffer = Buffer.from(await blob.arrayBuffer());
+  const fileName = guessFileName(cacheRow.storage_path, cacheRow.content_type);
+  return { buffer, fileName, contentType: cacheRow.content_type ?? "" };
+}
+
+async function saveToCache(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  hash: string,
+  url: string,
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+): Promise<void> {
+  const storagePath = `${hash}/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, buffer, {
+      contentType: contentType || "application/octet-stream",
+      upsert: true,
+    });
+
+  if (uploadError) return; // non-fatal — extraction still proceeds
+
+  await supabase.from("tender_doc_cache").upsert(
+    {
+      url_hash: hash,
+      url,
+      storage_path: storagePath,
+      content_type: contentType || null,
+      byte_size: buffer.length,
+    },
+    { onConflict: "url_hash" },
+  );
+}
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+
 export async function POST(request: NextRequest, { params }: Params) {
   const limited = await checkRateLimit(request, "upload");
   if (limited) return limited;
@@ -70,68 +134,88 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "url required" }, { status: 400 });
   }
 
-  const BROWSER_HEADERS = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    Accept:
-      "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/octet-stream,*/*;q=0.8",
-    "Accept-Language": "en-GB,en;q=0.9",
-    "Cache-Control": "no-cache",
-  };
+  const supabase = getServiceSupabase();
+  const hash = urlHash(url);
 
-  let docRes: Response;
-  try {
-    docRes = await fetch(url, {
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Request failed";
-    const isTimeout = msg.toLowerCase().includes("abort");
-    return NextResponse.json(
-      {
-        error: isTimeout
-          ? "Document download timed out — download it manually and upload on the RFP Response tab"
-          : "Failed to fetch document from URL",
-      },
-      { status: 502 },
-    );
-  }
+  // ── Try cache first ───────────────────────────────────────────────────────
+  let buffer: Buffer;
+  let fileName: string;
+  let fromCache = false;
 
-  if (!docRes.ok) {
-    if (docRes.status === 403 || docRes.status === 401) {
-      return NextResponse.json({ error: "access-denied" }, { status: 403 });
-    }
-    if (docRes.status === 429) {
-      const body = await docRes.text().catch(() => "");
-      const retryAfter = docRes.headers.get("retry-after");
+  const cached = await getFromCache(supabase, hash);
+  if (cached) {
+    buffer = cached.buffer;
+    fileName = cached.fileName;
+    fromCache = true;
+  } else {
+    // ── Fetch from procurement portal ───────────────────────────────────────
+    const BROWSER_HEADERS = {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      Accept:
+        "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/octet-stream,*/*;q=0.8",
+      "Accept-Language": "en-GB,en;q=0.9",
+      "Cache-Control": "no-cache",
+    };
+
+    let docRes: Response;
+    try {
+      docRes = await fetch(url, {
+        headers: BROWSER_HEADERS,
+        redirect: "follow",
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Request failed";
+      const isTimeout = msg.toLowerCase().includes("abort");
       return NextResponse.json(
         {
-          error: "rate-limited",
-          message: body || "Rate limit exceeded on the document server.",
-          retryAfter: retryAfter ?? null,
+          error: isTimeout
+            ? "Document download timed out — download it manually and upload on the RFP Response tab"
+            : "Failed to fetch document from URL",
         },
-        { status: 429 },
+        { status: 502 },
       );
     }
-    return NextResponse.json(
-      { error: `Document server returned ${docRes.status}` },
-      { status: 502 },
-    );
+
+    if (!docRes.ok) {
+      if (docRes.status === 403 || docRes.status === 401) {
+        return NextResponse.json({ error: "access-denied" }, { status: 403 });
+      }
+      if (docRes.status === 429) {
+        const bodyText = await docRes.text().catch(() => "");
+        const retryAfter = docRes.headers.get("retry-after");
+        return NextResponse.json(
+          {
+            error: "rate-limited",
+            message: bodyText || "Rate limit exceeded on the document server.",
+            retryAfter: retryAfter ?? null,
+          },
+          { status: 429 },
+        );
+      }
+      return NextResponse.json(
+        { error: `Document server returned ${docRes.status}` },
+        { status: 502 },
+      );
+    }
+
+    const contentType = docRes.headers.get("content-type") ?? "";
+    fileName = guessFileName(url, contentType);
+    buffer = Buffer.from(await docRes.arrayBuffer());
+
+    if (buffer.length > MAX_DOC_SIZE) {
+      return NextResponse.json(
+        { error: "Document too large (max 10 MB)" },
+        { status: 400 },
+      );
+    }
+
+    // Cache for future requests — fire and forget
+    void saveToCache(supabase, hash, url, buffer, fileName, contentType);
   }
 
-  const contentType = docRes.headers.get("content-type");
-  const fileName = guessFileName(url, contentType);
-
-  const buffer = Buffer.from(await docRes.arrayBuffer());
-  if (buffer.length > MAX_DOC_SIZE) {
-    return NextResponse.json(
-      { error: "Document too large (max 10 MB)" },
-      { status: 400 },
-    );
-  }
-
+  // ── Extract text ──────────────────────────────────────────────────────────
   let text: string;
   try {
     const extraction = await extractText(buffer, fileName);
@@ -158,9 +242,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
-  const supabase = getServiceSupabase();
-
-  // In append mode keep existing questions and deduplicate by text
+  // ── Persist questions ─────────────────────────────────────────────────────
   let existingTexts = new Set<string>();
   let sortOffset = 0;
 
@@ -188,7 +270,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   );
 
   if (newQuestions.length === 0) {
-    return NextResponse.json({ questions_saved: 0 });
+    return NextResponse.json({ questions_saved: 0, cached: fromCache });
   }
 
   const rows = newQuestions.map((q, i) => ({
@@ -213,5 +295,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ questions_saved: (data ?? []).length });
+  return NextResponse.json({
+    questions_saved: (data ?? []).length,
+    cached: fromCache,
+  });
 }

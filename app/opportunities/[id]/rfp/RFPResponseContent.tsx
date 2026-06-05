@@ -1,8 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { QuestionsPanel } from "../QuestionsPanel";
 import type { NormalizedDocument } from "@/lib/procurement/types";
+
+// ── Shared file-upload + extract helper ──────────────────────────────────────
+
+async function extractFromFile(
+  file: File,
+  opportunityId: string,
+  append: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const extractRes = await fetch("/api/rfp/extract", {
+    method: "POST",
+    body: formData,
+  });
+  const extracted = (await extractRes.json()) as {
+    questions?: Array<{
+      id: number;
+      text: string;
+      section: string;
+      topic: string;
+      risk_level: string;
+      question_class?: string;
+    }>;
+    error?: string;
+  };
+  if (!extractRes.ok || !extracted.questions) {
+    return { ok: false, error: extracted.error ?? "Extraction failed" };
+  }
+
+  const TOPIC_TO_TYPE: Record<string, string> = {
+    security_compliance: "technical",
+    legal: "general",
+    pricing: "financial",
+    technical: "technical",
+    engineering: "technical",
+    commercial: "general",
+    implementation: "general",
+    support: "general",
+    general: "general",
+  };
+
+  const saveRes = await fetch(`/api/opportunities/${opportunityId}/questions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      questions: extracted.questions.map((q, i) => ({
+        question_text: q.text,
+        section_ref: q.section || null,
+        question_type: TOPIC_TO_TYPE[q.topic] ?? "general",
+        question_class: q.question_class ?? "question",
+        sort_order: i,
+        word_limit: null,
+        is_mandatory: q.risk_level !== "low",
+        append,
+      })),
+    }),
+  });
+
+  if (!saveRes.ok) {
+    const d = (await saveRes.json()) as { error?: string };
+    return { ok: false, error: d.error ?? "Save failed" };
+  }
+  return { ok: true };
+}
+
+// ── Per-document row ──────────────────────────────────────────────────────────
 
 function DocExtractRow({
   doc,
@@ -16,8 +83,34 @@ function DocExtractRow({
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [retrySecondsLeft, setRetrySecondsLeft] = useState<number | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const retryTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function extract() {
+  // Countdown timer — auto-retries when it reaches 0
+  useEffect(() => {
+    if (retrySecondsLeft === null) return;
+    if (retrySecondsLeft <= 0) {
+      setRetrySecondsLeft(null);
+      extract();
+      return;
+    }
+    const t = setTimeout(
+      () => setRetrySecondsLeft((s) => (s !== null ? s - 1 : null)),
+      1000,
+    );
+    return () => clearTimeout(t);
+  }, [retrySecondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return () => {
+      if (retryTimer.current) clearInterval(retryTimer.current);
+    };
+  }, []);
+
+  const extract = useCallback(async () => {
     if (!doc.url) return;
     setExtracting(true);
     setError(null);
@@ -32,17 +125,25 @@ function DocExtractRow({
       );
       const data = (await res.json()) as {
         questions_saved?: number;
+        cached?: boolean;
         error?: string;
         message?: string;
+        retryAfter?: string | null;
       };
       if (!res.ok) {
         if (res.status === 403 || data.error === "access-denied") {
           setError("portal-blocked");
         } else if (res.status === 429 || data.error === "rate-limited") {
+          // Parse retry-after: prefer header value, then message text
+          const secs = data.retryAfter
+            ? parseInt(data.retryAfter, 10)
+            : parseRetrySeconds(data.message ?? "");
+          const waitSecs = isFinite(secs) && secs > 0 ? secs : 3600;
           setError(
             "rate-limited:" +
-              (data.message ?? "Rate limited — try again in up to 60 minutes."),
+              (data.message ?? "Rate limited — retrying automatically."),
           );
+          setRetrySecondsLeft(waitSecs);
         } else {
           setError(data.error ?? "Extraction failed");
         }
@@ -55,89 +156,201 @@ function DocExtractRow({
     } finally {
       setExtracting(false);
     }
+  }, [doc.url, opportunityId, onExtracted]);
+
+  async function handleDroppedFile(file: File) {
+    setUploadingFile(true);
+    setError(null);
+    const result = await extractFromFile(file, opportunityId, false);
+    if (result.ok) {
+      setDone(true);
+      onExtracted();
+    } else {
+      setError(result.error ?? "Upload failed");
+    }
+    setUploadingFile(false);
   }
+
+  const isBlocked =
+    error === "portal-blocked" || error?.startsWith("rate-limited:");
+  const showDropZone = isBlocked && !done;
 
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        padding: "8px 0",
         borderBottom: "1px solid var(--border)",
+        padding: "8px 0",
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span
-          style={{
-            fontSize: 13,
-            color: "var(--ink)",
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {doc.title}
-        </span>
-        {error &&
-          error !== "portal-blocked" &&
-          !error.startsWith("rate-limited:") && (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: 13,
+              color: "var(--ink)",
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {doc.title}
+          </span>
+
+          {error && !isBlocked && (
             <span style={{ fontSize: 11.5, color: "#dc2626" }}>{error}</span>
           )}
-        {error === "portal-blocked" && (
-          <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
-            Requires authentication.{" "}
-            {doc.url && (
-              <a
-                href={doc.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#b45309", textDecoration: "underline" }}
-              >
-                Download directly
-              </a>
-            )}{" "}
-            then use Upload file below.
-          </span>
-        )}
-        {error?.startsWith("rate-limited:") && (
-          <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
-            {error.slice("rate-limited:".length)}
-          </span>
-        )}
+
+          {error === "portal-blocked" && (
+            <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
+              Requires authentication.{" "}
+              {doc.url && (
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#b45309", textDecoration: "underline" }}
+                >
+                  Download directly
+                </a>
+              )}{" "}
+              then drop below or use Upload file.
+            </span>
+          )}
+
+          {error?.startsWith("rate-limited:") && (
+            <span style={{ fontSize: 11.5, color: "#b45309", lineHeight: 1.5 }}>
+              {retrySecondsLeft !== null
+                ? `Rate limited — retrying in ${formatCountdown(retrySecondsLeft)}…`
+                : error.slice("rate-limited:".length)}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          {doc.url && (
+            <a
+              href={doc.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn ghost"
+              style={{ fontSize: 12, padding: "4px 10px" }}
+            >
+              Open ↗
+            </a>
+          )}
+          {done ? (
+            <span
+              style={{ fontSize: 12, color: "#059669", padding: "4px 10px" }}
+            >
+              ✓ Extracted
+            </span>
+          ) : retrySecondsLeft !== null ? (
+            <button
+              className="btn ghost"
+              onClick={() => setRetrySecondsLeft(0)}
+              style={{ fontSize: 12, padding: "4px 10px" }}
+            >
+              Retry now
+            </button>
+          ) : (
+            <button
+              className="btn primary"
+              onClick={extract}
+              disabled={extracting || !doc.url || uploadingFile}
+              style={{ fontSize: 12, padding: "4px 10px" }}
+            >
+              {extracting || uploadingFile
+                ? "Extracting…"
+                : "Extract questions"}
+            </button>
+          )}
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-        {doc.url && (
-          <a
-            href={doc.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn ghost"
-            style={{ fontSize: 12, padding: "4px 10px" }}
+
+      {/* Drop zone — shown when blocked/rate-limited */}
+      {showDropZone && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const file = e.dataTransfer.files[0];
+            if (file) handleDroppedFile(file);
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            marginTop: 8,
+            padding: "10px 14px",
+            borderRadius: "var(--r-sm)",
+            border: `1.5px dashed ${isDragOver ? "var(--accent)" : "#d97706"}`,
+            background: isDragOver
+              ? "color-mix(in oklch, var(--accent) 8%, transparent)"
+              : "color-mix(in oklch, #f59e0b 5%, transparent)",
+            cursor: "pointer",
+            textAlign: "center",
+            transition: "all 0.15s",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 12,
+              color: isDragOver ? "var(--accent)" : "#92400e",
+              margin: 0,
+            }}
           >
-            Open ↗
-          </a>
-        )}
-        {done ? (
-          <span style={{ fontSize: 12, color: "#059669", padding: "4px 10px" }}>
-            ✓ Extracted
-          </span>
-        ) : (
-          <button
-            className="btn primary"
-            onClick={extract}
-            disabled={extracting || !doc.url}
-            style={{ fontSize: 12, padding: "4px 10px" }}
-          >
-            {extracting ? "Extracting…" : "Extract questions"}
-          </button>
-        )}
-      </div>
+            {uploadingFile
+              ? "Extracting…"
+              : isDragOver
+                ? "Drop to extract"
+                : "Drop downloaded file here to extract · or click to browse"}
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx,.xlsx,.txt"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleDroppedFile(f);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseRetrySeconds(message: string): number {
+  // "Try again in up to 60 minutes" → 3600
+  // "retry after 120 seconds" → 120
+  const minutesMatch = message.match(/(\d+)\s*minute/i);
+  if (minutesMatch) return parseInt(minutesMatch[1], 10) * 60;
+  const secondsMatch = message.match(/(\d+)\s*second/i);
+  if (secondsMatch) return parseInt(secondsMatch[1], 10);
+  return 3600;
+}
+
+function formatCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function RFPResponseContent({
   opportunityId,
@@ -157,6 +370,7 @@ export function RFPResponseContent({
     current: number;
     total: number;
     currentTitle: string;
+    retryingIn?: number;
   } | null>(null);
   const [allErrors, setAllErrors] = useState<string[]>([]);
 
@@ -175,33 +389,64 @@ export function RFPResponseContent({
         total: accessibleDocs.length,
         currentTitle: doc.title,
       });
-      try {
-        const res = await fetch(
-          `/api/opportunities/${opportunityId}/extract-from-document`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: doc.url, append: i > 0 }),
-          },
-        );
-        const data = (await res.json()) as {
-          questions_saved?: number;
-          error?: string;
-          message?: string;
-        };
-        if (!res.ok) {
-          let msg: string;
-          if (res.status === 403 || data.error === "access-denied") {
-            msg = `${doc.title}: requires authentication — download manually and upload below`;
-          } else if (res.status === 429 || data.error === "rate-limited") {
-            msg = `${doc.title}: rate limited — ${data.message ?? "try again in up to 60 minutes"}`;
-          } else {
-            msg = `${doc.title}: ${data.error ?? "extraction failed"}`;
+
+      let attempt = 0;
+      while (attempt < 2) {
+        try {
+          const res = await fetch(
+            `/api/opportunities/${opportunityId}/extract-from-document`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: doc.url, append: i > 0 }),
+            },
+          );
+          const data = (await res.json()) as {
+            questions_saved?: number;
+            error?: string;
+            message?: string;
+            retryAfter?: string | null;
+          };
+
+          if (!res.ok) {
+            if (res.status === 429 || data.error === "rate-limited") {
+              const secs = data.retryAfter
+                ? parseInt(data.retryAfter, 10)
+                : parseRetrySeconds(data.message ?? "");
+              const waitSecs =
+                isFinite(secs) && secs > 0 ? Math.min(secs, 120) : 120;
+
+              if (attempt === 0) {
+                // Show countdown and auto-retry once
+                for (let w = waitSecs; w > 0; w--) {
+                  setAllProgress({
+                    current: i + 1,
+                    total: accessibleDocs.length,
+                    currentTitle: doc.title,
+                    retryingIn: w,
+                  });
+                  await new Promise((r) => setTimeout(r, 1000));
+                }
+                attempt++;
+                continue; // retry
+              } else {
+                errors.push(
+                  `${doc.title}: rate limited — drop the file onto the document row to extract manually`,
+                );
+              }
+            } else if (res.status === 403 || data.error === "access-denied") {
+              errors.push(
+                `${doc.title}: requires authentication — download manually and drop onto the row below`,
+              );
+            } else {
+              errors.push(`${doc.title}: ${data.error ?? "extraction failed"}`);
+            }
           }
-          errors.push(msg);
+          break;
+        } catch {
+          errors.push(`${doc.title}: network error`);
+          break;
         }
-      } catch {
-        errors.push(`${doc.title}: network error`);
       }
     }
 
@@ -214,73 +459,14 @@ export function RFPResponseContent({
   async function handleFileUpload(file: File) {
     setUploading(true);
     setUploadError(null);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const extractRes = await fetch("/api/rfp/extract", {
-        method: "POST",
-        body: formData,
-      });
-      const extracted = (await extractRes.json()) as {
-        questions?: Array<{
-          id: number;
-          text: string;
-          section: string;
-          topic: string;
-          risk_level: string;
-        }>;
-        error?: string;
-      };
-      if (!extractRes.ok || !extracted.questions) {
-        setUploadError(extracted.error ?? "Extraction failed");
-        return;
-      }
-
-      const TOPIC_TO_TYPE: Record<string, string> = {
-        security_compliance: "technical",
-        legal: "general",
-        pricing: "financial",
-        technical: "technical",
-        engineering: "technical",
-        commercial: "general",
-        implementation: "general",
-        support: "general",
-        general: "general",
-      };
-
-      const saveRes = await fetch(
-        `/api/opportunities/${opportunityId}/questions`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            questions: extracted.questions.map((q, i) => ({
-              question_text: q.text,
-              section_ref: q.section || null,
-              question_type: TOPIC_TO_TYPE[q.topic] ?? "general",
-              question_class:
-                (q as { question_class?: string }).question_class ?? "question",
-              sort_order: i,
-              word_limit: null,
-              is_mandatory: q.risk_level !== "low",
-            })),
-          }),
-        },
-      );
-
-      if (!saveRes.ok) {
-        const d = (await saveRes.json()) as { error?: string };
-        setUploadError(d.error ?? "Save failed");
-        return;
-      }
-
+    const result = await extractFromFile(file, opportunityId, false);
+    if (result.ok) {
       setUploadFile(null);
       setRefreshKey((k) => k + 1);
-    } catch {
-      setUploadError("Network error — please try again.");
-    } finally {
-      setUploading(false);
+    } else {
+      setUploadError(result.error ?? "Upload failed");
     }
+    setUploading(false);
   }
 
   return (
@@ -324,21 +510,30 @@ export function RFPResponseContent({
               color: "var(--ink)",
             }}
           >
-            <span style={{ color: "var(--muted)" }}>
-              Extracting {allProgress.current} of {allProgress.total}:
-            </span>{" "}
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                display: "inline-block",
-                maxWidth: 260,
-                verticalAlign: "bottom",
-              }}
-            >
-              {allProgress.currentTitle}
-            </span>
+            {allProgress.retryingIn ? (
+              <span style={{ color: "#b45309" }}>
+                Rate limited on {allProgress.currentTitle} — retrying in{" "}
+                {formatCountdown(allProgress.retryingIn)}…
+              </span>
+            ) : (
+              <>
+                <span style={{ color: "var(--muted)" }}>
+                  Extracting {allProgress.current} of {allProgress.total}:
+                </span>{" "}
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    display: "inline-block",
+                    maxWidth: 260,
+                    verticalAlign: "bottom",
+                  }}
+                >
+                  {allProgress.currentTitle}
+                </span>
+              </>
+            )}
             <span
               style={{
                 display: "block",
@@ -353,7 +548,9 @@ export function RFPResponseContent({
                   display: "block",
                   height: "100%",
                   borderRadius: 99,
-                  background: "var(--accent)",
+                  background: allProgress.retryingIn
+                    ? "#d97706"
+                    : "var(--accent)",
                   width: `${Math.round((allProgress.current / allProgress.total) * 100)}%`,
                   transition: "width 300ms ease",
                 }}
@@ -362,7 +559,7 @@ export function RFPResponseContent({
           </div>
         )}
 
-        {/* Per-run errors from extract all */}
+        {/* Per-run errors */}
         {allErrors.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             {allErrors.map((e, i) => (
@@ -381,8 +578,9 @@ export function RFPResponseContent({
             lineHeight: 1.5,
           }}
         >
-          Extract questions from all accessible documents at once, or click
-          individually below. Upload a file for portal-gated documents.
+          Extract questions from all accessible documents at once. Rate-limited
+          documents retry automatically. Portal-blocked or still-limited
+          documents show a drop zone — download and drop the file directly.
         </p>
 
         {accessibleDocs.length > 0 && (
@@ -472,7 +670,7 @@ export function RFPResponseContent({
         </div>
       </div>
 
-      {/* Questions panel — re-mounts when refreshKey changes to pick up newly extracted questions */}
+      {/* Questions panel */}
       <QuestionsPanel
         key={refreshKey}
         opportunityId={opportunityId}
