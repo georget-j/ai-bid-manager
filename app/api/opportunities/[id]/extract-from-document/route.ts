@@ -54,9 +54,9 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const { id: opportunityId } = await params;
 
-  let body: { url?: string };
+  let body: { url?: string; append?: boolean };
   try {
-    body = (await request.json()) as { url?: string };
+    body = (await request.json()) as { url?: string; append?: boolean };
   } catch {
     return NextResponse.json(
       { error: "Invalid request body" },
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const url = body.url;
+  const append = body.append === true;
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "url required" }, { status: 400 });
   }
@@ -152,19 +153,45 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const supabase = getServiceSupabase();
 
-  // Replace existing questions for this org × opportunity
-  await supabase
-    .from("opportunity_questions")
-    .delete()
-    .eq("opportunity_id", opportunityId)
-    .eq("org_id", orgId);
+  // In append mode keep existing questions and deduplicate by text
+  let existingTexts = new Set<string>();
+  let sortOffset = 0;
 
-  const rows = rfpQuestions.map((q) => ({
+  if (append) {
+    const { data: existing } = await supabase
+      .from("opportunity_questions")
+      .select("question_text, sort_order")
+      .eq("opportunity_id", opportunityId)
+      .eq("org_id", orgId);
+    if (existing) {
+      existingTexts = new Set(existing.map((r) => r.question_text.trim()));
+      sortOffset =
+        existing.reduce((max, r) => Math.max(max, r.sort_order ?? 0), 0) + 1;
+    }
+  } else {
+    await supabase
+      .from("opportunity_questions")
+      .delete()
+      .eq("opportunity_id", opportunityId)
+      .eq("org_id", orgId);
+  }
+
+  const newQuestions = rfpQuestions.filter(
+    (q) => !existingTexts.has(q.text.trim()),
+  );
+
+  if (newQuestions.length === 0) {
+    return NextResponse.json({ questions_saved: 0 });
+  }
+
+  const rows = newQuestions.map((q, i) => ({
     opportunity_id: opportunityId,
     org_id: orgId,
     question_text: q.text,
     section_ref: q.section || null,
     question_type: TOPIC_TO_TYPE[q.topic] ?? "general",
+    question_class: q.question_class,
+    sort_order: sortOffset + i,
     word_limit: null as number | null,
     is_mandatory: q.risk_level !== "low",
     answer_status: "unanswered",

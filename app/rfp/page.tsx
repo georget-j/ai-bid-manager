@@ -40,6 +40,7 @@ export default async function RFPPage({ searchParams }: PageProps) {
           section: (q.section_ref as string | null) ?? "",
           topic: TYPE_TO_TOPIC[q.question_type as string] ?? "general",
           risk_level: "medium" as const,
+          question_class: "question" as const,
         }));
       }
     }

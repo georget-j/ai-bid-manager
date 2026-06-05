@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { QuestionsPanel } from "../QuestionsPanel";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 
@@ -136,13 +135,63 @@ export function RFPResponseContent({
   opportunityTitle: string;
   docs: (NormalizedDocument & { url?: string | null })[];
 }) {
-  const router = useRouter();
   const [refreshKey, setRefreshKey] = useState(0);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [extractingAll, setExtractingAll] = useState(false);
+  const [allProgress, setAllProgress] = useState<{
+    current: number;
+    total: number;
+    currentTitle: string;
+  } | null>(null);
+  const [allErrors, setAllErrors] = useState<string[]>([]);
 
   const accessibleDocs = docs.filter((d) => d.url);
+
+  async function extractAllDocs() {
+    if (accessibleDocs.length === 0) return;
+    setExtractingAll(true);
+    setAllErrors([]);
+    const errors: string[] = [];
+
+    for (let i = 0; i < accessibleDocs.length; i++) {
+      const doc = accessibleDocs[i];
+      setAllProgress({
+        current: i + 1,
+        total: accessibleDocs.length,
+        currentTitle: doc.title,
+      });
+      try {
+        const res = await fetch(
+          `/api/opportunities/${opportunityId}/extract-from-document`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: doc.url, append: i > 0 }),
+          },
+        );
+        const data = (await res.json()) as {
+          questions_saved?: number;
+          error?: string;
+        };
+        if (!res.ok) {
+          const msg =
+            res.status === 403 || data.error === "access-denied"
+              ? `${doc.title}: requires authentication`
+              : `${doc.title}: ${data.error ?? "extraction failed"}`;
+          errors.push(msg);
+        }
+      } catch {
+        errors.push(`${doc.title}: network error`);
+      }
+    }
+
+    setAllProgress(null);
+    setAllErrors(errors);
+    setExtractingAll(false);
+    setRefreshKey((k) => k + 1);
+  }
 
   async function handleFileUpload(file: File) {
     setUploading(true);
@@ -187,10 +236,13 @@ export function RFPResponseContent({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            questions: extracted.questions.map((q) => ({
+            questions: extracted.questions.map((q, i) => ({
               question_text: q.text,
               section_ref: q.section || null,
               question_type: TOPIC_TO_TYPE[q.topic] ?? "general",
+              question_class:
+                (q as { question_class?: string }).question_class ?? "question",
+              sort_order: i,
               word_limit: null,
               is_mandatory: q.risk_level !== "low",
             })),
@@ -217,9 +269,92 @@ export function RFPResponseContent({
     <>
       {/* Tender document extraction strip */}
       <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <div className="eyebrow" style={{ marginBottom: 10 }}>
-          Extract from tender documents
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 10,
+            gap: 10,
+          }}
+        >
+          <div className="eyebrow">Extract from tender documents</div>
+          {accessibleDocs.length >= 1 && (
+            <button
+              className="btn primary"
+              onClick={extractAllDocs}
+              disabled={extractingAll}
+              style={{ fontSize: 12, padding: "4px 14px", flexShrink: 0 }}
+            >
+              {extractingAll ? "Extracting…" : "Extract all documents"}
+            </button>
+          )}
         </div>
+
+        {/* Extract-all progress */}
+        {allProgress && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: "8px 12px",
+              background:
+                "color-mix(in oklch, var(--accent) 8%, var(--surface))",
+              borderRadius: "var(--r-sm)",
+              border:
+                "1px solid color-mix(in oklch, var(--accent) 20%, transparent)",
+              fontSize: 12.5,
+              color: "var(--ink)",
+            }}
+          >
+            <span style={{ color: "var(--muted)" }}>
+              Extracting {allProgress.current} of {allProgress.total}:
+            </span>{" "}
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                display: "inline-block",
+                maxWidth: 260,
+                verticalAlign: "bottom",
+              }}
+            >
+              {allProgress.currentTitle}
+            </span>
+            <span
+              style={{
+                display: "block",
+                marginTop: 6,
+                height: 3,
+                borderRadius: 99,
+                background: "var(--border)",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  height: "100%",
+                  borderRadius: 99,
+                  background: "var(--accent)",
+                  width: `${Math.round((allProgress.current / allProgress.total) * 100)}%`,
+                  transition: "width 300ms ease",
+                }}
+              />
+            </span>
+          </div>
+        )}
+
+        {/* Per-run errors from extract all */}
+        {allErrors.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            {allErrors.map((e, i) => (
+              <p key={i} style={{ fontSize: 11.5, color: "#b45309" }}>
+                {e}
+              </p>
+            ))}
+          </div>
+        )}
+
         <p
           style={{
             fontSize: 12.5,
@@ -228,8 +363,8 @@ export function RFPResponseContent({
             lineHeight: 1.5,
           }}
         >
-          Click a document to extract questions automatically, or upload a file
-          you&apos;ve downloaded from a procurement portal.
+          Extract questions from all accessible documents at once, or click
+          individually below. Upload a file for portal-gated documents.
         </p>
 
         {accessibleDocs.length > 0 && (
