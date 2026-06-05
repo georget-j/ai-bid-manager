@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 import type {
   EnrichedDocument,
@@ -74,9 +75,41 @@ function DocRow({
   onAdded: (docId: string) => void;
   initiallyAdded?: boolean;
 }) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(initiallyAdded);
   const [addError, setAddError] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+
+  async function extractQuestions() {
+    if (!doc.url) return;
+    setExtracting(true);
+    setExtractError(null);
+    try {
+      const res = await fetch(
+        `/api/opportunities/${opportunityId}/extract-from-document`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: doc.url }),
+        },
+      );
+      const data = (await res.json()) as {
+        questions_saved?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        setExtractError(data.error ?? "Extraction failed");
+      } else {
+        router.push(`/opportunities/${opportunityId}/rfp`);
+      }
+    } catch {
+      setExtractError("Network error — please try again.");
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   const badge = BADGE[doc.accessibility];
 
@@ -166,6 +199,18 @@ function DocRow({
         {doc.accessibility === "portal-required" && doc.portal && (
           <PortalAccordion portal={doc.portal} />
         )}
+        {doc.accessibility === "portal-required" && (
+          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+            Download from the portal, then upload on the{" "}
+            <a
+              href={`/opportunities/${opportunityId}/rfp`}
+              style={{ color: "var(--accent)" }}
+            >
+              RFP Response tab
+            </a>
+            .
+          </p>
+        )}
         {(doc.accessibility === "unknown" || doc.accessibility === "error") &&
           doc.errorMessage && (
             <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
@@ -198,6 +243,16 @@ function DocRow({
             Open ↗
           </a>
         )}
+        {doc.accessibility === "accessible" && doc.url && (
+          <button
+            className="btn primary"
+            onClick={extractQuestions}
+            disabled={extracting}
+            style={{ fontSize: 12, padding: "4px 10px" }}
+          >
+            {extracting ? "Extracting…" : "Extract questions"}
+          </button>
+        )}
         {doc.accessibility === "accessible" && !added && (
           <button
             className="btn"
@@ -218,6 +273,11 @@ function DocRow({
             }}
           >
             ✓ In KB
+          </span>
+        )}
+        {extractError && (
+          <span style={{ fontSize: 11, color: "#dc2626", maxWidth: 140 }}>
+            {extractError}
           </span>
         )}
       </div>

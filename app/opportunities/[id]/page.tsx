@@ -4,6 +4,7 @@ import { getOpportunity } from "@/lib/procurement/data";
 import { OpportunityActions } from "./OpportunityActions";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { QuestionsPanel } from "./QuestionsPanel";
+import { OpportunityTabs } from "./OpportunityTabs";
 import type {
   OpportunityRow,
   NormalizedLot,
@@ -112,6 +113,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       >
         ← Back to opportunities
       </Link>
+
+      {/* Tab navigation */}
+      <OpportunityTabs id={id} />
 
       {/* Header */}
       <div className="card card-pad" style={{ marginBottom: 20 }}>

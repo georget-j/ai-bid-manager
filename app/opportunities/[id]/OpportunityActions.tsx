@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { RecommendedAction } from "@/lib/procurement/types";
 
@@ -39,6 +39,15 @@ export function OpportunityActions({
   const [score, setScore] = useState<ScoringResult | null>(null);
   const [pipelineAdded, setPipelineAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/opportunities/${opportunityId}/pipeline-status`)
+      .then((r) => r.json())
+      .then((d: { saved?: boolean }) => {
+        if (d.saved) setPipelineAdded(true);
+      })
+      .catch(() => {});
+  }, [opportunityId]);
 
   async function analyse() {
     setAnalysing(true);
@@ -156,12 +165,17 @@ export function OpportunityActions({
           className="btn"
           onClick={addToPipeline}
           disabled={addingPipeline || pipelineAdded}
+          style={
+            pipelineAdded
+              ? { color: "#059669", borderColor: "#059669" }
+              : undefined
+          }
         >
           {pipelineAdded
-            ? "✓ In pipeline"
+            ? "✓ Saved"
             : addingPipeline
-              ? "Adding…"
-              : "Add to pipeline"}
+              ? "Saving…"
+              : "Save opportunity"}
         </button>
         {matrixId ? (
           <Link href={`/compliance/${matrixId}`} className="btn">
@@ -208,9 +222,12 @@ export function OpportunityActions({
             gap: 8,
           }}
         >
-          Added to pipeline.{" "}
-          <Link href="/pipeline" style={{ color: "#059669", fontWeight: 500 }}>
-            View pipeline →
+          Saved to My Opportunities.{" "}
+          <Link
+            href="/my-opportunities"
+            style={{ color: "#059669", fontWeight: 500 }}
+          >
+            View →
           </Link>
         </div>
       )}
