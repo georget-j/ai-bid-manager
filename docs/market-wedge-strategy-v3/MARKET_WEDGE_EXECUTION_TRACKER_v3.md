@@ -5,8 +5,8 @@
 - [x] Phase 0 — Security and repo audit ← COMPLETED 2026-06-05
 - [ ] Phase 1 — Wedge validation assets
 - [x] Phase 2 — Production security foundation ← CRITICAL FIXES DONE 2026-06-05
-- [x] Phase 3 — Agency/client workspace foundation ← FOUNDATION SHIPPED 2026-06-05
-- [ ] Phase 4 — Evidence vault and readiness
+- [x] Phase 3 — Agency/client workspace foundation ← COMPLETE 2026-06-05
+- [x] Phase 4 — Evidence vault and readiness ← FOUNDATION SHIPPED 2026-06-05
 - [ ] Phase 5 — Opportunity intake and analysis
 - [ ] Phase 6 — Evidence gap engine
 - [ ] Phase 7 — Compliance matrix generator
@@ -33,9 +33,9 @@ Shipped
 
 ## Current objective
 
-Phase 3 foundation shipped. Clients model, CRUD API, and UI live.
+Phases 3 + 4 complete. Clients model, evidence vault, and client_id wiring all live.
 
-Next: Phase 1 (founder outreach) in parallel with Phase 3 continuation or Phase 4 design.
+Next: Phase 1 (founder outreach) in parallel with Phase 5 (fit scoring + scoped RAG).
 
 ## Current blocker
 
@@ -129,19 +129,19 @@ Then:
 - [x] Add client profile page (placeholder; Phase 4 fills this)
 - [ ] Add permissions (email-list admin for now; DB role in Phase 4)
 - [x] Add client data isolation tests (tenant-isolation.test.ts — 3 tests)
-- [ ] Wire client_id into opportunity/documents UI (filter by client)
+- [x] Wire client_id into opportunity/documents UI (filter by client)
 
 ---
 
 ### Phase 4 — Evidence vault and readiness
 
-- [ ] Create evidence item model
-- [ ] Create evidence types for first vertical
-- [ ] Add evidence dashboard
-- [ ] Add evidence upload/linking
-- [ ] Add expiry tracking
-- [ ] Add readiness score
-- [ ] Add missing evidence view
+- [x] Create evidence item model (evidence_items table, migration 033)
+- [x] Create evidence types for first vertical (certification, policy, case_study, financial, accreditation, reference, other)
+- [x] Add evidence dashboard (/clients/[id]/evidence with status summary + type filters)
+- [x] Add evidence upload/linking (add form with dates, issuer, reference; document_id FK for future)
+- [x] Add expiry tracking (auto-trigger sets valid/expiring_soon/expired based on expires_at)
+- [ ] Add readiness score (Phase 5 — requires vertical checklist to score against)
+- [ ] Add missing evidence view (Phase 5 — requires vertical evidence checklist)
 - [ ] Add evidence access tests
 
 ---

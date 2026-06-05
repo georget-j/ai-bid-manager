@@ -1,5 +1,27 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Phases 3+4 complete: client wiring + evidence vault
+
+### Added (commit e007270)
+
+**Phase 3 — client_id wired into existing flows:**
+
+- OpportunityActions: client selector before "Save opportunity"; client_id persisted to bid_pipeline; restored from pipeline-status on load
+- add-to-pipeline route + addToPipeline(): accept and save client_id
+- pipeline-status route: returns client_id alongside saved flag
+- Pipeline page: client filter dropdown; client name badge on each card linking to /clients/[id]
+- DocumentUpload: "Scope to client" dropdown; passes client_id in FormData
+- documents/upload route + ingestDocument: accept and persist client_id on documents
+
+**Phase 4 — evidence vault:**
+
+- Migration 033: `evidence_items` table (org_id + client_id FKs, 7-value type enum, status auto-set by BEFORE trigger from expires_at)
+- GET/POST `/api/clients/[id]/evidence` + PATCH/DELETE `/api/clients/[id]/evidence/[eid]`
+- `/clients/[id]/evidence` page: status summary chips (valid/expiring_soon/expired), type filter pills, inline add form, per-item inline edit, delete with confirm
+- `/clients/[id]` detail: evidence vault placeholder replaced with live link card
+
+---
+
 ## 2026-06-05 — Phase 3 foundation shipped
 
 ### Added (commit b674c7d)

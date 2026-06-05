@@ -10,48 +10,45 @@ This file captures the exact working state. Update it at the end of every sessio
 
 ## Current phase
 
-Phase 3 foundation shipped. Clients model live.
-
-Next: Phase 1 (founder outreach — parallel) + continue Phase 3 (link clients to opportunities/documents in UI).
+Phases 3 + 4 complete. Evidence vault live.
 
 ## What was just done
 
-Phase 3 agency/client workspace foundation:
+Phase 3 client_id wiring + Phase 4 evidence vault (commit `e007270`):
 
-- Migration 031: `clients` table (org_id, name, vertical, status, website, notes) + RLS
-- Migration 032: nullable `client_id` FK added to documents, opportunity_questions, bid_pipeline, compliance_matrices
-- API: `GET/POST /api/clients` + `GET/PATCH/DELETE /api/clients/[id]` (org-scoped, Zod-validated)
-- UI: `/clients` list page + `/clients/[id]` detail page with inline edit, archive, placeholder Phase 4 cards
-- Clients nav item added to sidebar (top of Intelligence section)
-- 3 new isolation tests in `tests/tenant-isolation.test.ts`
-
-All committed (`b674c7d`) and pushed.
+- OpportunityActions: client selector — saves client_id to pipeline row; restored on load
+- Pipeline page: client filter dropdown + client name badge per card linking to /clients/[id]
+- DocumentUpload: "Scope to client" selector; client_id saved on documents row
+- ingestDocument / upload route: accept and persist client_id
+- Migration 033: evidence_items table with auto-expiry trigger (valid/expiring_soon/expired)
+- GET/POST `/api/clients/[id]/evidence` + PATCH/DELETE `/api/clients/[id]/evidence/[eid]`
+- `/clients/[id]/evidence` — vault UI: status summary, type filter pills, add/edit/delete forms
+- `/clients/[id]` detail — evidence vault card links live to the vault page
 
 ## What to do next
 
 ### Option A — Phase 1 (founder, not code)
 
 Talk to 10 bid agencies before building more.
-See `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` for interview guide.
-Key question: Is IT/cyber the right vertical? Would they pay £500–£2k/month?
+Use `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` interview guide.
+Key question: IT/cyber vs facilities? Would they pay £500–£2k/month?
 
-### Option B — Continue Phase 3
+### Option B — Phase 5: Opportunity fit scoring
 
-Wire `client_id` into the opportunity/documents UI so agency users can filter by client.
-Steps:
+Remaining Phase 5 gaps:
 
-1. Add client selector to opportunity detail page (set `client_id` on opportunity_questions and bid_pipeline rows)
-2. Add client filter to `/pipeline` page
-3. Add client selector to document upload
+- Numeric fit score badge on opportunity detail page
+- Bid/no-bid recommendation label (analysis already runs, just no visible badge)
 
-### Option C — Phase 4: Evidence vault
+### Option C — Phase 5: Scoped RAG per client
 
-Start the evidence item model (certifications, policies, case studies) for a selected client.
-Design needed first: evidence types for IT/cyber vertical.
+When running Ask or answering ITT questions, scope retrieval to the selected client's documents.
+Requires updating `hybrid_search_chunks` RPC with optional `p_client_id`, and passing it through
+all `retrieveChunks` callers when a client context is known.
 
 ## Last commit
 
-`b674c7d` — feat(phase3): agency/client workspace foundation
+`e007270` — feat(phase3+4): wire client_id + evidence vault
 
 ## Branch
 
@@ -59,8 +56,7 @@ Design needed first: evidence types for IT/cyber vertical.
 
 ## Open security risks (non-blocking)
 
-S-007 through S-014 are documented in `MARKET_WEDGE_SECURITY_PLAN_v3.md`.
-None block production use. Address in future sprints.
+S-007 through S-014 in `MARKET_WEDGE_SECURITY_PLAN_v3.md`. None block production use.
 
 ## Key files
 
