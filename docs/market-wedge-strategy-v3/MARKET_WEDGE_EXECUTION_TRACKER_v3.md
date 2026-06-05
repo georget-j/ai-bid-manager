@@ -8,7 +8,7 @@
 - [x] Phase 3 — Agency/client workspace foundation ← COMPLETE 2026-06-05
 - [x] Phase 4 — Evidence vault and readiness ← FOUNDATION SHIPPED 2026-06-05
 - [x] Phase 5 — Opportunity intake and analysis ← CORE FEATURES SHIPPED 2026-06-05
-- [ ] Phase 6 — Evidence gap engine
+- [x] Phase 6 — Evidence gap engine ← CORE SHIPPED 2026-06-05
 - [ ] Phase 7 — Compliance matrix generator
 - [ ] Phase 8 — Evidence-backed response drafting
 - [ ] Phase 9 — Review workflow and bid pack export

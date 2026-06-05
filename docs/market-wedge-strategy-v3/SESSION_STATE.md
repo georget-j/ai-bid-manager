@@ -10,49 +10,52 @@ This file captures the exact working state. Update it at the end of every sessio
 
 ## Current phase
 
-Phase 5 in progress. Scoped RAG + fit scoring persistence shipped.
+Phases 5 + 6 core features shipped.
 
 ## What was just done
 
-Phase 5 — scoped RAG + fit scoring (commit `cc77f01`):
+Phase 5 readiness score + Phase 6 evidence gap engine (commit `2703a03`):
 
-**Scoped RAG per client:**
-- Migration 034: `hybrid_search_chunks` RPC extended with `p_client_id`; includes shared org docs + client-specific docs when set
-- `retrieveChunks()`: accepts `clientId?`, passes to RPC
-- `answer-all` route: looks up `bid_pipeline.client_id` for the opportunity before answering — AI now draws from the correct client's evidence vault
-- `ask` route: accepts optional `client_id` in request body
-- `rfp/answer-batch`: migrated to `supabase-service`
+**Readiness score:**
+- `lib/readiness.ts`: IT/Cyber (9-item) and Facilities (7-item) checklists; keyword + type matching; weighted score 0-100
+- `GET /api/clients/[id]/readiness`: full ReadinessScore response
+- `/clients/[id]` page: ReadinessWidget — circular gauge, checklist rows with coverage icons, "Add missing evidence →" link
 
-**Fit score persistence:**
-- Migration 035: `bid_pipeline` gains `fit_score`, `readiness_score`, `recommended_action`, `score_reasons[]`, `score_risks[]`, `scored_at`
-- `analyse` route: saves scores to `bid_pipeline` row after scoring (so scores persist without re-running)
-- Pipeline page: shows recommended_action badge + `fit N · ready N` chip on each card
+**Evidence gap engine:**
+- `lib/evidence-gap.ts`: 14 requirement signal patterns; fast keyword-based matching (no AI tokens); coverage: covered / partial / expired / missing
+- `GET /api/opportunities/[id]/evidence-gaps?clientId=`: maps tender requirements → client evidence
+- New "Evidence Gaps" tab on every opportunity detail page
+- `/opportunities/[id]/gaps` page: client selector (auto-loads from pipeline), score gauge, coverage filter pills, colour-coded requirement cards, risk badges, links to evidence vault
 
 ## What to do next
 
 ### Option A — Phase 1 (founder, not code)
 
-Talk to 10 bid agencies before building more.
+Talk to 10 bid agencies before building more. This is now the most valuable next step.
 Use `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` interview guide.
-Key question: IT/cyber vs facilities? Would they pay £500–£2k/month?
+Key questions: IT/cyber vs facilities? £500–£2k/month viable?
 
-### Option B — Phase 5: Readiness score on client detail
+### Option B — Phase 7: Compliance matrix improvements
 
-Evidence vault is live. Next: compute a readiness score from evidence items against a vertical checklist.
-Show score on `/clients/[id]` and flag expiring/missing items.
+Phase 7 checklist has 3 remaining items:
+- owner/status fields on compliance_requirements
+- risk filtering on matrix UI
+- export/copy to spreadsheet
 
-### Option C — Phase 6: Evidence gap engine
+### Option C — Phase 10: Find a Tender live connector
 
-For a given opportunity + client, compare extracted requirements against evidence vault.
-Output: per-requirement coverage (strong / weak / missing), risk level, evidence request draft.
+`sources` and `raw_notices` tables exist. Wire up the FTS (Find a Tender Service) API.
+Key endpoint: `https://www.find-tender.service.gov.uk/api/1.0/ocds/`
+Requires: API key from CCS, connector in `lib/procurement/sync.ts`, admin trigger UI.
 
-### Option D — Phase 10: Find a Tender live connector
+### Option D — Bid pack export improvements (Phase 9)
 
-`sources` and `raw_notices` tables exist. Wire up the FTS API to auto-populate opportunities.
+Current DOCX export works. Remaining: include evidence gap report + unresolved risks.
+Evidence gap data is now available — wire it into the export.
 
 ## Last commit
 
-`cc77f01` — feat(phase5): scoped RAG per client + fit score persistence
+`2703a03` — feat(phase5+6): readiness score + evidence gap engine
 
 ## Branch
 
@@ -70,7 +73,4 @@ S-007 through S-014 in `MARKET_WEDGE_SECURITY_PLAN_v3.md`. None block production
 | Phase tracker          | `docs/market-wedge-strategy-v3/MARKET_WEDGE_EXECUTION_TRACKER_v3.md`      |
 | Next tasks             | `docs/market-wedge-strategy-v3/MARKET_WEDGE_NEXT_ACTIONS_v3.md`           |
 | Security risks         | `docs/market-wedge-strategy-v3/MARKET_WEDGE_SECURITY_PLAN_v3.md`          |
-| Repo snapshot          | `docs/market-wedge-strategy-v3/MARKET_WEDGE_REPO_STATE_v3.md`             |
-| Architecture decisions | `docs/market-wedge-strategy-v3/MARKET_WEDGE_ARCHITECTURE_DECISIONS_v3.md` |
-| Changelog              | `docs/market-wedge-strategy-v3/MARKET_WEDGE_CHANGELOG_v3.md`              |
 | Re-entry prompt        | `docs/market-wedge-strategy-v3/MARKET_WEDGE_CLAUDE_CODE_PROMPTS_v3.md`    |

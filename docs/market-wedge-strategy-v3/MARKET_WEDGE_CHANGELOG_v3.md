@@ -1,5 +1,24 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Phases 5+6: readiness score + evidence gap engine
+
+### Added (commit 2703a03)
+
+**Phase 5 — readiness score:**
+
+- `lib/readiness.ts`: IT/Cyber and Facilities vertical checklists; keyword + evidence_type matching; weighted scoring (3/2/1); expiring = 0.5 weight; returns 0-100 score + per-item coverage
+- `GET /api/clients/[id]/readiness`: org-scoped, returns ReadinessScore or "unsupported vertical" message
+- `/clients/[id]` ReadinessWidget: circular SVG gauge, progress bar, checklist rows with coverage icons (✓/⚠/✕/–), weight labels, "Add missing evidence →" link
+
+**Phase 6 — evidence gap engine:**
+
+- `lib/evidence-gap.ts`: 14 REQUIREMENT_SIGNALS mapping bid phrases (ISO 27001, GDPR, PI insurance, case studies, etc.) → evidence_type + keywords; coverage: covered/partial/expired/missing; no AI tokens
+- `GET /api/opportunities/[id]/evidence-gaps?clientId=`: maps requirement-class questions → client evidence; falls back to all non-guidance questions; returns GapReport with counts and per-item results
+- `OpportunityTabs`: added "Evidence Gaps" tab at `/opportunities/[id]/gaps`
+- `/opportunities/[id]/gaps` page: auto-selects client from pipeline; score gauge; coverage filter pills; colour-coded requirement cards with left border, risk badge, "Add →" link
+
+---
+
 ## 2026-06-05 — Phase 5: scoped RAG + fit scoring persistence
 
 ### Added (commit cc77f01)
