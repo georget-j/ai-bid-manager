@@ -200,8 +200,12 @@ export function QuestionsPanel({
   const [error, setError] = useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [expandedSources, setExpandedSources] = useState<Set<string>>(
     new Set(),
+  );
+  const [answersReadyCount, setAnswersReadyCount] = useState<number | null>(
+    null,
   );
 
   // Load saved questions on mount
@@ -350,6 +354,17 @@ export function QuestionsPanel({
         return 0;
       });
       setSavedQuestions(sorted);
+      // Show "answers ready" banner — count questions that now have a draft
+      const readyCount = sorted.filter(
+        (q) =>
+          q.question_class !== "guidance" &&
+          q.ai_draft &&
+          q.answer_status !== "unanswered",
+      ).length;
+      if (readyCount > 0 && !questionIds) {
+        setAnswersReadyCount(readyCount);
+        setTimeout(() => setAnswersReadyCount(null), 8000);
+      }
     } catch {
       setError("Network error during answer generation.");
     } finally {
@@ -725,23 +740,27 @@ export function QuestionsPanel({
               {generatingMatrix ? "Generating…" : "Create Compliance Matrix"}
             </button>
           )}
-          <a
-            href={
-              draftedCount > 0
-                ? `/api/opportunities/${opportunityId}/export-response`
-                : undefined
-            }
-            className={`btn${draftedCount === 0 ? " disabled" : ""}`}
-            style={{
-              fontSize: 12,
-              padding: "4px 12px",
-              opacity: draftedCount === 0 ? 0.4 : 1,
-              pointerEvents: draftedCount === 0 ? "none" : "auto",
-            }}
-          >
-            Export response ({draftedCount}/
-            {counts.question + counts.requirement})
-          </a>
+          {draftedCount > 0 ? (
+            <a
+              href={`/api/opportunities/${opportunityId}/export-response`}
+              className="btn primary"
+              style={{ fontSize: 12, padding: "4px 12px" }}
+            >
+              Export DOCX ({draftedCount}/{counts.question + counts.requirement}
+              )
+            </a>
+          ) : (
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                padding: "4px 2px",
+              }}
+              title="Generate answers first, then export"
+            >
+              Export (answer questions first)
+            </span>
+          )}
         </div>
       </div>
 
@@ -819,6 +838,42 @@ export function QuestionsPanel({
         ))}
       </div>
 
+      {/* Answers-ready banner */}
+      {answersReadyCount !== null && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 20px",
+            background: "#d1fae5",
+            borderBottom: "1px solid #6ee7b7",
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 13, color: "#065f46", fontWeight: 500 }}>
+            ✓ {answersReadyCount} answer
+            {answersReadyCount !== 1 ? "s" : ""} generated — scroll down to
+            review, edit, and approve
+          </span>
+          <button
+            onClick={() => setAnswersReadyCount(null)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 14,
+              color: "#065f46",
+              padding: 0,
+              lineHeight: 1,
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Sections */}
       {sections.length === 0 && (
         <p
@@ -868,6 +923,7 @@ export function QuestionsPanel({
                 localDraft !== undefined && localDraft !== q.ai_draft;
               const citations = q.citations ?? [];
               const isRequirement = q.question_class === "requirement";
+              const isEditingThis = editingIds.has(q.id);
 
               // ── Requirement row ──────────────────────────────────────────
               if (isRequirement && !displayDraft) {
@@ -1086,29 +1142,63 @@ export function QuestionsPanel({
                           </span>
                         )}
                       </div>
-                      <textarea
-                        value={displayDraft}
-                        onChange={(e) =>
-                          setDraftEdits((prev) => ({
-                            ...prev,
-                            [q.id]: e.target.value,
-                          }))
-                        }
-                        rows={5}
-                        style={{
-                          width: "100%",
-                          fontSize: 13,
-                          lineHeight: 1.6,
-                          color: "var(--ink-2)",
-                          background: "var(--bg-tint)",
-                          border: `1px solid ${isDirty ? "var(--accent)" : "var(--border)"}`,
-                          borderRadius: "var(--r-sm)",
-                          padding: "8px 10px",
-                          resize: "vertical",
-                          fontFamily: "inherit",
-                          boxSizing: "border-box",
-                        }}
-                      />
+                      {/* Read-only answer block / edit textarea */}
+                      {isEditingThis ? (
+                        <textarea
+                          value={displayDraft}
+                          onChange={(e) =>
+                            setDraftEdits((prev) => ({
+                              ...prev,
+                              [q.id]: e.target.value,
+                            }))
+                          }
+                          rows={8}
+                          autoFocus
+                          style={{
+                            width: "100%",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            color: "var(--ink)",
+                            background: "var(--surface-2)",
+                            border: `1.5px solid ${isDirty ? "var(--accent)" : "var(--border)"}`,
+                            borderRadius: "var(--r-sm)",
+                            padding: "10px 12px",
+                            resize: "vertical",
+                            fontFamily: "inherit",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            whiteSpace: "pre-wrap",
+                            fontSize: 13.5,
+                            lineHeight: 1.7,
+                            color: "var(--ink)",
+                            background: "var(--surface-2)",
+                            borderLeft: "3px solid var(--accent)",
+                            borderRadius: "0 var(--r-sm) var(--r-sm) 0",
+                            padding: "12px 16px",
+                            cursor: "text",
+                          }}
+                          onClick={() => {
+                            setEditingIds((prev) => {
+                              const next = new Set(prev);
+                              next.add(q.id);
+                              return next;
+                            });
+                            if (!(q.id in draftEdits)) {
+                              setDraftEdits((prev) => ({
+                                ...prev,
+                                [q.id]: q.ai_draft ?? "",
+                              }));
+                            }
+                          }}
+                          title="Click to edit"
+                        >
+                          {displayDraft}
+                        </div>
+                      )}
                       <div
                         style={{
                           display: "flex",
@@ -1119,29 +1209,62 @@ export function QuestionsPanel({
                         }}
                       >
                         <div style={{ display: "flex", gap: 8 }}>
-                          {isDirty && (
+                          {isEditingThis && isDirty && (
                             <button
                               className="btn primary"
-                              onClick={() => saveDraft(q.id, displayDraft)}
+                              onClick={() => {
+                                saveDraft(q.id, displayDraft);
+                                setEditingIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(q.id);
+                                  return next;
+                                });
+                              }}
                               disabled={isSavingThis}
                               style={{ fontSize: 11, padding: "3px 12px" }}
                             >
                               {isSavingThis ? "Saving…" : "Save edits"}
                             </button>
                           )}
-                          {isDirty && (
+                          {isEditingThis && (
                             <button
                               className="btn ghost"
-                              onClick={() =>
+                              onClick={() => {
+                                setEditingIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(q.id);
+                                  return next;
+                                });
                                 setDraftEdits((prev) => {
                                   const next = { ...prev };
                                   delete next[q.id];
                                   return next;
-                                })
-                              }
+                                });
+                              }}
                               style={{ fontSize: 11, padding: "3px 8px" }}
                             >
-                              Discard
+                              {isDirty ? "Discard" : "Done"}
+                            </button>
+                          )}
+                          {!isEditingThis && (
+                            <button
+                              className="btn ghost"
+                              onClick={() => {
+                                setEditingIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.add(q.id);
+                                  return next;
+                                });
+                                if (!(q.id in draftEdits)) {
+                                  setDraftEdits((prev) => ({
+                                    ...prev,
+                                    [q.id]: q.ai_draft ?? "",
+                                  }));
+                                }
+                              }}
+                              style={{ fontSize: 11, padding: "3px 8px" }}
+                            >
+                              Edit
                             </button>
                           )}
                         </div>
