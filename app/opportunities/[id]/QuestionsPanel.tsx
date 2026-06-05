@@ -652,6 +652,23 @@ export function QuestionsPanel({
               {generatingMatrix ? "Generating…" : "Create Compliance Matrix"}
             </button>
           )}
+          <a
+            href={
+              draftedCount > 0
+                ? `/api/opportunities/${opportunityId}/export-response`
+                : undefined
+            }
+            className={`btn${draftedCount === 0 ? " disabled" : ""}`}
+            style={{
+              fontSize: 12,
+              padding: "4px 12px",
+              opacity: draftedCount === 0 ? 0.4 : 1,
+              pointerEvents: draftedCount === 0 ? "none" : "auto",
+            }}
+          >
+            Export response ({draftedCount}/
+            {counts.question + counts.requirement})
+          </a>
         </div>
       </div>
 
