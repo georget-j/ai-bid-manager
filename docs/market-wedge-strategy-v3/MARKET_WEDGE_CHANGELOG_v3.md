@@ -1,5 +1,25 @@
 # Market Wedge Changelog v3
 
+## 2026-06-05 — Phase 5: scoped RAG + fit scoring persistence
+
+### Added (commit cc77f01)
+
+**Scoped RAG per client:**
+
+- Migration 034: `hybrid_search_chunks` extended with `p_client_id`; retrieval includes client-specific docs + shared org docs when set, all org docs when null
+- `retrieveChunks()`: new optional `clientId` param forwarded to RPC
+- `answer-all` route: reads `bid_pipeline.client_id` for the opportunity+org, scopes AI retrieval to that client's evidence
+- `ask` route: accepts optional `client_id` in request body, scopes retrieval; UI can pass it when in a client context
+- `rfp/answer-batch`: imports from `supabase-service` (cleanup)
+
+**Fit score persistence:**
+
+- Migration 035: `bid_pipeline` gains `fit_score`, `readiness_score`, `recommended_action`, `score_reasons[]`, `score_risks[]`, `scored_at`
+- `analyse` route: updates `bid_pipeline` row with scores after analysis so pipeline page shows scores without re-running
+- Pipeline page: `ACTION_STYLES` lookup added; recommended_action badge (Bid/Maybe/Needs review/Do not bid) + `fit N · ready N` monospace chip on each card
+
+---
+
 ## 2026-06-05 — Phases 3+4 complete: client wiring + evidence vault
 
 ### Added (commit e007270)

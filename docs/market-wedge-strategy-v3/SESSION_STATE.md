@@ -10,20 +10,23 @@ This file captures the exact working state. Update it at the end of every sessio
 
 ## Current phase
 
-Phases 3 + 4 complete. Evidence vault live.
+Phase 5 in progress. Scoped RAG + fit scoring persistence shipped.
 
 ## What was just done
 
-Phase 3 client_id wiring + Phase 4 evidence vault (commit `e007270`):
+Phase 5 — scoped RAG + fit scoring (commit `cc77f01`):
 
-- OpportunityActions: client selector — saves client_id to pipeline row; restored on load
-- Pipeline page: client filter dropdown + client name badge per card linking to /clients/[id]
-- DocumentUpload: "Scope to client" selector; client_id saved on documents row
-- ingestDocument / upload route: accept and persist client_id
-- Migration 033: evidence_items table with auto-expiry trigger (valid/expiring_soon/expired)
-- GET/POST `/api/clients/[id]/evidence` + PATCH/DELETE `/api/clients/[id]/evidence/[eid]`
-- `/clients/[id]/evidence` — vault UI: status summary, type filter pills, add/edit/delete forms
-- `/clients/[id]` detail — evidence vault card links live to the vault page
+**Scoped RAG per client:**
+- Migration 034: `hybrid_search_chunks` RPC extended with `p_client_id`; includes shared org docs + client-specific docs when set
+- `retrieveChunks()`: accepts `clientId?`, passes to RPC
+- `answer-all` route: looks up `bid_pipeline.client_id` for the opportunity before answering — AI now draws from the correct client's evidence vault
+- `ask` route: accepts optional `client_id` in request body
+- `rfp/answer-batch`: migrated to `supabase-service`
+
+**Fit score persistence:**
+- Migration 035: `bid_pipeline` gains `fit_score`, `readiness_score`, `recommended_action`, `score_reasons[]`, `score_risks[]`, `scored_at`
+- `analyse` route: saves scores to `bid_pipeline` row after scoring (so scores persist without re-running)
+- Pipeline page: shows recommended_action badge + `fit N · ready N` chip on each card
 
 ## What to do next
 
@@ -33,22 +36,23 @@ Talk to 10 bid agencies before building more.
 Use `MARKET_WEDGE_VALIDATION_AND_GTM_v3.md` interview guide.
 Key question: IT/cyber vs facilities? Would they pay £500–£2k/month?
 
-### Option B — Phase 5: Opportunity fit scoring
+### Option B — Phase 5: Readiness score on client detail
 
-Remaining Phase 5 gaps:
+Evidence vault is live. Next: compute a readiness score from evidence items against a vertical checklist.
+Show score on `/clients/[id]` and flag expiring/missing items.
 
-- Numeric fit score badge on opportunity detail page
-- Bid/no-bid recommendation label (analysis already runs, just no visible badge)
+### Option C — Phase 6: Evidence gap engine
 
-### Option C — Phase 5: Scoped RAG per client
+For a given opportunity + client, compare extracted requirements against evidence vault.
+Output: per-requirement coverage (strong / weak / missing), risk level, evidence request draft.
 
-When running Ask or answering ITT questions, scope retrieval to the selected client's documents.
-Requires updating `hybrid_search_chunks` RPC with optional `p_client_id`, and passing it through
-all `retrieveChunks` callers when a client context is known.
+### Option D — Phase 10: Find a Tender live connector
+
+`sources` and `raw_notices` tables exist. Wire up the FTS API to auto-populate opportunities.
 
 ## Last commit
 
-`e007270` — feat(phase3+4): wire client_id + evidence vault
+`cc77f01` — feat(phase5): scoped RAG per client + fit score persistence
 
 ## Branch
 
