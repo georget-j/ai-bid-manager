@@ -18,6 +18,7 @@ interface GapResult {
   coverage: "covered" | "partial" | "missing" | "expired";
   risk_level: "low" | "medium" | "high";
   signals_detected: string[];
+  signals_detected_types: string[];
   matched_evidence: Array<{
     id: string;
     title: string;
@@ -101,6 +102,56 @@ export default function EvidenceGapsPage({
   const [report, setReport] = useState<GapReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [coverageFilter, setCoverageFilter] = useState<string>("all");
+  const [addingFor, setAddingFor] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState({
+    title: "",
+    evidence_type: "other",
+    expires_at: "",
+    notes: "",
+  });
+  const [addSubmitting, setAddSubmitting] = useState(false);
+
+  function refreshReport() {
+    if (!selectedClientId) return;
+    setLoading(true);
+    fetch(
+      `/api/opportunities/${opportunityId}/evidence-gaps?clientId=${selectedClientId}`,
+    )
+      .then((r) => r.json())
+      .then((data: GapReport) => setReport(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  async function submitAddEvidence(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedClientId || !addForm.title) return;
+    setAddSubmitting(true);
+    try {
+      const res = await fetch(`/api/clients/${selectedClientId}/evidence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: addForm.title,
+          evidence_type: addForm.evidence_type,
+          expires_at: addForm.expires_at || null,
+          notes: addForm.notes || null,
+        }),
+      });
+      if (res.ok) {
+        setAddingFor(null);
+        setAddForm({
+          title: "",
+          evidence_type: "other",
+          expires_at: "",
+          notes: "",
+        });
+        refreshReport();
+      }
+    } finally {
+      setAddSubmitting(false);
+    }
+  }
 
   // Load clients
   useEffect(() => {
@@ -689,16 +740,162 @@ export default function EvidenceGapsPage({
                             {risk.label}
                           </span>
                         )}
-                        {r.coverage !== "covered" && (
-                          <Link
-                            href={`/clients/${selectedClientId}/evidence`}
-                            style={{ fontSize: 11.5, color: "var(--muted)" }}
+                        {(r.coverage === "missing" ||
+                          r.coverage === "expired") && (
+                          <button
+                            className="btn ghost"
+                            onClick={() => {
+                              setAddingFor(r.question_id);
+                              setAddForm({
+                                title: "",
+                                evidence_type:
+                                  r.signals_detected_types[0] ?? "other",
+                                expires_at: "",
+                                notes: "",
+                              });
+                            }}
+                            style={{ fontSize: 11, padding: "2px 9px" }}
                           >
-                            Add →
-                          </Link>
+                            + Add evidence
+                          </button>
                         )}
                       </div>
                     </div>
+
+                    {/* Inline add form */}
+                    {addingFor === r.question_id && (
+                      <form
+                        onSubmit={submitAddEvidence}
+                        style={{
+                          marginTop: 12,
+                          padding: "12px 14px",
+                          background: "var(--surface-2)",
+                          borderRadius: "var(--r-sm)",
+                          border: "1px solid var(--border)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "var(--muted)",
+                            margin: 0,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          Quick add evidence
+                        </p>
+                        <div
+                          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Evidence title *"
+                            value={addForm.title}
+                            onChange={(e) =>
+                              setAddForm((f) => ({
+                                ...f,
+                                title: e.target.value,
+                              }))
+                            }
+                            required
+                            style={{
+                              flex: "1 1 180px",
+                              fontSize: 12,
+                              padding: "5px 9px",
+                              border: "1px solid var(--border)",
+                              borderRadius: "var(--r-sm)",
+                              background: "var(--bg)",
+                              color: "var(--ink)",
+                            }}
+                          />
+                          <select
+                            value={addForm.evidence_type}
+                            onChange={(e) =>
+                              setAddForm((f) => ({
+                                ...f,
+                                evidence_type: e.target.value,
+                              }))
+                            }
+                            style={{
+                              flex: "0 0 auto",
+                              fontSize: 12,
+                              padding: "5px 9px",
+                              border: "1px solid var(--border)",
+                              borderRadius: "var(--r-sm)",
+                              background: "var(--bg)",
+                              color: "var(--ink)",
+                            }}
+                          >
+                            <option value="certification">Certification</option>
+                            <option value="policy">Policy</option>
+                            <option value="case_study">Case Study</option>
+                            <option value="financial">Financial</option>
+                            <option value="accreditation">Accreditation</option>
+                            <option value="reference">Reference</option>
+                            <option value="other">Other</option>
+                          </select>
+                          <input
+                            type="date"
+                            value={addForm.expires_at}
+                            onChange={(e) =>
+                              setAddForm((f) => ({
+                                ...f,
+                                expires_at: e.target.value,
+                              }))
+                            }
+                            title="Expiry date (optional)"
+                            style={{
+                              flex: "0 0 auto",
+                              fontSize: 12,
+                              padding: "5px 9px",
+                              border: "1px solid var(--border)",
+                              borderRadius: "var(--r-sm)",
+                              background: "var(--bg)",
+                              color: "var(--ink)",
+                            }}
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Notes (optional — helps with matching)"
+                          value={addForm.notes}
+                          onChange={(e) =>
+                            setAddForm((f) => ({ ...f, notes: e.target.value }))
+                          }
+                          style={{
+                            fontSize: 12,
+                            padding: "5px 9px",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--r-sm)",
+                            background: "var(--bg)",
+                            color: "var(--ink)",
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            type="submit"
+                            className="btn primary"
+                            disabled={addSubmitting || !addForm.title}
+                            style={{ fontSize: 12, padding: "4px 12px" }}
+                          >
+                            {addSubmitting ? "Adding…" : "Add & re-analyse"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={() => setAddingFor(null)}
+                            style={{ fontSize: 12, padding: "4px 10px" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 );
               })}

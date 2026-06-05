@@ -12,6 +12,7 @@ export interface GapResult {
   coverage: GapCoverage;
   risk_level: "low" | "medium" | "high";
   signals_detected: string[];
+  signals_detected_types: string[];
   matched_evidence: Array<{
     id: string;
     title: string;
@@ -244,6 +245,7 @@ export function analyseGaps(
       coverage,
       risk_level,
       signals_detected: signals.map((s) => s.label),
+      signals_detected_types: [...new Set(signals.map((s) => s.evidence_type))],
       matched_evidence: matches.map((m) => ({
         id: m.id,
         title: m.title,
