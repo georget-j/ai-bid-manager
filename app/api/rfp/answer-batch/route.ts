@@ -5,7 +5,7 @@ import * as z from "zod";
 import { retrieveChunks } from "@/lib/retrieval";
 import { generateRFPResponse } from "@/lib/generation";
 import { verifyCitations } from "@/lib/citations";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { computeRoutingCandidates } from "@/lib/review-routing";
 import { getRequestOrgId } from "@/lib/org";

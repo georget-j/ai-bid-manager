@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { retrieveChunks } from "@/lib/retrieval";
 import { generateRFPResponse } from "@/lib/generation";
 import { verifyCitations } from "@/lib/citations";
@@ -37,6 +37,15 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const supabase = getServiceSupabase();
+
+  // Look up the client associated with this opportunity (via pipeline row)
+  const { data: pipelineRow } = await supabase
+    .from("bid_pipeline")
+    .select("client_id")
+    .eq("opportunity_id", id)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  const clientId: string | null = pipelineRow?.client_id ?? null;
 
   let query = supabase
     .from("opportunity_questions")
@@ -87,7 +96,11 @@ export async function POST(request: NextRequest, { params }: Params) {
         await Promise.allSettled(
           batch.map(async (q) => {
             try {
-              const chunks = await retrieveChunks(q.question_text, orgId);
+              const chunks = await retrieveChunks(
+                q.question_text,
+                orgId,
+                clientId,
+              );
               const rawResponse = await generateRFPResponse(
                 q.question_text,
                 chunks,

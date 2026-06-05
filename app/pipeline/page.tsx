@@ -27,6 +27,9 @@ interface PipelineItem {
   due_date: string | null;
   created_at: string;
   client_id: string | null;
+  fit_score: number | null;
+  readiness_score: number | null;
+  recommended_action: string | null;
   opportunity: Opportunity | null;
   question_count: number;
   answered_count: number;
@@ -44,6 +47,23 @@ interface PipelineTotals {
   answered: number;
   matrices: number;
 }
+
+const ACTION_STYLES: {
+  key: string;
+  label: string;
+  color: string;
+  bg: string;
+}[] = [
+  { key: "bid", label: "Bid", color: "#059669", bg: "#d1fae5" },
+  { key: "maybe", label: "Maybe", color: "#d97706", bg: "#fef3c7" },
+  {
+    key: "needs-review",
+    label: "Needs review",
+    color: "#7c3aed",
+    bg: "#ede9fe",
+  },
+  { key: "do-not-bid", label: "Do not bid", color: "#dc2626", bg: "#fee2e2" },
+];
 
 const STATUS_CONFIG: {
   key: BidPipelineStatus;
@@ -501,6 +521,44 @@ export default function PipelinePage() {
                     >
                       {sc.label}
                     </span>
+                    {item.recommended_action && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background:
+                            ACTION_STYLES.find(
+                              (a) => a.key === item.recommended_action,
+                            )?.bg ?? "#f3f4f6",
+                          color:
+                            ACTION_STYLES.find(
+                              (a) => a.key === item.recommended_action,
+                            )?.color ?? "#6b7280",
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {ACTION_STYLES.find(
+                          (a) => a.key === item.recommended_action,
+                        )?.label ?? item.recommended_action}
+                      </span>
+                    )}
+                    {item.fit_score != null && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: "var(--bg-tint)",
+                          color: "var(--muted)",
+                          fontFamily: "var(--font-mono)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        fit {item.fit_score} · ready {item.readiness_score}
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{

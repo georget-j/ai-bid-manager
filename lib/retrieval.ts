@@ -1,5 +1,5 @@
 import { zodResponseFormat } from "openai/helpers/zod";
-import { getServiceSupabase } from "./supabase";
+import { getServiceSupabase } from "./supabase-service";
 import { generateEmbedding } from "./embeddings";
 import { openai, CHAT_MODEL } from "./openai";
 import { buildRerankPrompt } from "./prompts";
@@ -12,6 +12,7 @@ const FINAL_COUNT = 6;
 export async function retrieveChunks(
   queryText: string,
   orgId?: string | null,
+  clientId?: string | null,
 ): Promise<RetrievedChunk[]> {
   const queryEmbedding = await generateEmbedding(queryText);
   const supabase = getServiceSupabase();
@@ -21,6 +22,7 @@ export async function retrieveChunks(
     query_embedding: queryEmbedding,
     match_count: CANDIDATE_COUNT,
     p_org_id: orgId ?? null,
+    p_client_id: clientId ?? null,
   });
 
   if (error) throw new Error(`Hybrid search failed: ${error.message}`);

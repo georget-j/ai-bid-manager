@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { getOpportunity, getOrgProfile } from "@/lib/procurement/data";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import {
   scoreOpportunity,
   scoringResultToMatchRow,
@@ -48,12 +48,30 @@ export async function POST(_request: NextRequest, { params }: Params) {
   const matchRow = scoringResultToMatchRow(result, id, orgId);
 
   const supabase = getServiceSupabase();
+
+  // Persist to opportunity_matches (existing)
   await supabase
     .from("opportunity_matches")
     .upsert(
       { ...matchRow, created_at: new Date().toISOString() },
       { onConflict: "opportunity_id,org_id" },
     );
+
+  // Also persist to bid_pipeline row if one exists, so scores are
+  // visible on the pipeline page without re-running analysis
+  await supabase
+    .from("bid_pipeline")
+    .update({
+      fit_score: result.fitScore,
+      readiness_score: result.readinessScore,
+      recommended_action: result.recommendedAction,
+      score_reasons: result.reasons ?? [],
+      score_risks: result.risks ?? [],
+      scored_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("opportunity_id", id)
+    .eq("org_id", orgId);
 
   return NextResponse.json(result);
 }

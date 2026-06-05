@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { streamObject } from "ai";
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { retrieveChunks } from "@/lib/retrieval";
 import { verifyCitations } from "@/lib/citations";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/prompts";
@@ -81,6 +81,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { query, rfp_context } = parsed.data;
+    // Optional client_id passed by the UI when in a client context
+    const clientId: string | null =
+      (body as { client_id?: string | null }).client_id ?? null;
     const supabase = getServiceSupabase();
     const orgId = await getRequestOrgId();
 
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
           })
           .select("id")
           .single(),
-        retrieveChunks(query, orgId),
+        retrieveChunks(query, orgId, clientId),
       ]);
 
     if (queryError || !queryRecord) {
