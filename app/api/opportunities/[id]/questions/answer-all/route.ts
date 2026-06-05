@@ -104,6 +104,9 @@ export async function POST(request: NextRequest, { params }: Params) {
                 .update({
                   ai_draft: response.draft_answer,
                   answer_status: confScore >= 60 ? "drafted" : "needs-review",
+                  confidence_level: confLevel,
+                  confidence_score: confScore,
+                  citations: response.citations ?? [],
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", q.id);
