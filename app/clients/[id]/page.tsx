@@ -11,6 +11,9 @@ interface Client {
   status: string;
   website: string | null;
   notes: string | null;
+  invited_email: string | null;
+  invite_sent_at: string | null;
+  client_org_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +69,10 @@ export default function ClientDetailPage({
   });
   const [archiveConfirm, setArchiveConfirm] = useState(false);
   const [readiness, setReadiness] = useState<ReadinessResult | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/clients/${id}`)
@@ -117,6 +124,38 @@ export default function ClientDetailPage({
   async function handleArchive() {
     const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
     if (res.ok) router.push("/clients");
+  }
+
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviting(true);
+    setInviteError(null);
+    const res = await fetch(`/api/clients/${id}/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: inviteEmail }),
+    });
+    const data = (await res.json()) as {
+      ok?: boolean;
+      email?: string;
+      error?: string;
+    };
+    if (!res.ok) {
+      setInviteError(data.error ?? "Failed to send invite");
+    } else {
+      setClient((c) =>
+        c
+          ? {
+              ...c,
+              invited_email: data.email ?? inviteEmail,
+              invite_sent_at: new Date().toISOString(),
+            }
+          : c,
+      );
+      setShowInvite(false);
+      setInviteEmail("");
+    }
+    setInviting(false);
   }
 
   if (loading) {
@@ -223,7 +262,51 @@ export default function ClientDetailPage({
             )}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexShrink: 0,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          {/* Account status chip */}
+          {client.client_org_id ? (
+            <span
+              style={{
+                fontSize: 11.5,
+                padding: "3px 10px",
+                borderRadius: 99,
+                background: "#d1fae5",
+                color: "#065f46",
+                fontWeight: 600,
+              }}
+            >
+              ✓ Active account
+            </span>
+          ) : client.invited_email ? (
+            <span
+              style={{
+                fontSize: 11.5,
+                padding: "3px 10px",
+                borderRadius: 99,
+                background: "#fef3c7",
+                color: "#92400e",
+              }}
+              title={`Invite sent to ${client.invited_email}`}
+            >
+              ⏳ Invite pending — {client.invited_email}
+            </span>
+          ) : (
+            <button
+              className="btn ghost"
+              onClick={() => setShowInvite(true)}
+              style={{ fontSize: 12 }}
+            >
+              Invite client →
+            </button>
+          )}
           <button
             className="btn ghost"
             onClick={() => setEditing((e) => !e)}
@@ -262,6 +345,69 @@ export default function ClientDetailPage({
           )}
         </div>
       </div>
+
+      {/* Invite form */}
+      {showInvite && (
+        <div className="card card-pad" style={{ marginBottom: 20 }}>
+          <div
+            className="eyebrow"
+            style={{ marginBottom: 10, color: "var(--accent)" }}
+          >
+            Invite client to create an account
+          </div>
+          <p
+            style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}
+          >
+            An invitation email will be sent. When they accept, they&apos;ll get
+            their own secure workspace. You&apos;ll see an &quot;Active
+            account&quot; status here once they log in.
+          </p>
+          <form
+            onSubmit={sendInvite}
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              className="input"
+              type="email"
+              placeholder="client@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+              autoFocus
+              style={{ flex: 1, minWidth: 220, fontSize: 13 }}
+            />
+            <button
+              className="btn primary"
+              type="submit"
+              disabled={inviting || !inviteEmail}
+              style={{ fontSize: 13, padding: "6px 14px" }}
+            >
+              {inviting ? "Sending…" : "Send invite"}
+            </button>
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => {
+                setShowInvite(false);
+                setInviteError(null);
+              }}
+              style={{ fontSize: 13 }}
+            >
+              Cancel
+            </button>
+          </form>
+          {inviteError && (
+            <p style={{ fontSize: 12, color: "#dc2626", marginTop: 8 }}>
+              {inviteError}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Edit form */}
       {editing && (

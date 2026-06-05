@@ -1,5 +1,6 @@
 import { RoutingConfigTable } from "@/components/RoutingConfigTable";
 import { IntegrationPanel } from "@/components/IntegrationPanel";
+import { ClientsAdmin } from "@/components/ClientsAdmin";
 import { getAuthUser } from "@/lib/supabase-server";
 
 export default async function AdminPage() {
@@ -22,6 +23,11 @@ export default async function AdminPage() {
           </p>
         </div>
       </div>
+
+      <section style={{ marginBottom: 48 }}>
+        <div className="section-title">Client accounts</div>
+        <ClientsAdmin />
+      </section>
 
       <section style={{ marginBottom: 48 }}>
         <div className="section-title">Routing Rules</div>

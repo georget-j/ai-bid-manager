@@ -1,4 +1,4 @@
-import { getServiceSupabase } from "./supabase";
+import { getServiceSupabase } from "./supabase-service";
 import { getAuthUser } from "./supabase-server";
 
 const isDemoMode =
