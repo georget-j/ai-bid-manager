@@ -1,5 +1,14 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 7.2: sync-health monitoring
+
+- Migration `048_sync_health.sql` (applied): `sources.last_run_at`, `last_fetched_count`,
+  `last_pages`, `last_normalize_errors`.
+- `sync.ts` counts normalisation failures (previously silently swallowed) and writes all
+  health fields each run. The sources page now shows "last run fetched N in P pages", an
+  amber "↻ backlog pending — resumes next run" badge when a cursor is saved, and a warning
+  when notices were skipped because they couldn't be parsed.
+
 ## 2026-06-06 — Epic 7.1: no-gap ingestion windows + region fix
 
 - `sync.ts`: incremental `from` now subtracts a 12h overlap from last_successful_sync_at

@@ -13,6 +13,10 @@ interface SourceRow {
   last_successful_sync_at: string | null;
   last_cursor: string | null;
   last_error: string | null;
+  last_run_at: string | null;
+  last_fetched_count: number | null;
+  last_pages: number | null;
+  last_normalize_errors: number | null;
   opportunity_count: number;
   raw_count: number;
 }
@@ -665,7 +669,41 @@ export default function SourcesPage() {
                       {!source.last_successful_sync_at && hasConnector && (
                         <span>Never synced</span>
                       )}
+                      {source.last_run_at &&
+                        source.last_fetched_count != null && (
+                          <span>
+                            Last run fetched{" "}
+                            {source.last_fetched_count.toLocaleString()} in{" "}
+                            {source.last_pages ?? 0} page
+                            {source.last_pages === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      {source.last_cursor && (
+                        <span style={{ color: "#d97706" }}>
+                          ↻ backlog pending — resumes next run
+                        </span>
+                      )}
                     </div>
+
+                    {source.last_normalize_errors != null &&
+                      source.last_normalize_errors > 0 && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            padding: "4px 10px",
+                            borderRadius: "var(--r-sm)",
+                            background: "#fef3c7",
+                            color: "#92400e",
+                            fontSize: 11.5,
+                            display: "inline-block",
+                          }}
+                        >
+                          ⚠ {source.last_normalize_errors.toLocaleString()}{" "}
+                          notice
+                          {source.last_normalize_errors === 1 ? "" : "s"}{" "}
+                          skipped (could not parse) on the last run
+                        </div>
+                      )}
 
                     {source.last_error && (
                       <div

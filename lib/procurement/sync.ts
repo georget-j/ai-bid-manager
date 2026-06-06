@@ -64,6 +64,7 @@ export async function syncSource(
   let duplicatesSkipped = 0;
   let opportunitiesUpserted = 0;
   let opportunitiesErrored = 0;
+  let normalizeErrors = 0;
   let totalFetched = 0;
   let totalPages = 0;
   const upsertedIds: string[] = [];
@@ -162,6 +163,7 @@ export async function syncSource(
       try {
         normalized = await connector.normalize(raw);
       } catch (err) {
+        normalizeErrors++;
         errors.push(
           `normalize: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -260,6 +262,11 @@ export async function syncSource(
         // next routine sync can continue where we left off.
         last_cursor: hasMoreAfterCap ? currentCursor : null,
         last_error: errors.length > 0 ? errors[0] : null,
+        // Sync-health (migration 048)
+        last_run_at: now.toISOString(),
+        last_fetched_count: totalFetched,
+        last_pages: totalPages,
+        last_normalize_errors: normalizeErrors,
         updated_at: now.toISOString(),
       })
       .eq("name", connector.sourceName);

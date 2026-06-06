@@ -8,8 +8,8 @@
 ## Current pointer
 
 - **Current epic:** Epic 7 — Contracts Finder ingestion robustness
-- **Current phase:** 7.2 (sync-health monitoring, mig 048 + error surfacing) — NEXT
-- **Last commit:** `fix(ingest): overlap window + cursor resume`
+- **Current phase:** 7.3 (bounded rolling catch-up) — NEXT (FINAL)
+- **Last commit:** `feat(ingest): sync-health monitoring + error surfacing (mig 048)`
 - **Updated:** 2026-06-06
 - **Demo opp id:** aab42d69-be4c-4e50-b9aa-400d48b9d249 (`/opportunities/aab42d69-...`)
 - **Build:** `npm run build` passes (checkpoint after Epic 6).
@@ -74,7 +74,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 ## Epic 7 — Contracts Finder ingestion robustness (Task 7)
 
 - [x] 7.1 Overlap window (12h) on incremental `from`; time-budget loop break (cursor resume) so cron page cap raised 5→25 safely; OCDS region fix (read parties[] address → locality/countryName) + backfilled all 3223 rows (region was 100% empty) → region filter re-enabled · `fix(ingest): overlap window + cursor resume`
-- [ ] 7.2 Mig 048 sync-health monitoring + error surfacing · `feat(ingest): sync-health monitoring + error surfacing (mig 048)`
+- [x] 7.2 Mig 048 sync-health columns (last_run_at/fetched/pages/normalize_errors); sync.ts counts + writes them; sources page shows "fetched N in P pages", backlog-pending badge, and a skipped-notices warning · `feat(ingest): sync-health monitoring + error surfacing (mig 048)`
 - [ ] 7.3 Bounded rolling catch-up · `feat(ingest): bounded rolling catch-up for missed windows`
 
 ---
