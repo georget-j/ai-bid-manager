@@ -44,8 +44,17 @@ RFP rework commits (2026-06-06):
 - `69d7ddc` — Phase 3: provenance chips, unapprove, mandatory export gate
 - Phase 4: response re-evaluation + scoring visual (migration 042)
 
-Migrations 040–042 applied to Supabase. Tenant-isolation suite made runnable
+Migrations 040–043 applied to Supabase. Tenant-isolation suite made runnable
 (seeds test orgs) — 9/9 pass.
+
+Live end-to-end testing (real login against the deployed app) surfaced and fixed
+two pre-existing production bugs:
+
+- DOCX export 404 — `export-response` selected a non-existent `source_id` column
+  (commit cb82ab1, deployed).
+- **RAG retrieval broken** — `hybrid_search_chunks` threw "column reference id is
+  ambiguous" on every call, so all AI answers came back empty. Fixed in migration
+  043 (applied). Verified live: real grounded drafts + re-evaluation now work.
 
 Next: Phase 1 (founder outreach — no code needed) or Phase 11 (pilot workflow setup).
 See MARKET_WEDGE_NEXT_ACTIONS_v3.md for options.

@@ -1,5 +1,34 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — CRITICAL fix: RAG retrieval broken (ambiguous "id") + live showcase
+
+Found while running the full RFP flow live with a seeded knowledge base.
+
+### Fixed — `hybrid_search_chunks` threw on every call
+
+- Migration `043_fix_hybrid_search_ambiguous_id.sql` (applied). The function
+  `RETURNS TABLE (id uuid, …)`, so in PL/pgSQL the output column `id` is a
+  variable; every bare `id` in the body (`select id from documents`,
+  `group by id`, …) was **ambiguous** → `column reference "id" is ambiguous`
+  thrown on every call. **All RAG retrieval failed**, so every AI answer and
+  compliance draft silently fell into the `answer-all` catch path and came back
+  empty (`needs-review`, no draft). Present since migration 016 (org scoping),
+  carried into 034 (client scoping). Fix: alias the CTE id columns
+  (`doc_id`/`chunk_id`); output columns and logic unchanged.
+- This is why earlier live answers were empty — not a knowledge-base gap.
+
+### Verified live (throwaway authenticated org with a seeded KB)
+
+- Diagnostic: `retrieveChunks` → 6 chunks; `generateRFPResponse` → a grounded
+  draft citing the seeded ISO certificate. Previously: threw.
+- Full showcase (sector-matched evidence, real login): `extract-all` 200 (49
+  items); **real grounded drafts** (e.g. "facilitated a regional community
+  energy network of 60 groups… 40% growth…", confidence high, with citations);
+  approve; **re-evaluation overall 85** with per-item scores + suggestions;
+  `export` 200 + DOCX. Test data cleaned up.
+
+---
+
 ## 2026-06-06 — Fix: DOCX export 404 (non-existent source_id column)
 
 Found during a live end-to-end test (real login against the deployed app).
