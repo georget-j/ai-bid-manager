@@ -90,6 +90,26 @@ export async function GET(request: NextRequest, { params }: Params) {
     );
   }
 
+  // Approved-only export is gated on every mandatory item being approved.
+  if (approvedOnly) {
+    const mandatoryUnapproved = questions.filter(
+      (q) =>
+        q.is_mandatory &&
+        q.question_class !== "guidance" &&
+        q.answer_status !== "approved",
+    );
+    if (mandatoryUnapproved.length > 0) {
+      return NextResponse.json(
+        {
+          error: "mandatory-unapproved",
+          message: `${mandatoryUnapproved.length} mandatory item(s) are not yet approved.`,
+          items: mandatoryUnapproved.map((q) => q.question_text),
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   // Build gap report if a client is linked
   let gapReport: ExportGapReport | null = null;
   if (clientData) {

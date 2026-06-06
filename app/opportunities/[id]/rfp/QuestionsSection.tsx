@@ -6,6 +6,7 @@ interface OppQuestion {
   id: string;
   question_text: string;
   section_ref: string | null;
+  source_document: string | null;
   question_class: string;
   word_limit: number | null;
   is_mandatory: boolean;
@@ -132,6 +133,27 @@ function QuestionCard({
     }
   }
 
+  async function unapprove() {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/opportunities/${opportunityId}/questions/${q.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answer_status: "drafted" }),
+        },
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { question: OppQuestion };
+        onUpdate(data.question);
+        onApproval?.();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const confCfg =
     q.confidence_level && q.confidence_level in CONFIDENCE_CONFIG
       ? CONFIDENCE_CONFIG[q.confidence_level as keyof typeof CONFIDENCE_CONFIG]
@@ -175,6 +197,25 @@ function QuestionCard({
               marginBottom: 4,
             }}
           >
+            {q.source_document && (
+              <span
+                title="Where this came from"
+                style={{
+                  fontSize: 10,
+                  color: "var(--muted)",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 999,
+                  padding: "1px 7px",
+                  maxWidth: 220,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {q.source_document}
+              </span>
+            )}
             {q.section_ref && (
               <span
                 style={{
@@ -234,7 +275,7 @@ function QuestionCard({
           </p>
         </div>
 
-        {/* Quick approve */}
+        {/* Quick approve / unapprove */}
         {(q.answer_status === "drafted" ||
           q.answer_status === "needs-review") &&
           !editing && (
@@ -247,6 +288,16 @@ function QuestionCard({
               ✓ Approve
             </button>
           )}
+        {q.answer_status === "approved" && !editing && (
+          <button
+            className="btn ghost"
+            onClick={unapprove}
+            disabled={saving}
+            style={{ fontSize: 11.5, padding: "3px 10px", flexShrink: 0 }}
+          >
+            Unapprove
+          </button>
+        )}
       </div>
 
       {/* Needs-review callout */}
@@ -842,7 +893,7 @@ export function ExportSection({
 }) {
   const [reqApproved, setReqApproved] = useState(0);
   const [qApproved, setQApproved] = useState(0);
-  const [mandatoryPending, setMandatoryPending] = useState<string[]>([]);
+  const [mandatoryUnapproved, setMandatoryUnapproved] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -864,9 +915,14 @@ export function ExportSection({
               q.question_class === "question" && q.answer_status === "approved",
           ).length,
         );
-        setMandatoryPending(
+        setMandatoryUnapproved(
           all
-            .filter((q) => q.is_mandatory && q.answer_status === "unanswered")
+            .filter(
+              (q) =>
+                q.is_mandatory &&
+                q.question_class !== "guidance" &&
+                q.answer_status !== "approved",
+            )
             .map((q) =>
               q.question_text.length > 80
                 ? q.question_text.slice(0, 80) + "…"
@@ -927,7 +983,7 @@ export function ExportSection({
             )}
           </div>
 
-          {mandatoryPending.length > 0 && (
+          {mandatoryUnapproved.length > 0 && (
             <div
               style={{
                 padding: "10px 14px",
@@ -945,11 +1001,13 @@ export function ExportSection({
                   margin: "0 0 6px",
                 }}
               >
-                ⚠ {mandatoryPending.length} mandatory item
-                {mandatoryPending.length !== 1 ? "s" : ""} not yet answered:
+                ⚠ {mandatoryUnapproved.length} mandatory item
+                {mandatoryUnapproved.length !== 1 ? "s" : ""} not yet approved —
+                approve {mandatoryUnapproved.length !== 1 ? "these" : "this"} to
+                export the approved response:
               </p>
               <ul style={{ margin: 0, padding: "0 0 0 16px" }}>
-                {mandatoryPending.map((t, i) => (
+                {mandatoryUnapproved.map((t, i) => (
                   <li
                     key={i}
                     style={{
@@ -968,13 +1026,30 @@ export function ExportSection({
       )}
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <a
-          href={`/api/opportunities/${opportunityId}/export-response?mode=approved`}
-          className="btn primary"
-          style={{ fontSize: 13, padding: "7px 18px" }}
-        >
-          Export approved only
-        </a>
+        {mandatoryUnapproved.length > 0 ? (
+          <span
+            className="btn primary"
+            aria-disabled="true"
+            title="Approve all mandatory items first"
+            style={{
+              fontSize: 13,
+              padding: "7px 18px",
+              opacity: 0.5,
+              cursor: "not-allowed",
+              pointerEvents: "none",
+            }}
+          >
+            Export approved only
+          </span>
+        ) : (
+          <a
+            href={`/api/opportunities/${opportunityId}/export-response?mode=approved`}
+            className="btn primary"
+            style={{ fontSize: 13, padding: "7px 18px" }}
+          >
+            Export approved only
+          </a>
+        )}
         <a
           href={`/api/opportunities/${opportunityId}/export-response`}
           className="btn"
@@ -990,8 +1065,11 @@ export function ExportSection({
           marginTop: 10,
         }}
       >
-        Exports a DOCX with your compliance statements and answers. "Approved
-        only" excludes drafts and flagged items.
+        Exports a DOCX with your compliance statements and answers. “Approved
+        only” excludes drafts and flagged items
+        {mandatoryUnapproved.length > 0
+          ? " and is locked until every mandatory item is approved."
+          : "."}
       </p>
     </div>
   );

@@ -6,6 +6,7 @@ interface OppQuestion {
   id: string;
   question_text: string;
   section_ref: string | null;
+  source_document: string | null;
   question_class: string;
   word_limit: number | null;
   is_mandatory: boolean;
@@ -131,6 +132,27 @@ function RequirementCard({
     }
   }
 
+  async function unapprove() {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/opportunities/${opportunityId}/questions/${req.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answer_status: "drafted" }),
+        },
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { question: OppQuestion };
+        onUpdate(data.question);
+        onApproval?.();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const fitConfig =
     req.confidence_level && req.confidence_level in FIT_CONFIG
       ? FIT_CONFIG[req.confidence_level as keyof typeof FIT_CONFIG]
@@ -190,6 +212,25 @@ function RequirementCard({
               flexWrap: "wrap",
             }}
           >
+            {req.source_document && (
+              <span
+                title="Where this came from"
+                style={{
+                  fontSize: 10,
+                  color: "var(--muted)",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 999,
+                  padding: "1px 7px",
+                  maxWidth: 220,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {req.source_document}
+              </span>
+            )}
             {req.section_ref && (
               <span
                 style={{
@@ -280,6 +321,16 @@ function RequirementCard({
                 ✓ Approve
               </button>
             )}
+          {req.answer_status === "approved" && !editing && (
+            <button
+              className="btn ghost"
+              onClick={unapprove}
+              disabled={saving}
+              style={{ fontSize: 11.5, padding: "3px 10px" }}
+            >
+              Unapprove
+            </button>
+          )}
         </div>
       </div>
 
@@ -674,8 +725,8 @@ export function RequirementsSection({
         </p>
       ) : requirements.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--muted)" }}>
-          No requirements extracted. Go to Step 4 to extract from the tender
-          description or documents.
+          No requirements extracted. Use “Get all details” in Step 3 to extract
+          from the tender description and documents.
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

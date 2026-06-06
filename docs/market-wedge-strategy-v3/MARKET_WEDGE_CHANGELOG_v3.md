@@ -1,5 +1,37 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — RFP rework Phase 3: provenance, unapprove, mandatory export gate
+
+Per-card enhancements in the existing Requirements + Questions sections (kept as
+two sections per the agreed design).
+
+### Added
+
+- **Provenance chip** on every requirement/question card showing `source_document`
+  ("Opportunity description" or the document title) — "where this came from".
+- **Unapprove** button on approved cards (PATCH `answer_status:'drafted'`) →
+  sends the item back to drafting; refreshes export counts.
+- **Mandatory export gate**: "Export approved only" is disabled in the UI until
+  every mandatory (non-guidance) item is approved, with a list of what's
+  outstanding. `export-response?mode=approved` also returns **409** server-side
+  (defense in depth). "Export all answered" remains available.
+
+### Notes
+
+- Requirement fit-eval was already provided by the existing flow (KB-grounded
+  compliance statement via `answer-all` + High fit/Review/Gap badge with score% +
+  needs-review reason for "what to add"), so no new route was needed.
+- Per-card AI actions (Question → "Generate answer"; Requirement → "Draft
+  statement") already call `answer-all` with `questionIds:[id]`, grounded in the
+  knowledge base via `retrieveChunks → generateRFPResponse`.
+
+### Verified
+
+- Typecheck clean; RFP tab renders (200); export route auth-gates (401). Unapprove
+  uses the existing PATCH (no state guard); provenance reads from the `*` select.
+
+---
+
 ## 2026-06-06 — RFP rework Phase 2: unified "Get all details" extraction + provenance
 
 Fixes the step-3 bug. The opportunity RFP tab had two conflicting extraction paths
