@@ -160,6 +160,7 @@ export async function POST(_request: NextRequest, { params }: Params) {
         question_class: q.question_class,
         word_limit: q.word_limit,
         is_mandatory: q.mandatory,
+        priority: q.priority,
         source_document: src.label,
         source_document_id: src.documentId,
         sort_order: sortOrder++,

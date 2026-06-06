@@ -41,6 +41,11 @@ const ExtractedQuestionsSchema = z.object({
         .describe(
           "true only if the tender marks this as mandatory / pass-fail / minimum / essential / 'must'",
         ),
+      priority: z
+        .enum(["high", "medium", "low"])
+        .describe(
+          "how much this item matters to winning the bid: high = mandatory/pass-fail or heavily weighted / core scored criteria; medium = standard scored question; low = minor, administrative, or guidance",
+        ),
     }),
   ),
 });
@@ -54,6 +59,7 @@ export type ExtractedQuestion = {
   question_class: "question" | "requirement" | "guidance";
   word_limit: number | null;
   mandatory: boolean;
+  priority: "high" | "medium" | "low";
 };
 
 const FORMAT = zodResponseFormat(ExtractedQuestionsSchema, "rfp_questions");
@@ -85,6 +91,7 @@ For each item provide:
     "guidance"     — informational context, no answer needed (e.g. "Note: all responses must be under 500 words", "Use the provided templates", section instructions)
 - word_limit: if the item states a maximum word or page count (e.g. "maximum 500 words", "no more than 2 pages"), return it as an integer; otherwise null
 - mandatory: true ONLY when the tender frames this as mandatory — i.e. a pass/fail gate, minimum/essential requirement, exclusion criterion, or uses "must"/"shall"/"required". Use false for desirable, optional, "should", or items that are only weighted/scored. Guidance items are never mandatory.
+- priority: how much this item matters to winning the bid. "high" = mandatory/pass-fail items or heavily weighted / core scored criteria; "medium" = standard scored questions; "low" = minor, administrative, or guidance items. Mandatory items are always "high"; guidance is always "low".
 
 Include guidance items so buyers' instructions are visible alongside the questions they relate to.
 Skip pure preamble, cover pages, and table-of-contents entries.`,
@@ -103,14 +110,25 @@ Skip pure preamble, cover pages, and table-of-contents entries.`,
 
   // Enforce high risk for sensitive topics; guidance items are always low risk
   // and never mandatory.
-  return parsed.questions.map((q) => ({
-    ...q,
-    risk_level:
-      q.question_class === "guidance"
+  return parsed.questions.map((q) => {
+    const mandatory = q.question_class === "guidance" ? false : q.mandatory;
+    // Keep priority coherent with the other signals: mandatory ⇒ high,
+    // guidance ⇒ low, otherwise trust the model.
+    const priority: "high" | "medium" | "low" = mandatory
+      ? "high"
+      : q.question_class === "guidance"
         ? "low"
-        : HIGH_RISK_TOPICS.has(q.topic)
-          ? "high"
-          : q.risk_level,
-    mandatory: q.question_class === "guidance" ? false : q.mandatory,
-  }));
+        : q.priority;
+    return {
+      ...q,
+      risk_level:
+        q.question_class === "guidance"
+          ? "low"
+          : HIGH_RISK_TOPICS.has(q.topic)
+            ? "high"
+            : q.risk_level,
+      mandatory,
+      priority,
+    };
+  });
 }

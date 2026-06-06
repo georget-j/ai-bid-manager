@@ -10,6 +10,7 @@ interface OppQuestion {
   question_class: string;
   word_limit: number | null;
   is_mandatory: boolean;
+  priority: string | null;
   ai_draft: string | null;
   answer_status: string;
   confidence_level: string | null;
@@ -27,6 +28,30 @@ const FIT_CONFIG = {
   medium: { label: "Review needed", color: "#d97706", bg: "#fef3c7" },
   low: { label: "Gap", color: "#dc2626", bg: "#fee2e2" },
 } as const;
+
+// Importance ordering: mandatory first, then AI priority high→low, stable within.
+const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+function byImportance(a: OppQuestion, b: OppQuestion): number {
+  if (a.is_mandatory !== b.is_mandatory) return a.is_mandatory ? -1 : 1;
+  const pa = PRIORITY_RANK[a.priority ?? "medium"] ?? 1;
+  const pb = PRIORITY_RANK[b.priority ?? "medium"] ?? 1;
+  return pa - pb;
+}
+
+// Priority pill shown only when it adds signal beyond the Mandatory badge.
+function priorityPill(q: OppQuestion) {
+  if (q.is_mandatory) return null;
+  if (q.priority === "high")
+    return { label: "High priority", color: "#d97706", bg: "#fef3c7" };
+  if (q.priority === "low")
+    return {
+      label: "Low priority",
+      color: "var(--muted)",
+      bg: "var(--surface-2)",
+    };
+  return null;
+}
 
 function wordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -157,6 +182,7 @@ function RequirementCard({
     req.confidence_level && req.confidence_level in FIT_CONFIG
       ? FIT_CONFIG[req.confidence_level as keyof typeof FIT_CONFIG]
       : null;
+  const prioPill = priorityPill(req);
 
   const statusColor =
     req.answer_status === "approved"
@@ -255,6 +281,21 @@ function RequirementCard({
                 }}
               >
                 Mandatory
+              </span>
+            )}
+            {prioPill && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: prioPill.color,
+                  background: prioPill.bg,
+                  border: "1px solid var(--border)",
+                  borderRadius: 999,
+                  padding: "1px 6px",
+                }}
+              >
+                {prioPill.label}
               </span>
             )}
             {fitConfig && (
@@ -545,9 +586,9 @@ export function RequirementsSection({
       const res = await fetch(`/api/opportunities/${opportunityId}/questions`);
       const data = (await res.json()) as { questions: OppQuestion[] };
       setRequirements(
-        (data.questions ?? []).filter(
-          (q) => q.question_class === "requirement",
-        ),
+        (data.questions ?? [])
+          .filter((q) => q.question_class === "requirement")
+          .sort(byImportance),
       );
     } finally {
       setLoading(false);

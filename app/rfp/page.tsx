@@ -43,6 +43,7 @@ export default async function RFPPage({ searchParams }: PageProps) {
           question_class: "question" as const,
           word_limit: null,
           mandatory: false,
+          priority: "medium" as const,
         }));
       }
     }

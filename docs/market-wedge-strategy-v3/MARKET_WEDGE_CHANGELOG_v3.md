@@ -1,5 +1,16 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 1.2: RFP importance ranking
+
+- Migration `044_question_priority.sql` (applied): `opportunity_questions.priority`
+  (`high|medium|low`, NOT NULL default `medium`, CHECK constraint).
+- `lib/rfp-extract.ts`: extraction schema + prompt now assign `priority`; post-map keeps
+  it coherent (mandatory ⇒ high, guidance ⇒ low). `extract-all` stamps it on each row.
+- `QuestionsSection` + `RequirementsSection`: lists now sort by importance
+  (mandatory first, then priority high→low, stable) and show a priority pill (High =
+  amber, Low = muted) that complements the existing red Mandatory badge.
+- `app/rfp/page.tsx` pre-populated questions default `priority: "medium"`.
+
 ## 2026-06-06 — Epic 1.1: harden RFP answer generation
 
 - `answer-all/route.ts`: added `export const maxDuration = 60` (the default serverless
