@@ -1,5 +1,16 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 1.1: harden RFP answer generation
+
+- `answer-all/route.ts`: added `export const maxDuration = 60` (the default serverless
+  timeout was silently truncating the SSE batch mid-flight, leaving later questions
+  unwritten). The `catch` now records `confidence_reason` (+ low confidence) so a failed
+  generation shows _why_ on the card (RequirementsSection + QuestionsSection both render
+  `confidence_reason`) instead of a blank "needs-review". Both sections share this route.
+- Verified migration 043 is live on the production Supabase: the 5-arg overload
+  `hybrid_search_chunks(text,vector,integer,uuid,uuid)` that `retrieveChunks` calls carries
+  the `doc_id` alias fix. (Older 3/4-arg overloads remain unused.)
+
 ## 2026-06-06 — Started 7-epic product uplift (compaction-safe)
 
 Kicked off a 7-epic uplift addressing user-reported problems across browse, recommend,

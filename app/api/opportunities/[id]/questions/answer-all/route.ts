@@ -9,6 +9,11 @@ interface Params {
   params: Promise<{ id: string }>;
 }
 
+// Generation runs OpenAI retrieval + completion per question (concurrency 3). The
+// default serverless timeout was silently truncating the SSE batch mid-flight, so
+// later questions were never written. Raise to the platform max.
+export const maxDuration = 60;
+
 const encoder = new TextEncoder();
 
 function sseEvent(event: string, data: unknown): Uint8Array {
@@ -135,11 +140,19 @@ export async function POST(request: NextRequest, { params }: Params) {
                   total,
                 }),
               );
-            } catch {
+            } catch (err) {
+              // Surface WHY so the card explains itself instead of rendering a
+              // blank "needs-review" with no answer and no reason. (This was the
+              // visible symptom of the migration-043 RAG bug.)
+              const reason =
+                err instanceof Error ? err.message : "unknown error";
               await supabase
                 .from("opportunity_questions")
                 .update({
                   answer_status: "needs-review",
+                  confidence_level: "low",
+                  confidence_score: 0,
+                  confidence_reason: `AI generation failed: ${reason}. Click Regenerate to retry.`,
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", q.id);
