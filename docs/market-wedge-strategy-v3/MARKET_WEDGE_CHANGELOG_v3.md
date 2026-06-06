@@ -1,5 +1,19 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 7.1: no-gap ingestion windows + region fix
+
+- `sync.ts`: incremental `from` now subtracts a 12h overlap from last_successful_sync_at
+  so boundary/partial-failure notices are never skipped (dedup keeps it idempotent). New
+  `timeBudgetMs` option breaks the page loop and persists the cursor when wall-clock runs
+  out, so a higher page cap is safe.
+- `cron/sync-sources`: page cap 5 → 25 with an adaptive per-source time budget (≤240s of
+  the 300s function) — ~500 → up to ~2500 notices/source/run, the rest resuming via cursor.
+- **Region fix:** the OCDS normalizer read `release.buyer.address` (a bare stub) — the
+  address actually lives on the `parties[]` buyer entry. Now reads that (region → locality
+  → countryName; CF has no NUTS region). Backfilled all 3,223 existing rows from the stored
+  raw payloads (`scripts/backfill-region.sql`) — region went 0 → 3,223 populated (London
+  555, Birmingham 135). Re-enabled the region/location filter on the opportunities page.
+
 ## 2026-06-06 — Epic 6.2: custom SVG buyer charts (Epic 6 complete)
 
 - New `components/Charts.tsx` — zero-dependency, server-renderable SVG primitives: `Donut`

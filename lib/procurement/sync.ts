@@ -26,6 +26,12 @@ const LOOKBACK_HOURS = Number(
 const SYNC_LIMIT = Number(process.env.PROCUREMENT_SYNC_LIMIT ?? "100");
 // Max pages per syncSource call — prevents runaway fetches / Vercel timeouts
 const MAX_PAGES = Number(process.env.PROCUREMENT_MAX_PAGES ?? "20");
+// Safety overlap subtracted from last_successful_sync_at so notices published right at
+// a window boundary (or during a partially-failed run) are never skipped. Dedup makes
+// re-fetching the overlap harmless. Default 12h (sources publish on date granularity).
+const OVERLAP_MINUTES = Number(
+  process.env.PROCUREMENT_SYNC_OVERLAP_MINUTES ?? "720",
+);
 
 export async function syncSource(
   connector: ProcurementSourceConnector,
@@ -43,9 +49,16 @@ export async function syncSource(
     cursor?: string | null;
     /** Max pages to fetch in this call (default MAX_PAGES). Set to 1 for backfill. */
     maxPages?: number;
+    /**
+     * Soft wall-clock budget (ms). When exceeded mid-window the loop stops and
+     * persists the cursor so the next run resumes — lets a higher page cap run
+     * safely under the serverless timeout.
+     */
+    timeBudgetMs?: number;
   } = {},
 ): Promise<SyncResult> {
   const supabase = getServiceSupabase();
+  const startedAt = Date.now();
   const errors: string[] = [];
   let rawStored = 0;
   let duplicatesSkipped = 0;
@@ -65,7 +78,10 @@ export async function syncSource(
   const from =
     options.fromDate ??
     (sourceRow?.last_successful_sync_at
-      ? new Date(sourceRow.last_successful_sync_at)
+      ? new Date(
+          new Date(sourceRow.last_successful_sync_at).getTime() -
+            OVERLAP_MINUTES * 60 * 1000,
+        )
       : new Date(now.getTime() - LOOKBACK_HOURS * 60 * 60 * 1000));
   const to = options.toDate ?? now;
 
@@ -212,6 +228,12 @@ export async function syncSource(
 
     if (totalPages >= pageLimit) {
       // Hit the cap — signal caller that there is still more
+      hasMoreAfterCap = true;
+      break;
+    }
+
+    if (options.timeBudgetMs && Date.now() - startedAt > options.timeBudgetMs) {
+      // Out of wall-clock budget but more remains — resume next run via cursor.
       hasMoreAfterCap = true;
       break;
     }

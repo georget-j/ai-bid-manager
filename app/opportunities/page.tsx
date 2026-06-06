@@ -273,9 +273,13 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             className="input"
             style={{ flex: "0 0 150px" }}
           />
-          {/* Region filter intentionally omitted: opportunities.region /
-              buyer_region are not yet populated by the connectors (Contracts
-              Finder OCDS). Re-add once Epic 7 backfills location. */}
+          <input
+            name="region"
+            defaultValue={region}
+            placeholder="Location…"
+            className="input"
+            style={{ flex: "0 0 130px" }}
+          />
           <input
             name="valueMin"
             defaultValue={valueMin}

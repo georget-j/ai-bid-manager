@@ -93,12 +93,25 @@ function normalizeDocuments(docs: unknown[]): NormalizedDocument[] {
 }
 
 function findBuyer(release: AnyRecord): AnyRecord | null {
-  if (release.buyer) return release.buyer as AnyRecord;
   const parties: AnyRecord[] = release.parties ?? [];
-  return (
-    parties.find((p) => Array.isArray(p.roles) && p.roles.includes("buyer")) ??
-    null
+  // Prefer the parties entry — it carries the address. release.buyer is usually a
+  // bare {name, id} stub with no address, which is why region was always null.
+  const byRole = parties.find(
+    (p) => Array.isArray(p.roles) && p.roles.includes("buyer"),
   );
+  if (byRole) return byRole;
+  if (release.buyer?.id) {
+    const byId = parties.find((p) => String(p.id) === String(release.buyer.id));
+    if (byId) return byId;
+  }
+  return (release.buyer as AnyRecord) ?? parties[0] ?? null;
+}
+
+/** Best-available location from an OCDS address. CF gives locality + countryName
+ *  (no NUTS region), so fall back through them. */
+function addressRegion(address: AnyRecord | undefined): string | null {
+  if (!address) return null;
+  return address.region ?? address.locality ?? address.countryName ?? null;
 }
 
 export function normalizeOcdsRelease(
@@ -125,16 +138,16 @@ export function normalizeOcdsRelease(
     title: tender.title ?? r.title ?? "Untitled opportunity",
     description: tender.description ?? r.description ?? null,
 
-    buyerName: buyer?.name ?? null,
+    buyerName: buyer?.name ?? r.buyer?.name ?? null,
     buyerIdentifier: buyer?.identifier?.id ? String(buyer.identifier.id) : null,
-    buyerRegion: buyer?.address?.region ?? buyer?.address?.locality ?? null,
+    buyerRegion: addressRegion(buyer?.address),
 
     noticeType: Array.isArray(r.tag) ? r.tag.join(", ") : null,
     procurementStage: mapOcdsStage(r.tag),
     status: mapTenderStatus(tender.status, deadlineAt),
 
     cpvCodes: extractCpvCodes(tender),
-    region: buyer?.address?.region ?? buyer?.address?.countryName ?? null,
+    region: addressRegion(buyer?.address),
 
     valueAmount: value.amount ?? null,
     valueCurrency: value.currency ?? "GBP",

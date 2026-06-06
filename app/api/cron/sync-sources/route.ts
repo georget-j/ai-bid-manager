@@ -44,11 +44,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "No sources enabled", results: [] });
   }
 
+  // Pull as much as fits in the function's time budget rather than a tiny fixed
+  // page cap (was 5 pages ≈ 500 notices/run). Higher cap + per-source wall-clock
+  // budget under maxDuration; anything not reached resumes via the saved cursor.
+  const MAX_PAGES = Number(process.env.PROCUREMENT_CRON_MAX_PAGES ?? "25");
+  const OVERALL_BUDGET_MS = 240_000; // stay well under maxDuration (300s)
+  const startedAt = Date.now();
+
   // Run sequentially to avoid hammering APIs in parallel
   const results = [];
-  for (const connector of enabled) {
+  for (let i = 0; i < enabled.length; i++) {
+    const connector = enabled[i];
+    const remaining = OVERALL_BUDGET_MS - (Date.now() - startedAt);
+    const timeBudgetMs = Math.max(
+      20_000,
+      Math.floor(remaining / (enabled.length - i)),
+    );
     try {
-      const result = await syncSource(connector, { maxPages: 5 });
+      const result = await syncSource(connector, {
+        maxPages: MAX_PAGES,
+        timeBudgetMs,
+      });
       results.push(result);
     } catch (err) {
       results.push({
