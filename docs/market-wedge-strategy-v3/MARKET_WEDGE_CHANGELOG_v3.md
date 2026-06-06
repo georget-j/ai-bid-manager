@@ -1,6 +1,44 @@
 # Market Wedge Changelog v3
 
-## 2026-06-06 — Buyer briefing tab: verified + regenerate fix (uncommitted)
+## 2026-06-06 — RFP rework Phase 1: central tender document store + dedup
+
+Part of the RFP response workflow rework (plan: 4 phases). Phase 1 establishes a
+**global, deduped** store of tender documents so the same tender is never
+re-downloaded or re-extracted, and its text is persisted for reuse by extraction
+and (Phase 4) re-evaluation.
+
+### Added
+
+- Migration `040_tender_documents_central.sql` (additive, idempotent): global
+  `tender_documents` (content-hash dedup; stores bytes path + `extracted_text` +
+  page/word counts) and `opportunity_tender_documents` link table. RLS: `SELECT`
+  for authenticated users, writes via service role only — same trust class as the
+  global `opportunities` catalog (public buyer material). Applied to Supabase.
+- `lib/tender-docs.ts` — `getOrFetchTenderDoc(url, opportunityId, title?)`: URL
+  fast-path (no download) → content-hash dedup (no re-upload/re-extract) → store +
+  link. Typed `TenderDocError` + `tenderDocErrorResponse` for route mapping.
+- ADR-011 in `MARKET_WEDGE_ARCHITECTURE_DECISIONS_v3.md`.
+
+### Changed
+
+- `extract-from-document/route.ts` now delegates fetch/cache/extract to
+  `getOrFetchTenderDoc` (per-org `tender_doc_cache` left as dormant fallback; a
+  later migration drops it once prod-proven).
+- `fetch-documents/route.ts` warms + links accessible docs into the central store
+  (non-fatal, `maxDuration=60`).
+
+### Tests
+
+- `tests/tenant-isolation.test.ts`: added `beforeAll`/`afterAll` to seed + tear
+  down the two test orgs + a test opportunity. The suite previously could not run
+  on a fresh instance (FK violations); now **9/9 pass**, confirming
+  `opportunity_questions` org-isolation is unaffected by the new global tables.
+- Verified the dedup path end-to-end against a real Contracts Finder attachment
+  (download → store → extract → link → 2nd-call `fromCache=true`).
+
+---
+
+## 2026-06-06 — Buyer briefing tab: verified + regenerate fix (commit f10247d)
 
 ### Fixed — "Regenerate" now actually regenerates
 

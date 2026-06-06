@@ -11,7 +11,7 @@
  * Cleans up all inserted rows after each test.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeAll, afterAll } from "vitest";
 import { getServiceSupabase } from "../lib/supabase-service";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -20,6 +20,37 @@ const supabase = getServiceSupabase();
 
 const ORG_A = "00000000-0000-0000-0000-000000000a01";
 const ORG_B = "00000000-0000-0000-0000-000000000b02";
+const TEST_OPP_ID = "00000000-0000-0000-0000-000000000f01";
+
+// Seed the two test orgs + a test opportunity that the org-FK rows depend on,
+// then tear them down. Without this the suite cannot run on a fresh instance.
+beforeAll(async () => {
+  await supabase.from("orgs").upsert(
+    [
+      { id: ORG_A, name: "Isolation Test Org A", slug: "isolation-test-org-a" },
+      { id: ORG_B, name: "Isolation Test Org B", slug: "isolation-test-org-b" },
+    ],
+    { onConflict: "id" },
+  );
+  await supabase.from("opportunities").upsert(
+    {
+      id: TEST_OPP_ID,
+      source_name: "isolation-test",
+      source_notice_id: "isolation-test-notice",
+      title: "Isolation Test Opportunity",
+    },
+    { onConflict: "id" },
+  );
+});
+
+afterAll(async () => {
+  await supabase
+    .from("opportunity_questions")
+    .delete()
+    .eq("opportunity_id", TEST_OPP_ID);
+  await supabase.from("opportunities").delete().eq("id", TEST_OPP_ID);
+  await supabase.from("orgs").delete().in("id", [ORG_A, ORG_B]);
+});
 
 const insertedIds: { table: string; id: string }[] = [];
 
@@ -105,8 +136,6 @@ describe("Tenant isolation — documents", () => {
 });
 
 describe("Tenant isolation — opportunity_questions", () => {
-  const TEST_OPP_ID = "00000000-0000-0000-0000-000000000f01";
-
   it("questions inserted for org A are not returned when queried as org B", async () => {
     await insertOpportunityQuestion(
       ORG_A,

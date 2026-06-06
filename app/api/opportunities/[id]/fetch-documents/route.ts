@@ -1,7 +1,10 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { getOpportunity } from "@/lib/procurement/data";
 import type { NormalizedDocument } from "@/lib/procurement/types";
+import { getOrFetchTenderDoc } from "@/lib/tender-docs";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -234,6 +237,17 @@ export async function POST(_request: NextRequest, { params }: Params) {
       );
     }
   }
+
+  // Warm the central store for accessible docs: download once, extract text once,
+  // and link to this opportunity so "Get all details" reads text with no re-fetch.
+  // Non-fatal — accessibility was already determined above.
+  await Promise.allSettled(
+    results
+      .filter((d) => d.accessibility === "accessible" && d.url)
+      .map((d) =>
+        getOrFetchTenderDoc(d.url!, id, d.title ?? null).catch(() => null),
+      ),
+  );
 
   return NextResponse.json({ documents: results });
 }

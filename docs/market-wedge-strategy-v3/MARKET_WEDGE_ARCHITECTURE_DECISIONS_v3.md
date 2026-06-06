@@ -140,3 +140,21 @@ Admin users are currently identified by checking their email against a `ADMIN_EM
 Decision:
 
 This is acceptable for a single-founder product. Before Phase 3 (agency/client workspaces), migrate to a `role` column on `org_memberships` so agency owners, bid writers, reviewers, and clients can have distinct permissions without environment variable changes.
+
+---
+
+## ADR-011: Tender documents stored centrally (global), bid data stays org-scoped
+
+Status: accepted (2026-06-06)
+
+Context:
+
+`opportunities` is a central/global catalog readable by all authenticated users (migration 023). Tender documents attached to an opportunity are the same buyer-published public material for every org, but the old `tender_doc_cache` cached them per-org (path `${org_id}/${url_hash}/...`, bytes only), so the same PDF was re-downloaded and re-extracted once per org, and extracted text was discarded.
+
+Decision:
+
+Introduce a global `tender_documents` store (migration 040): one row per document keyed by content hash (sha256 of bytes), storing the file once at `central/<content_hash>/<file>` in the `tender-docs` bucket plus the extracted text, page/word counts. A global `opportunity_tender_documents` link table maps opportunities → documents. RLS grants `SELECT` to all authenticated users; writes go through the service role only — the same trust class as the global `opportunities` catalog, because this is public buyer material.
+
+All bid-private data (`opportunity_questions`, `bid_pipeline`, drafts, re-evaluations) remains strictly org-scoped. Sharing is limited to public tender material only; no org can see another org's answers, evidence, or that they are bidding.
+
+`tender_doc_cache` is left in place as a dormant per-org fallback and will be dropped in a later migration once the central store is proven in production. `lib/tender-docs.ts` (`getOrFetchTenderDoc`) is the single fetch/cache entry point: URL fast-path (no download), then content-hash dedup (no re-upload/re-extract), then store.
