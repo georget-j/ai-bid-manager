@@ -68,6 +68,7 @@ function fmtDate(iso: string | null): string {
 export default async function BuyersPage() {
   const buyers = await getBuyerStats();
   const isEmpty = buyers.length === 0;
+  const maxCount = Math.max(...buyers.map((b) => b.opp_count), 1);
 
   return (
     <div style={{ maxWidth: 900 }}>
@@ -243,9 +244,28 @@ export default async function BuyersPage() {
                       fontSize: 13,
                       color: "var(--ink)",
                       fontVariantNumeric: "tabular-nums",
+                      minWidth: 90,
                     }}
                   >
                     {b.opp_count.toLocaleString()}
+                    <div
+                      style={{
+                        height: 4,
+                        marginTop: 4,
+                        background: "var(--border)",
+                        borderRadius: 99,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(b.opp_count / maxCount) * 100}%`,
+                          height: "100%",
+                          background: "var(--accent)",
+                          borderRadius: 99,
+                        }}
+                      />
+                    </div>
                   </td>
                   <td style={{ padding: "12px 14px" }}>
                     {b.open_count > 0 ? (

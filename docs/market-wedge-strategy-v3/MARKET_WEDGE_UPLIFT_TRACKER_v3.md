@@ -7,11 +7,12 @@
 
 ## Current pointer
 
-- **Current epic:** Epic 6 — Buyers tab redo with charts
-- **Current phase:** 6.2 (custom SVG buyer charts) — NEXT
-- **Last commit:** `feat(buyers): aggregate RPC + buyer drill-down page (mig 047)`
+- **Current epic:** Epic 7 — Contracts Finder ingestion robustness
+- **Current phase:** 7.1 (overlap window + cursor resume + populate region) — NEXT
+- **Last commit:** `feat(buyers): SVG charts + richer buyer view`
 - **Updated:** 2026-06-06
 - **Demo opp id:** aab42d69-be4c-4e50-b9aa-400d48b9d249 (`/opportunities/aab42d69-...`)
+- **Build:** `npm run build` passes (checkpoint after Epic 6).
 
 ## How to resume after compaction
 
@@ -68,7 +69,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 ## Epic 6 — Buyers tab redo with charts (Task 5)
 
 - [x] 6.1 Mig 047 `buyer_aggregates` RPC (accurate across whole catalog, was capped at 2000) + index switched to RPC + `/buyers/[buyer]` drill-down (KPIs, status + sector breakdown, recent notices) · `feat(buyers): aggregate RPC + buyer drill-down page (mig 047)`
-- [ ] 6.2 Custom SVG charts (donut/bars/sparkline + ring) · `feat(buyers): SVG charts + richer buyer view`
+- [x] 6.2 Zero-dep SVG charts (`components/Charts.tsx`: Donut, BarList, Sparkbars) → drill-down status donut + sector bars + 12-month activity; index mini volume bars · `feat(buyers): SVG charts + richer buyer view` ✅ **EPIC 6 COMPLETE**
 
 ## Epic 7 — Contracts Finder ingestion robustness (Task 7)
 

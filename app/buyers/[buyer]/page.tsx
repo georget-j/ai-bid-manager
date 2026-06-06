@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { Donut, BarList, Sparkbars } from "@/components/Charts";
 
 export const dynamic = "force-dynamic";
 
@@ -124,6 +125,35 @@ export default async function BuyerDetailPage({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
 
+  // Notices per month over the last 12 months (published_at, fallback created_at).
+  const monthBuckets = new Map<string, number>();
+  for (const o of opps) {
+    const iso = o.published_at ?? o.created_at;
+    if (!iso) continue;
+    const d = new Date(iso);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    monthBuckets.set(key, (monthBuckets.get(key) ?? 0) + 1);
+  }
+  const base = new Date(now);
+  const activity = Array.from({ length: 12 }, (_, idx) => {
+    const d = new Date(base.getFullYear(), base.getMonth() - (11 - idx), 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return {
+      label: d.toLocaleDateString("en-GB", { month: "short" }),
+      value: monthBuckets.get(key) ?? 0,
+    };
+  });
+
+  const statusSegments = statusBreakdown.map(([s, n]) => ({
+    label: s,
+    value: n,
+    color: STATUS_COLOR[s] ?? "#6b7280",
+  }));
+  const sectorBars = topSectors.map(([d, n]) => ({
+    label: CPV_DIVISION[d] ?? `CPV ${d}`,
+    value: n,
+  }));
+
   const recent = opps.slice(0, 8);
 
   const kpis: Array<{ label: string; value: string }> = [
@@ -201,78 +231,41 @@ export default async function BuyerDetailPage({
         ))}
       </div>
 
-      {/* Status + sectors */}
+      {/* Status + sectors charts */}
       <div
         style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}
       >
-        <div className="card card-pad" style={{ flex: "1 1 260px" }}>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
+        <div className="card card-pad" style={{ flex: "1 1 280px" }}>
+          <div className="eyebrow" style={{ marginBottom: 12 }}>
             By status
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {statusBreakdown.map(([s, n]) => (
-              <div
-                key={s}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: STATUS_COLOR[s] ?? "var(--muted)",
-                    }}
-                  />
-                  <span
-                    style={{
-                      color: "var(--ink-2)",
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    {s}
-                  </span>
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--ink)",
-                  }}
-                >
-                  {n}
-                </span>
-              </div>
-            ))}
-          </div>
+          <Donut
+            segments={statusSegments}
+            centerLabel={total.toLocaleString()}
+            centerSub="notices"
+          />
         </div>
 
-        <div className="card card-pad" style={{ flex: "1 1 260px" }}>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
+        <div className="card card-pad" style={{ flex: "1 1 280px" }}>
+          <div className="eyebrow" style={{ marginBottom: 12 }}>
             Top sectors
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {topSectors.map(([d, n]) => (
-              <span
-                key={d}
-                style={{
-                  fontSize: 12,
-                  padding: "3px 9px",
-                  borderRadius: 999,
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  color: "var(--ink-2)",
-                }}
-              >
-                {CPV_DIVISION[d] ?? `CPV ${d}`} · {n}
-              </span>
-            ))}
-          </div>
+          {sectorBars.length > 0 ? (
+            <BarList items={sectorBars} />
+          ) : (
+            <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              No CPV codes recorded for this buyer.
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Activity over time */}
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div className="eyebrow" style={{ marginBottom: 12 }}>
+          Notices per month (last 12 months)
+        </div>
+        <Sparkbars data={activity} />
       </div>
 
       {/* Recent notices */}

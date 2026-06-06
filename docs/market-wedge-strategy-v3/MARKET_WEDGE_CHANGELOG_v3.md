@@ -1,5 +1,14 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 6.2: custom SVG buyer charts (Epic 6 complete)
+
+- New `components/Charts.tsx` — zero-dependency, server-renderable SVG primitives: `Donut`
+  (with legend + centre total), `BarList` (labelled horizontal bars), `Sparkbars` (time
+  series). On-brand inline styles + CSS vars; no chart library added.
+- Buyer drill-down now shows a status donut, a top-sectors bar list, and a 12-month
+  "notices per month" sparkbar chart. The buyers index gained a mini volume bar per row.
+- `npm run build` passes (checkpoint after Epic 6).
+
 ## 2026-06-06 — Epic 6.1: buyer aggregates + drill-down
 
 - Migration `047_buyer_aggregates.sql` (applied): `buyer_aggregates(p_limit)` STABLE RPC
