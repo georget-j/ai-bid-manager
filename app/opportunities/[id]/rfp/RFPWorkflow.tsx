@@ -735,8 +735,10 @@ export function RFPWorkflow({
   async function refreshCounts() {
     try {
       const res = await fetch(`/api/opportunities/${opp.id}/questions`);
-      const data = (await res.json()) as Array<{ question_class: string }>;
-      const arr = Array.isArray(data) ? data : [];
+      const data = (await res.json()) as {
+        questions?: Array<{ question_class: string }>;
+      };
+      const arr = data.questions ?? [];
       setCounts({
         requirements: arr.filter((q) => q.question_class === "requirement")
           .length,
