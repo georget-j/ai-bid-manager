@@ -1,5 +1,17 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 5.1: opportunity AI insights store
+
+- Migration `046_opportunity_insights.sql` (applied): org-scoped `opportunity_insights`
+  (summary, key_points, feasibility, gaps) with RLS mirroring opportunity_questions. The
+  global `opportunities` catalog is never written — derived context lives org-scoped.
+- New `app/api/opportunities/[id]/insights/route.ts` (GET cached / POST generate): builds
+  tender context from description + lots + linked tender-doc text, optionally weaves in the
+  org capability profile, and produces an executive summary + key points + feasibility +
+  "what a bidder must address" via gpt-4o-mini.
+- `OpportunityInsights` client component renders the brief on the opportunity detail page
+  (after the description) with a Generate/Regenerate button.
+
 ## 2026-06-06 — Epic 4.2: evidence gaps UX rebuild (Epic 4 complete)
 
 - `gaps/page.tsx`: the report banner is now state-aware — `no-evidence` shows an amber
