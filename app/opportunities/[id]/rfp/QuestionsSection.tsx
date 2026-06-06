@@ -39,11 +39,15 @@ function QuestionCard({
   q,
   opportunityId,
   onUpdate,
+  onAnswered,
+  onApproval,
   streamingText,
 }: {
   q: OppQuestion;
   opportunityId: string;
   onUpdate: (updated: OppQuestion) => void;
+  onAnswered: () => Promise<void>;
+  onApproval?: () => void;
   streamingText?: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -67,40 +71,16 @@ function QuestionCard({
           body: JSON.stringify({ questionIds: [q.id] }),
         },
       );
-      if (!res.ok || !res.body) return;
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const evt = JSON.parse(line.slice(5)) as {
-              questionId?: string;
-              status?: string;
-            };
-            if (evt.questionId === q.id) {
-              const qRes = await fetch(
-                `/api/opportunities/${opportunityId}/questions`,
-              );
-              const qData = (await qRes.json()) as { questions: OppQuestion[] };
-              const updated = qData.questions.find((x) => x.id === q.id);
-              if (updated) {
-                onUpdate(updated);
-                setDraft(updated.ai_draft ?? "");
-              }
-            }
-          } catch {
-            // ignore
-          }
+      if (res.ok && res.body) {
+        // Drain the stream (backend writes DB before sending events)
+        const reader = res.body.getReader();
+        while (true) {
+          const { done } = await reader.read();
+          if (done) break;
         }
       }
+      // Reload from DB once stream is complete
+      await onAnswered();
     } finally {
       setAnswering(false);
     }
@@ -124,6 +104,7 @@ function QuestionCard({
         const data = (await res.json()) as { question: OppQuestion };
         onUpdate(data.question);
         setEditing(false);
+        if (approve) onApproval?.();
       }
     } finally {
       setSaving(false);
@@ -144,6 +125,7 @@ function QuestionCard({
       if (res.ok) {
         const data = (await res.json()) as { question: OppQuestion };
         onUpdate(data.question);
+        onApproval?.();
       }
     } finally {
       setSaving(false);
@@ -502,9 +484,11 @@ function QuestionCard({
 export function QuestionsSection({
   opportunityId,
   initialTotal,
+  onApproval,
 }: {
   opportunityId: string;
   initialTotal: number;
+  onApproval?: () => void;
 }) {
   const [questions, setQuestions] = useState<OppQuestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -514,9 +498,6 @@ export function QuestionsSection({
     answered: number;
     total: number;
   } | null>(null);
-  const [streamingTexts, setStreamingTexts] = useState<Record<string, string>>(
-    {},
-  );
   const [approvingAll, setApprovingAll] = useState(false);
 
   useEffect(() => {
@@ -560,63 +541,40 @@ export function QuestionsSection({
           body: JSON.stringify({ questionIds: unanswered }),
         },
       );
-      if (!res.ok || !res.body) return;
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const evt = JSON.parse(line.slice(5)) as {
-              questionId?: string;
-              preview?: string;
-              answered?: number;
-              total?: number;
-              status?: string;
-            };
-            if (evt.answered != null && evt.total != null) {
-              setAnswerProgress({ answered: evt.answered, total: evt.total });
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const evt = JSON.parse(line.slice(5)) as {
+                answered?: number;
+                total?: number;
+              };
+              if (evt.answered != null && evt.total != null) {
+                setAnswerProgress({ answered: evt.answered, total: evt.total });
+              }
+            } catch {
+              // ignore
             }
-            if (evt.questionId && evt.preview) {
-              setStreamingTexts((prev) => ({
-                ...prev,
-                [evt.questionId!]: evt.preview!,
-              }));
-            }
-            if (evt.questionId && evt.status) {
-              // Fetch updated row and clear streaming text
-              const qRes = await fetch(
-                `/api/opportunities/${opportunityId}/questions`,
-              );
-              const qData = (await qRes.json()) as { questions: OppQuestion[] };
-              const updated = qData.questions.find(
-                (q) => q.id === evt.questionId,
-              );
-              if (updated) updateQ(updated);
-              setStreamingTexts((prev) => {
-                const next = { ...prev };
-                delete next[evt.questionId!];
-                return next;
-              });
-            }
-          } catch {
-            // ignore
           }
         }
       }
-    } finally {
-      setAnsweringAll(false);
-      setAnswerProgress(null);
+    } catch {
+      // network error — still reload below
     }
+
+    // Single reload after all questions are answered
+    await loadQuestions();
+    setAnsweringAll(false);
+    setAnswerProgress(null);
   }
 
   async function approveAllHighConfidence() {
@@ -641,6 +599,7 @@ export function QuestionsSection({
       }),
     );
     setApprovingAll(false);
+    onApproval?.();
   }
 
   if (initialTotal === 0) return null;
@@ -858,7 +817,8 @@ export function QuestionsSection({
               q={q}
               opportunityId={opportunityId}
               onUpdate={updateQ}
-              streamingText={streamingTexts[q.id]}
+              onAnswered={loadQuestions}
+              onApproval={onApproval}
             />
           ))}
         </div>
@@ -873,10 +833,12 @@ export function ExportSection({
   opportunityId,
   requirements,
   questions,
+  approvalKey,
 }: {
   opportunityId: string;
   requirements: number;
   questions: number;
+  approvalKey: number;
 }) {
   const [reqApproved, setReqApproved] = useState(0);
   const [qApproved, setQApproved] = useState(0);
@@ -914,7 +876,7 @@ export function ExportSection({
         setLoaded(true);
       })
       .catch(() => {});
-  }, [opportunityId, requirements, questions]);
+  }, [opportunityId, requirements, questions, approvalKey]);
 
   if (requirements + questions === 0) return null;
 

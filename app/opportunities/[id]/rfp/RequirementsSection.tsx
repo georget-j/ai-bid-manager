@@ -37,17 +37,20 @@ function RequirementCard({
   req,
   opportunityId,
   onUpdate,
+  onAnswered,
+  onApproval,
 }: {
   req: OppQuestion;
   opportunityId: string;
   onUpdate: (updated: OppQuestion) => void;
+  onAnswered: () => Promise<void>;
+  onApproval?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(req.ai_draft ?? "");
   const [saving, setSaving] = useState(false);
   const [answering, setAnswering] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
   // Keep draft in sync if parent updates
   useEffect(() => {
@@ -56,7 +59,6 @@ function RequirementCard({
 
   async function startAnswering() {
     setAnswering(true);
-    abortRef.current = new AbortController();
     try {
       const res = await fetch(
         `/api/opportunities/${opportunityId}/questions/answer-all`,
@@ -64,49 +66,20 @@ function RequirementCard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ questionIds: [req.id] }),
-          signal: abortRef.current.signal,
         },
       );
-      if (!res.ok || !res.body) return;
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const evt = JSON.parse(line.slice(5)) as {
-              questionId?: string;
-              status?: string;
-            };
-            if (evt.questionId === req.id && evt.status) {
-              // Re-fetch this question to get the full updated row
-              const qRes = await fetch(
-                `/api/opportunities/${opportunityId}/questions`,
-              );
-              const qData = (await qRes.json()) as {
-                questions: OppQuestion[];
-              };
-              const updated = qData.questions.find((q) => q.id === req.id);
-              if (updated) {
-                onUpdate(updated);
-                setDraft(updated.ai_draft ?? "");
-              }
-            }
-          } catch {
-            // ignore parse errors
-          }
+      if (res.ok && res.body) {
+        // Drain the stream — DB is written before each SSE event
+        const reader = res.body.getReader();
+        while (true) {
+          const { done } = await reader.read();
+          if (done) break;
         }
       }
+      await onAnswered();
     } catch {
-      // aborted or network error
+      // network error — still reload
+      await onAnswered();
     } finally {
       setAnswering(false);
     }
@@ -130,6 +103,7 @@ function RequirementCard({
         const data = (await res.json()) as { question: OppQuestion };
         onUpdate(data.question);
         setEditing(false);
+        if (approve) onApproval?.();
       }
     } finally {
       setSaving(false);
@@ -150,6 +124,7 @@ function RequirementCard({
       if (res.ok) {
         const data = (await res.json()) as { question: OppQuestion };
         onUpdate(data.question);
+        onApproval?.();
       }
     } finally {
       setSaving(false);
@@ -495,9 +470,11 @@ function RequirementCard({
 export function RequirementsSection({
   opportunityId,
   initialTotal,
+  onApproval,
 }: {
   opportunityId: string;
   initialTotal: number;
+  onApproval?: () => void;
 }) {
   const [requirements, setRequirements] = useState<OppQuestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -550,52 +527,39 @@ export function RequirementsSection({
           body: JSON.stringify({ questionIds: unanswered }),
         },
       );
-      if (!res.ok || !res.body) return;
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const evt = JSON.parse(line.slice(5)) as {
-              questionId?: string;
-              answered?: number;
-              total?: number;
-            };
-            if (evt.answered != null && evt.total != null) {
-              setAnswerProgress({
-                answered: evt.answered,
-                total: evt.total,
-              });
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const evt = JSON.parse(line.slice(5)) as {
+                answered?: number;
+                total?: number;
+              };
+              if (evt.answered != null && evt.total != null) {
+                setAnswerProgress({ answered: evt.answered, total: evt.total });
+              }
+            } catch {
+              // ignore
             }
-            if (evt.questionId) {
-              // Re-fetch to get full updated row
-              const qRes = await fetch(
-                `/api/opportunities/${opportunityId}/questions`,
-              );
-              const qData = (await qRes.json()) as { questions: OppQuestion[] };
-              const updated = qData.questions.find(
-                (q) => q.id === evt.questionId,
-              );
-              if (updated) updateReq(updated);
-            }
-          } catch {
-            // ignore
           }
         }
       }
-    } finally {
-      setAnsweringAll(false);
-      setAnswerProgress(null);
+    } catch {
+      // network error — still reload
     }
+
+    await loadRequirements();
+    setAnsweringAll(false);
+    setAnswerProgress(null);
   }
 
   if (initialTotal === 0) return null;
@@ -721,6 +685,8 @@ export function RequirementsSection({
               req={req}
               opportunityId={opportunityId}
               onUpdate={updateReq}
+              onAnswered={loadRequirements}
+              onApproval={onApproval}
             />
           ))}
         </div>

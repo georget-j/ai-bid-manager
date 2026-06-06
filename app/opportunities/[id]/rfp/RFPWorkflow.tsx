@@ -464,6 +464,7 @@ export function RFPWorkflow({
   const [fetchDocsError, setFetchDocsError] = useState<string | null>(null);
 
   const [counts, setCounts] = useState<QuestionCounts>(initialCounts);
+  const [approvalKey, setApprovalKey] = useState(0);
   const [extracting, setExtracting] = useState(false);
   const [extractPreview, setExtractPreview] = useState<ExtractedItem[] | null>(
     null,
@@ -1552,6 +1553,7 @@ export function RFPWorkflow({
           <RequirementsSection
             opportunityId={opp.id}
             initialTotal={counts.requirements}
+            onApproval={() => setApprovalKey((k) => k + 1)}
           />
         </div>
       )}
@@ -1567,6 +1569,7 @@ export function RFPWorkflow({
           <QuestionsSection
             opportunityId={opp.id}
             initialTotal={counts.questions}
+            onApproval={() => setApprovalKey((k) => k + 1)}
           />
         </div>
       )}
@@ -1577,6 +1580,7 @@ export function RFPWorkflow({
           opportunityId={opp.id}
           requirements={counts.requirements}
           questions={counts.questions}
+          approvalKey={approvalKey}
         />
       )}
     </div>
