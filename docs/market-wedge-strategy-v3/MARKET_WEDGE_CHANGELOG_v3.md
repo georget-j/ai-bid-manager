@@ -1,5 +1,30 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Fix: DOCX export 404 (non-existent source_id column)
+
+Found during a live end-to-end test (real login against the deployed app).
+
+- `export-response/route.ts` selected `opportunities.source_id`, which does not
+  exist (the table has `source_name` / `source_notice_id`). Selecting a missing
+  column returned null → the route 404'd "Opportunity not found", so **both DOCX
+  export buttons were broken in production**. Switched to `source_notice_id`
+  (used as the tender reference on the cover page).
+- Pre-existing bug, unrelated to the RFP rework; surfaced by the live test.
+
+### Live test (throwaway authenticated user, against ai-rfp-agent-ten.vercel.app)
+
+- Real Supabase login → valid session cookie → `auth/me` 200.
+- `extract-all`: **200 — 45 items (30 requirements / 12 questions / 3 guidance)
+  from 5 sources, all 45 provenance-tagged, 29 mandatory.** The step-3 fix is
+  confirmed working in production.
+- approve / unapprove: 200 each.
+- Note: answers came back empty because the throwaway org has no knowledge base
+  (expected — a real org with evidence drafts normally); re-eval correctly
+  returned 400 ("nothing to evaluate") as a result. Export 404 was the source_id
+  bug fixed above.
+
+---
+
 ## 2026-06-06 — RFP rework Phase 4: response re-evaluation + scoring visual
 
 Final step of the RFP workflow: score the drafted/approved response against the

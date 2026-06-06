@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const [{ data: opp }, { data: pipelineRow }] = await Promise.all([
     supabase
       .from("opportunities")
-      .select("title, buyer_name, source_id")
+      .select("title, buyer_name, source_notice_id")
       .eq("id", opportunityId)
       .maybeSingle(),
     supabase
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     {
       title: opp.title ?? "Tender",
       buyer_name: opp.buyer_name ?? null,
-      source_id: opp.source_id ?? null,
+      source_id: opp.source_notice_id ?? null,
     },
     orgName,
     exportQuestions,
