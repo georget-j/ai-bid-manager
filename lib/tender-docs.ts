@@ -9,6 +9,7 @@
 import { createHash } from "crypto";
 import { extractText } from "@/lib/extractors";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import type { NormalizedDocument } from "@/lib/procurement/types";
 
 const MAX_DOC_SIZE = 10 * 1024 * 1024;
 const BUCKET = "tender-docs";
@@ -275,6 +276,172 @@ export async function getOrFetchTenderDoc(
     fileName,
     fromCache: false,
   };
+}
+
+/**
+ * Store a manually-uploaded tender document (bytes, no source URL) in the central
+ * store and link it to the opportunity. Deduped by content hash. Used as the
+ * fallback for portal-locked documents the user downloads and uploads by hand.
+ */
+export async function uploadTenderDoc(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+  opportunityId: string,
+  title?: string | null,
+): Promise<TenderDocResult> {
+  const supabase = getServiceSupabase();
+  const contentHash = sha256(buffer);
+  const syntheticUrl = `upload://${contentHash}/${fileName}`;
+  const urlHash = sha256(syntheticUrl);
+
+  // Content dedup — identical bytes reuse the existing row.
+  const { data: byContent } = await supabase
+    .from("tender_documents")
+    .select("id, extracted_text")
+    .eq("content_hash", contentHash)
+    .limit(1)
+    .maybeSingle();
+
+  if (byContent?.extracted_text) {
+    await ensureLink(
+      supabase,
+      opportunityId,
+      byContent.id,
+      title ?? null,
+      syntheticUrl,
+    );
+    return {
+      tenderDocumentId: byContent.id,
+      extractedText: byContent.extracted_text,
+      fileName,
+      fromCache: true,
+    };
+  }
+
+  let extractedText: string;
+  let pageCount: number | null = null;
+  let wordCount: number | null = null;
+  try {
+    const extraction = await extractText(buffer, fileName);
+    extractedText = extraction.text;
+    pageCount = extraction.pageCount ?? null;
+    wordCount = extraction.wordCount ?? null;
+  } catch {
+    throw new TenderDocError("no-text", "Could not extract text from document");
+  }
+  if (!extractedText.trim()) {
+    throw new TenderDocError("no-text", "No readable text found in document");
+  }
+
+  const storagePath = `central/${contentHash}/${fileName}`;
+  await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
+    contentType: contentType || "application/octet-stream",
+    upsert: true,
+  });
+
+  const { data: inserted, error } = await supabase
+    .from("tender_documents")
+    .upsert(
+      {
+        url: syntheticUrl,
+        url_hash: urlHash,
+        content_hash: contentHash,
+        storage_path: storagePath,
+        content_type: contentType || null,
+        byte_size: buffer.length,
+        extracted_text: extractedText,
+        page_count: pageCount,
+        word_count: wordCount,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "content_hash" },
+    )
+    .select("id")
+    .single();
+
+  if (error || !inserted) {
+    throw new TenderDocError(
+      "server-error",
+      `Failed to store tender document: ${error?.message ?? "unknown"}`,
+    );
+  }
+
+  await ensureLink(
+    supabase,
+    opportunityId,
+    inserted.id,
+    title ?? null,
+    syntheticUrl,
+  );
+  return {
+    tenderDocumentId: inserted.id,
+    extractedText,
+    fileName,
+    fromCache: false,
+  };
+}
+
+/** Collect distinct document URLs attached to an opportunity (documents + raw_json). */
+export function collectOpportunityDocUrls(opp: {
+  documents?: NormalizedDocument[] | null;
+  raw_json?: unknown;
+}): NormalizedDocument[] {
+  const base = (opp.documents ?? []) as NormalizedDocument[];
+  const seen = new Set(base.map((d) => d.url).filter(Boolean));
+
+  const extra: NormalizedDocument[] = [];
+  const raw = opp.raw_json as Record<string, unknown> | null;
+  if (raw && Array.isArray(raw.documents)) {
+    for (const d of raw.documents as Array<Record<string, unknown>>) {
+      if (typeof d.url === "string" && !seen.has(d.url)) {
+        seen.add(d.url);
+        extra.push({
+          title: typeof d.title === "string" ? d.title : "Untitled document",
+          url: d.url,
+          format: typeof d.format === "string" ? d.format : undefined,
+          documentType:
+            typeof d.documentType === "string" ? d.documentType : undefined,
+        });
+      }
+    }
+  }
+
+  return [...base, ...extra].filter((d) => Boolean(d.url));
+}
+
+export interface LinkedTenderText {
+  tenderDocumentId: string;
+  title: string;
+  extractedText: string;
+}
+
+/** All linked tender documents' extracted text for an opportunity. */
+export async function getOpportunityTenderTexts(
+  opportunityId: string,
+): Promise<LinkedTenderText[]> {
+  const supabase = getServiceSupabase();
+  const { data } = await supabase
+    .from("opportunity_tender_documents")
+    .select("title, tender_documents ( id, extracted_text )")
+    .eq("opportunity_id", opportunityId);
+
+  const out: LinkedTenderText[] = [];
+  for (const row of data ?? []) {
+    const td = (row as { tender_documents: unknown }).tender_documents as
+      | { id: string; extracted_text: string | null }
+      | { id: string; extracted_text: string | null }[]
+      | null;
+    const doc = Array.isArray(td) ? td[0] : td;
+    if (doc?.extracted_text && doc.extracted_text.trim()) {
+      out.push({
+        tenderDocumentId: doc.id,
+        title: (row as { title: string | null }).title ?? "Tender document",
+        extractedText: doc.extracted_text,
+      });
+    }
+  }
+  return out;
 }
 
 /** Map a TenderDocError to the JSON response shape used by the document routes. */

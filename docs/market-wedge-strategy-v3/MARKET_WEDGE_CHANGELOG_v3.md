@@ -1,5 +1,45 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — RFP rework Phase 2: unified "Get all details" extraction + provenance
+
+Fixes the step-3 bug. The opportunity RFP tab had two conflicting extraction paths
+(`extract-questions` description-only, `extract-from-document` per-doc) plus a racy
+per-doc loop with an `append` flag. Phase 2 replaces them with one button that
+extracts from the description **and** all tender documents into the existing two
+sections, each item tagged with its source.
+
+### Added
+
+- Migration `041_question_provenance.sql` (additive): `source_document` +
+  `source_document_id` on `opportunity_questions`. Applied to Supabase.
+- `POST /api/opportunities/[id]/extract-all` — single endpoint: warms + links
+  accessible docs (central store), reads description + all linked docs' text, runs
+  extraction per source (bounded concurrency), dedups by normalized text, and does
+  one atomic delete+insert with provenance. Returns counts by class + source list.
+- `POST /api/opportunities/[id]/tender-documents/upload` — manual upload for
+  portal-locked docs → stored in the central store + linked, then picked up by
+  extract-all. Backed by new `uploadTenderDoc()` in `lib/tender-docs.ts`.
+- `collectOpportunityDocUrls()` + `getOpportunityTenderTexts()` helpers.
+
+### Changed
+
+- `lib/rfp-extract.ts`: extraction now returns `word_limit` and an explicit
+  tender-derived `mandatory` flag (pass/fail / "must" / minimum), replacing the
+  old `risk_level !== "low"` proxy. Guidance items are never mandatory.
+- `RFPWorkflow.tsx`: steps 3 (extract-all docs) and 4 (extract from description)
+  collapsed into one "Get all details" step (no per-doc race, no stale UI). Steps
+  renumbered (requirements 4, questions 5, export 6). `DocExtractRow` removed.
+- `extract-from-document` now persists `mandatory` + `word_limit`.
+
+### Verified
+
+- Typecheck clean. End-to-end smoke against a real opportunity with Contracts
+  Finder docs: 25 items extracted from 3 sources (description + 2 docs), 17/25
+  mandatory (not all — flag works), provenance stamped correctly, provenance
+  columns accept the insert. RFP tab renders (200); both new routes auth-gate (401).
+
+---
+
 ## 2026-06-06 — RFP rework Phase 1: central tender document store + dedup
 
 Part of the RFP response workflow rework (plan: 4 phases). Phase 1 establishes a

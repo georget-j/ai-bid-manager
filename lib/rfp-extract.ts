@@ -32,6 +32,15 @@ const ExtractedQuestionsSchema = z.object({
       topic: z.enum(RFP_TOPICS),
       risk_level: z.enum(["high", "medium", "low"]),
       question_class: z.enum(["question", "requirement", "guidance"]),
+      word_limit: z
+        .number()
+        .nullable()
+        .describe("stated word/page limit as an integer, else null"),
+      mandatory: z
+        .boolean()
+        .describe(
+          "true only if the tender marks this as mandatory / pass-fail / minimum / essential / 'must'",
+        ),
     }),
   ),
 });
@@ -43,6 +52,8 @@ export type ExtractedQuestion = {
   topic: RFPTopic;
   risk_level: "high" | "medium" | "low";
   question_class: "question" | "requirement" | "guidance";
+  word_limit: number | null;
+  mandatory: boolean;
 };
 
 const FORMAT = zodResponseFormat(ExtractedQuestionsSchema, "rfp_questions");
@@ -72,6 +83,8 @@ For each item provide:
     "question"     — open-ended, requires a prose answer (e.g. "Describe your approach to…", "Provide evidence of…", "How would you…")
     "requirement"  — specific factual confirmation or value (e.g. "Confirm you hold ISO 27001", "State your day rate", "Do you have capacity for X?")
     "guidance"     — informational context, no answer needed (e.g. "Note: all responses must be under 500 words", "Use the provided templates", section instructions)
+- word_limit: if the item states a maximum word or page count (e.g. "maximum 500 words", "no more than 2 pages"), return it as an integer; otherwise null
+- mandatory: true ONLY when the tender frames this as mandatory — i.e. a pass/fail gate, minimum/essential requirement, exclusion criterion, or uses "must"/"shall"/"required". Use false for desirable, optional, "should", or items that are only weighted/scored. Guidance items are never mandatory.
 
 Include guidance items so buyers' instructions are visible alongside the questions they relate to.
 Skip pure preamble, cover pages, and table-of-contents entries.`,
@@ -89,6 +102,7 @@ Skip pure preamble, cover pages, and table-of-contents entries.`,
   if (!parsed) throw new Error("Failed to extract questions from document");
 
   // Enforce high risk for sensitive topics; guidance items are always low risk
+  // and never mandatory.
   return parsed.questions.map((q) => ({
     ...q,
     risk_level:
@@ -97,5 +111,6 @@ Skip pure preamble, cover pages, and table-of-contents entries.`,
         : HIGH_RISK_TOPICS.has(q.topic)
           ? "high"
           : q.risk_level,
+    mandatory: q.question_class === "guidance" ? false : q.mandatory,
   }));
 }

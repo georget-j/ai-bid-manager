@@ -119,8 +119,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     question_type: TOPIC_TO_TYPE[q.topic] ?? "general",
     question_class: q.question_class,
     sort_order: sortOffset + i,
-    word_limit: null as number | null,
-    is_mandatory: q.risk_level !== "low",
+    word_limit: q.word_limit,
+    is_mandatory: q.mandatory,
     answer_status: "unanswered",
   }));
 
