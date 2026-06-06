@@ -20,52 +20,32 @@ type BuyerRow = {
 
 async function getBuyerStats(): Promise<BuyerRow[]> {
   const supabase = getServiceSupabase();
-  const { data } = await supabase
-    .from("opportunities")
-    .select(
-      "buyer_name, buyer_region, value_amount, status, procurement_stage, created_at",
-    )
-    .not("buyer_name", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(2000);
+  // Aggregated in SQL (migration 047) — accurate across the whole catalog, not the
+  // first 2000 rows.
+  const { data } = await supabase.rpc("buyer_aggregates", { p_limit: 200 });
+  if (!data) return [];
 
-  if (!data || data.length === 0) return [];
-
-  const map = new Map<string, BuyerRow>();
-  for (const opp of data) {
-    const key = (opp.buyer_name as string).trim();
-    if (!key) continue;
-    if (!map.has(key)) {
-      map.set(key, {
-        buyer_name: key,
-        buyer_region: opp.buyer_region ?? null,
-        opp_count: 0,
-        open_count: 0,
-        award_count: 0,
-        total_value: 0,
-        value_count: 0,
-        last_seen: null,
-      });
-    }
-    const stat = map.get(key)!;
-    stat.opp_count++;
-    if (opp.status === "active") stat.open_count++;
-    if (opp.procurement_stage === "award") stat.award_count++;
-    if (typeof opp.value_amount === "number" && opp.value_amount > 0) {
-      stat.total_value += opp.value_amount;
-      stat.value_count++;
-    }
-    if (
-      !stat.last_seen ||
-      (opp.created_at && opp.created_at > stat.last_seen)
-    ) {
-      stat.last_seen = opp.created_at;
-    }
-  }
-
-  return Array.from(map.values())
-    .sort((a, b) => b.opp_count - a.opp_count)
-    .slice(0, 100);
+  return (
+    data as Array<{
+      buyer_name: string;
+      buyer_region: string | null;
+      opp_count: number | string;
+      open_count: number | string;
+      award_count: number | string;
+      total_value: number | string;
+      value_count: number | string;
+      last_seen: string | null;
+    }>
+  ).map((r) => ({
+    buyer_name: r.buyer_name,
+    buyer_region: r.buyer_region,
+    opp_count: Number(r.opp_count),
+    open_count: Number(r.open_count),
+    award_count: Number(r.award_count),
+    total_value: Number(r.total_value),
+    value_count: Number(r.value_count),
+    last_seen: r.last_seen,
+  }));
 }
 
 function fmtValue(total: number, count: number): string {
@@ -237,11 +217,15 @@ export default async function BuyersPage() {
                       padding: "12px 14px",
                       fontSize: 13,
                       fontWeight: 500,
-                      color: "var(--ink)",
                       maxWidth: 260,
                     }}
                   >
-                    {b.buyer_name}
+                    <Link
+                      href={`/buyers/${encodeURIComponent(b.buyer_name)}`}
+                      style={{ color: "var(--ink)", textDecoration: "none" }}
+                    >
+                      {b.buyer_name}
+                    </Link>
                   </td>
                   <td
                     style={{
@@ -306,7 +290,7 @@ export default async function BuyersPage() {
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "right" }}>
                     <Link
-                      href={`/opportunities?buyer=${encodeURIComponent(b.buyer_name)}`}
+                      href={`/buyers/${encodeURIComponent(b.buyer_name)}`}
                       style={{
                         fontSize: 12,
                         color: "var(--accent)",

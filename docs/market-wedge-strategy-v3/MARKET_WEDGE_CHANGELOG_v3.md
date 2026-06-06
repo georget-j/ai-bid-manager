@@ -1,5 +1,15 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 6.1: buyer aggregates + drill-down
+
+- Migration `047_buyer_aggregates.sql` (applied): `buyer_aggregates(p_limit)` STABLE RPC
+  (count, open/award split, total + avg value, first/last seen) grouped over the WHOLE
+  catalog. The buyers index previously aggregated only the first 2000 rows in memory.
+- `app/buyers/page.tsx` now calls the RPC and links each buyer to a drill-down.
+- New `app/buyers/[buyer]/page.tsx`: KPI cards (notices, open now, awards, avg/total
+  value), status breakdown, top sectors (CPV divisions), recent notices, and a link to
+  the filtered opportunities list. 6.2 adds SVG charts over the same computed data.
+
 ## 2026-06-06 — Epic 5.3: seed one demo opportunity (Epic 5 complete)
 
 - `scripts/seed-demo-opportunity.sql` (idempotent upsert): one `[DEMO]` MDR security

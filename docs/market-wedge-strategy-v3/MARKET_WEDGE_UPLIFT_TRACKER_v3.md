@@ -8,8 +8,8 @@
 ## Current pointer
 
 - **Current epic:** Epic 6 — Buyers tab redo with charts
-- **Current phase:** 6.1 (buyer aggregate RPC, mig 047 + drill-down page) — NEXT
-- **Last commit:** `chore(profile): seed one fully-populated demo opportunity`
+- **Current phase:** 6.2 (custom SVG buyer charts) — NEXT
+- **Last commit:** `feat(buyers): aggregate RPC + buyer drill-down page (mig 047)`
 - **Updated:** 2026-06-06
 - **Demo opp id:** aab42d69-be4c-4e50-b9aa-400d48b9d249 (`/opportunities/aab42d69-...`)
 
@@ -67,7 +67,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 ## Epic 6 — Buyers tab redo with charts (Task 5)
 
-- [ ] 6.1 Mig 047 buyer-aggregate RPC + `/buyers/[buyer]` drill-down · `feat(buyers): aggregate RPC + buyer drill-down page (mig 047)`
+- [x] 6.1 Mig 047 `buyer_aggregates` RPC (accurate across whole catalog, was capped at 2000) + index switched to RPC + `/buyers/[buyer]` drill-down (KPIs, status + sector breakdown, recent notices) · `feat(buyers): aggregate RPC + buyer drill-down page (mig 047)`
 - [ ] 6.2 Custom SVG charts (donut/bars/sparkline + ring) · `feat(buyers): SVG charts + richer buyer view`
 
 ## Epic 7 — Contracts Finder ingestion robustness (Task 7)
