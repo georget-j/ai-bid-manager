@@ -88,7 +88,9 @@ interface GapReport {
   expired: number;
   coverage_score: number;
   results: GapResult[];
-  message?: string;
+  message?: string | null;
+  state?: "no-questions" | "no-requirements" | "no-evidence" | "ok";
+  evidence_count?: number;
 }
 
 const COVERAGE_CONFIG = {
@@ -193,7 +195,17 @@ export default function EvidenceGapsPage({
           expires_at: "",
           notes: "",
         });
+        // New evidence invalidates any cached AI analysis. Drop the cache, then
+        // recompute: keyword report always; AI too if the user had it on.
+        const hadAi = aiResults !== null;
+        await fetch(
+          `/api/opportunities/${opportunityId}/ai-gap-match?clientId=${selectedClientId}`,
+          { method: "DELETE" },
+        ).catch(() => {});
+        setAiResults(null);
+        setAiCached(false);
         refreshReport();
+        if (hadAi) runAiAnalysis();
       }
     } finally {
       setAddSubmitting(false);
@@ -500,18 +512,50 @@ export default function EvidenceGapsPage({
             </div>
 
             {report.message && (
-              <p
+              <div
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
                   fontSize: 13,
-                  color: "var(--muted)",
+                  color:
+                    report.state === "no-evidence" ? "#92400e" : "var(--muted)",
                   marginBottom: 16,
                   padding: "10px 14px",
-                  background: "var(--bg-tint)",
+                  background:
+                    report.state === "no-evidence"
+                      ? "#fef3c7"
+                      : "var(--bg-tint)",
+                  border:
+                    report.state === "no-evidence"
+                      ? "1px solid #fcd34d"
+                      : "none",
                   borderRadius: "var(--r-sm)",
                 }}
               >
-                {report.message}
-              </p>
+                <span>{report.message}</span>
+                {report.state === "no-evidence" && selectedClientId && (
+                  <Link
+                    href={`/clients/${selectedClientId}/evidence`}
+                    className="btn primary"
+                    style={{ fontSize: 12, padding: "5px 12px", flexShrink: 0 }}
+                  >
+                    Add evidence
+                  </Link>
+                )}
+                {(report.state === "no-questions" ||
+                  report.state === "no-requirements") && (
+                  <Link
+                    href={`/opportunities/${opportunityId}/rfp`}
+                    className="btn ghost"
+                    style={{ fontSize: 12, padding: "5px 12px", flexShrink: 0 }}
+                  >
+                    Go to RFP workflow
+                  </Link>
+                )}
+              </div>
             )}
 
             {/* Expiring soon callout */}

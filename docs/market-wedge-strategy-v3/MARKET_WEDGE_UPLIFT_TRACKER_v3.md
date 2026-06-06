@@ -7,9 +7,9 @@
 
 ## Current pointer
 
-- **Current epic:** Epic 4 — Evidence gaps rebuild
-- **Current phase:** 4.2 (UX rebuild + auto-refresh + suggestions) — NEXT
-- **Last commit:** `fix(gaps): requirement-only analysis + honest empty states`
+- **Current epic:** Epic 5 — Opportunity profile + KB cross-link
+- **Current phase:** 5.1 (opportunity_insights store, mig 046 + AI summary route) — NEXT
+- **Last commit:** `feat(gaps): rebuilt UX with auto-refresh + suggestions`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -56,7 +56,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 ## Epic 4 — Evidence gaps rebuild (Task 4)
 
 - [x] 4.1 Requirement-only analysis (dropped non-guidance fallback that skewed score); `state` = no-questions/no-requirements/no-evidence/ok + `evidence_count` · `fix(gaps): requirement-only analysis + honest empty states`
-- [ ] 4.2 UX rebuild + auto-refresh + suggestions · `feat(gaps): rebuilt UX with auto-refresh + suggestions`
+- [x] 4.2 State-aware empty states w/ CTAs (add-evidence / go-to-RFP); AI cache invalidated + recomputed on evidence add. (Per-gap type pre-fill + "we looked for" already existed; kept the bar+counts coverage viz.) · `feat(gaps): rebuilt UX with auto-refresh + suggestions` ✅ **EPIC 4 COMPLETE**
 
 ## Epic 5 — Opportunity profile + KB cross-link (Task 6)
 

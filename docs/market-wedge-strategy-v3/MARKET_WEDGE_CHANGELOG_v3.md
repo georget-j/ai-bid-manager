@@ -1,5 +1,15 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 4.2: evidence gaps UX rebuild (Epic 4 complete)
+
+- `gaps/page.tsx`: the report banner is now state-aware — `no-evidence` shows an amber
+  "Add evidence" CTA (→ client evidence page), `no-questions`/`no-requirements` link to
+  the RFP workflow. Adding evidence now invalidates the cached AI gap analysis
+  (`bid_pipeline.ai_gap_analysis`) and recomputes (keyword always; AI too if it was on),
+  so coverage updates without a manual "Clear". Per-gap evidence-type pre-fill and the
+  "we looked for…" hint already existed; kept the bar + covered/partial/missing/expired
+  count viz as the coverage gauge.
+
 ## 2026-06-06 — Epic 4.1: evidence gaps requirement-only + honest states
 
 - `evidence-gaps/route.ts`: analysis is now requirement-only (removed the fallback to
