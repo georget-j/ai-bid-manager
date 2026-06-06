@@ -1,5 +1,14 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 1.3: evaluate without approving all (Epic 1 complete)
+
+- The reevaluate API + section already accepted drafted (non-approved) items; made it
+  explicit. `RfpReevaluationSection` now fetches the answered (drafted) count itself,
+  enables "Evaluate response" as soon as ≥1 item has a draft, and disables with a hint
+  otherwise (no more confusing server-side "draft some answers" error). Copy now states
+  plainly that approval is not required — drafts are evaluated too. Parent prop renamed
+  `answeredCount` → `itemCount` (it was always the total item count, not answered).
+
 ## 2026-06-06 — Epic 1.2: RFP importance ranking
 
 - Migration `044_question_priority.sql` (applied): `opportunity_questions.priority`

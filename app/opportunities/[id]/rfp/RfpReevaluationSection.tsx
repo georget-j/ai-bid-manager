@@ -35,16 +35,18 @@ function verdict(s: number) {
 
 export function RfpReevaluationSection({
   opportunityId,
-  answeredCount,
+  itemCount,
   refreshKey,
 }: {
   opportunityId: string;
-  answeredCount: number;
+  itemCount: number;
   refreshKey: number;
 }) {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // How many items have an AI draft (any status — drafts count, approval NOT required).
+  const [answeredCount, setAnsweredCount] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`/api/opportunities/${opportunityId}/reevaluate`)
@@ -53,6 +55,17 @@ export function RfpReevaluationSection({
         setEvaluation(d.evaluation),
       )
       .catch(() => {});
+    // Count items with a draft so we can enable the button as soon as there is
+    // anything to score — without requiring the user to approve anything first.
+    fetch(`/api/opportunities/${opportunityId}/questions`)
+      .then((r) => r.json())
+      .then((d: { questions?: Array<{ ai_draft: string | null }> }) => {
+        const n = (d.questions ?? []).filter(
+          (q) => (q.ai_draft ?? "").trim().length > 0,
+        ).length;
+        setAnsweredCount(n);
+      })
+      .catch(() => setAnsweredCount(null));
   }, [opportunityId, refreshKey]);
 
   async function runReeval() {
@@ -79,7 +92,11 @@ export function RfpReevaluationSection({
     }
   }
 
-  if (answeredCount === 0) return null;
+  if (itemCount === 0) return null;
+
+  // Drafts are enough — approval is never required to evaluate. Only block when we
+  // know there are zero drafted answers yet (avoids a confusing server error).
+  const nothingDrafted = answeredCount === 0;
 
   const overall = evaluation?.overall_score ?? 0;
   const items = evaluation
@@ -110,15 +127,29 @@ export function RfpReevaluationSection({
             Re-evaluate response
           </h2>
           <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>
-            Score every answered item against the original tender and see what
-            to improve before submitting.
+            Score every drafted item against the original tender and see what to
+            improve before submitting.{" "}
+            <strong style={{ color: "var(--ink)" }}>
+              You don&apos;t need to approve answers first
+            </strong>{" "}
+            — drafts are evaluated too.
           </p>
         </div>
         <button
           className="btn primary"
           onClick={runReeval}
-          disabled={running}
-          style={{ fontSize: 12.5, padding: "6px 14px", flexShrink: 0 }}
+          disabled={running || nothingDrafted}
+          title={
+            nothingDrafted
+              ? "Draft at least one answer to evaluate (approval not required)"
+              : undefined
+          }
+          style={{
+            fontSize: 12.5,
+            padding: "6px 14px",
+            flexShrink: 0,
+            ...(nothingDrafted ? { opacity: 0.5, cursor: "not-allowed" } : {}),
+          }}
         >
           {running
             ? "Evaluating…"
@@ -136,8 +167,9 @@ export function RfpReevaluationSection({
 
       {!evaluation && !running && !error && (
         <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
-          Runs an AI assessment of your drafted and approved answers against the
-          tender description and documents.
+          {nothingDrafted
+            ? "Draft at least one answer above to unlock evaluation — you don't have to approve anything first."
+            : "Runs an AI assessment of your drafted and approved answers against the tender description and documents."}
         </p>
       )}
 

@@ -961,7 +961,7 @@ export function RFPWorkflow({
       {counts.requirements + counts.questions > 0 && (
         <RfpReevaluationSection
           opportunityId={opp.id}
-          answeredCount={counts.requirements + counts.questions}
+          itemCount={counts.requirements + counts.questions}
           refreshKey={approvalKey}
         />
       )}

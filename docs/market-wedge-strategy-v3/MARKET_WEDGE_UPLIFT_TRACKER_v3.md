@@ -7,9 +7,9 @@
 
 ## Current pointer
 
-- **Current epic:** Epic 1 — RFP response
-- **Current phase:** 1.3 (ungate evaluation in UI) — NEXT
-- **Last commit:** `feat(rfp): AI importance ranking + priority pills (mig 044)`
+- **Current epic:** Epic 2 — Opportunities browse filters
+- **Current phase:** 2.1 (working filters + value/CPV/source/status, mig 045) — NEXT
+- **Last commit:** `feat(rfp): evaluate without approving all`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -41,7 +41,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 - [x] 1.1 Harden `answer-all` (maxDuration=60; catch writes `confidence_reason`, no blank card); verified mig 043 live on 5-arg overload · `fix(rfp): surface generation failures + maxDuration guard`
 - [x] 1.2 Importance ranking: mig 044 `priority` col + extract/prompt + pills + sort (mandatory⇒high) · `feat(rfp): AI importance ranking + priority pills (mig 044)`
-- [ ] 1.3 Ungate evaluation in UI (eval allowed once ≥1 drafted) · `feat(rfp): evaluate without approving all`
+- [x] 1.3 Ungate evaluation in UI (eval allowed once ≥1 drafted; copy: approval not required) · `feat(rfp): evaluate without approving all` ✅ **EPIC 1 COMPLETE**
 
 ## Epic 2 — Opportunities browse filters (Task 1)
 
