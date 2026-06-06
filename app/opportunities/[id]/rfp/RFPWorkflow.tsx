@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { NormalizedDocument } from "@/lib/procurement/types";
+import { RequirementsSection } from "./RequirementsSection";
+import { QuestionsSection, ExportSection } from "./QuestionsSection";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1537,44 +1539,43 @@ export function RFPWorkflow({
         )}
       </div>
 
-      {/* ── Step 5: Go to response workflow ── */}
-      {counts.total > 0 && (
-        <div
-          className="card card-pad"
-          style={{ background: "var(--surface-2)" }}
-        >
+      {/* ── Step 5: Requirements compliance statements ── */}
+      {counts.requirements > 0 && (
+        <div className="card card-pad">
           <SectionHeading
             step="5"
-            title="Draft your response"
-            subtitle="Requirements and questions are extracted. Now work through your compliance statements and answers below."
+            title="Compliance requirements"
+            subtitle="Draft a compliance statement for each requirement using your knowledge base."
           />
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {counts.requirements > 0 && (
-              <a
-                href="#requirements"
-                className="btn primary"
-                style={{ fontSize: 13, padding: "7px 18px" }}
-              >
-                {counts.requirements} requirement
-                {counts.requirements !== 1 ? "s" : ""} →
-              </a>
-            )}
-            {counts.questions > 0 && (
-              <a
-                href="#questions"
-                className="btn"
-                style={{ fontSize: 13, padding: "7px 18px" }}
-              >
-                {counts.questions} question
-                {counts.questions !== 1 ? "s" : ""} →
-              </a>
-            )}
-          </div>
-          <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 12 }}>
-            Requirements and Questions sections load below. Scroll down or use
-            the links above to jump.
-          </p>
+          <RequirementsSection
+            opportunityId={opp.id}
+            initialTotal={counts.requirements}
+          />
         </div>
+      )}
+
+      {/* ── Step 6: Questions & answers ── */}
+      {counts.questions > 0 && (
+        <div className="card card-pad">
+          <SectionHeading
+            step="6"
+            title="Questions to answer"
+            subtitle="AI drafts each answer from your knowledge base. Review, edit, and approve before exporting."
+          />
+          <QuestionsSection
+            opportunityId={opp.id}
+            initialTotal={counts.questions}
+          />
+        </div>
+      )}
+
+      {/* ── Step 7: Export ── */}
+      {counts.total > 0 && (
+        <ExportSection
+          opportunityId={opp.id}
+          requirements={counts.requirements}
+          questions={counts.questions}
+        />
       )}
     </div>
   );
