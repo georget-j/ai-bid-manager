@@ -8,8 +8,8 @@
 ## Current pointer
 
 - **Current epic:** Epic 3 — Recommendations live/upcoming
-- **Current phase:** 3.1 (live/upcoming only + urgency ranking) — NEXT
-- **Last commit:** `feat(opportunities): pagination + result counts`
+- **Current phase:** 3.2 ("recommended for you" surfacing) — NEXT
+- **Last commit:** `feat(recommendations): live/upcoming only + urgency ranking`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -50,7 +50,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 ## Epic 3 — Recommendations live/upcoming (Task 2)
 
-- [ ] 3.1 Live/upcoming only + urgency-aware ranking · `feat(recommendations): live/upcoming only + urgency ranking`
+- [x] 3.1 Live-only pool (active + deadline open; was surfacing 139 expired), rank by fit then urgency, pass readiness_score + missing · `feat(recommendations): live/upcoming only + urgency ranking`
 - [ ] 3.2 "Recommended for you" surfacing · `feat(recommendations): clearer "recommended for you" surfacing`
 
 ## Epic 4 — Evidence gaps rebuild (Task 4)

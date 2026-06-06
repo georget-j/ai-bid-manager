@@ -1,5 +1,14 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 3.1: recommendations are live-only + urgency-ranked
+
+- `recommendations/route.ts`: candidate pool is now `status=active` AND `deadline=open`
+  (future or null). Previously `status=active` alone surfaced 139 expired tenders (359
+  active → 212 live). Defensive re-check drops any deadline that slipped past. Ranking is
+  fit-score desc, then urgency (soonest deadline first). SAMPLE_SIZE 150 → 300 to cover
+  the full live pool. Response now also returns `readiness_score` + `missing` so the UI
+  can prompt "add evidence to improve fit".
+
 ## 2026-06-06 — Epic 2.2: opportunity pagination (Epic 2 complete)
 
 - `app/opportunities/page.tsx`: `page` query param → offset; prev/next controls that
