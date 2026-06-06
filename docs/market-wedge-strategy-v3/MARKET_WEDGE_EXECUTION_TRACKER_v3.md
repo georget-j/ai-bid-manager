@@ -1,5 +1,8 @@
 # Market Wedge Execution Tracker v3
 
+> **ACTIVE INITIATIVE (2026-06-06): 7-epic product uplift** →
+> `MARKET_WEDGE_UPLIFT_TRACKER_v3.md` holds the live resume pointer + per-phase checklist.
+
 ## Current strategic phase
 
 - [x] Phase 0 — Security and repo audit ← COMPLETED 2026-06-05

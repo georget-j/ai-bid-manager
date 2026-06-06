@@ -1,5 +1,11 @@
 # Market Wedge Next Actions v3
 
+> **ACTIVE INITIATIVE (2026-06-06): 7-epic product uplift.**
+> Live state + resume pointer → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.
+> Full design → `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`.
+> On compaction: read the UPLIFT_TRACKER Current pointer and resume from the first
+> unticked phase — do not work from memory.
+
 ## Current objective
 
 All core product phases shipped. Product is ready to show to real agencies. The RFP

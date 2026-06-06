@@ -1,5 +1,17 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Started 7-epic product uplift (compaction-safe)
+
+Kicked off a 7-epic uplift addressing user-reported problems across browse, recommend,
+RFP response, evidence gaps, buyers, opportunity profile, and Contracts Finder ingestion.
+
+- Added `MARKET_WEDGE_UPLIFT_TRACKER_v3.md` as the live recovery anchor (per-phase
+  checklist + Current pointer). Every phase ends in a commit + push so nothing is lost
+  if context compacts. Wired NEXT_ACTIONS + EXECUTION_TRACKER to point at it.
+- Decisions: autonomous per-phase execution; custom-SVG buyer charts (no new dep);
+  robust-and-safe ingestion (overlap + cursor resume + monitoring); derive + cross-link
+  - seed one demo opportunity (real catalog untouched). Migrations 044–048 pre-allocated.
+
 ## 2026-06-06 — CRITICAL fix: RAG retrieval broken (ambiguous "id") + live showcase
 
 Found while running the full RFP flow live with a seeded knowledge base.
