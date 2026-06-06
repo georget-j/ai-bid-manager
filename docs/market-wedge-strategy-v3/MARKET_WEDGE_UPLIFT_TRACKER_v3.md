@@ -8,8 +8,8 @@
 ## Current pointer
 
 - **Current epic:** Epic 5 — Opportunity profile + KB cross-link
-- **Current phase:** 5.2 (bidirectional KB cross-referencing on profile) — NEXT
-- **Last commit:** `feat(profile): derived AI insights store (mig 046)`
+- **Current phase:** 5.3 (seed one fully-populated demo opportunity) — NEXT
+- **Last commit:** `feat(profile): bidirectional KB cross-referencing`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -61,7 +61,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 ## Epic 5 — Opportunity profile + KB cross-link (Task 6)
 
 - [x] 5.1 Mig 046 `opportunity_insights` (org-scoped) + insights route (GET cached / POST generate: summary, key_points, feasibility, gaps) + `OpportunityInsights` rendered on profile · `feat(profile): derived AI insights store (mig 046)`
-- [ ] 5.2 Bidirectional KB cross-referencing · `feat(profile): bidirectional KB cross-referencing`
+- [x] 5.2 `kb-cross-ref` route + `OpportunityKnowledgeBase` panel: tender docs → Add to KB, docs already in KB, and related org-KB content via retrieveChunks (opp→KB) · `feat(profile): bidirectional KB cross-referencing`
 - [ ] 5.3 Seed one fully-populated demo opportunity · `chore(profile): seed one fully-populated demo opportunity`
 
 ## Epic 6 — Buyers tab redo with charts (Task 5)

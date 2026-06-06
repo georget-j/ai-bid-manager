@@ -1,5 +1,16 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 5.2: opportunity ↔ knowledge base cross-referencing
+
+- New `kb-cross-ref/route.ts` (GET): returns documents already ingested for this
+  opportunity, the org's wider KB content most relevant to the tender (via the now-fixed
+  `retrieveChunks`, excluding the opp's own ingested docs), and the tender's source doc
+  URLs.
+- `OpportunityKnowledgeBase` client component on the detail page: "Add to KB" per tender
+  document (reuses the SSRF-guarded `add-document-to-kb` route), shows what's already in
+  the KB, and surfaces "Relevant content from your knowledge base" — making the link
+  between an opportunity and the KB visible in both directions.
+
 ## 2026-06-06 — Epic 5.1: opportunity AI insights store
 
 - Migration `046_opportunity_insights.sql` (applied): org-scoped `opportunity_insights`

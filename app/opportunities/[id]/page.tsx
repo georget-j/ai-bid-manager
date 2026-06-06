@@ -6,6 +6,7 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { OpportunityActions } from "./OpportunityActions";
 import { OpportunityTabs } from "./OpportunityTabs";
 import { OpportunityInsights } from "./OpportunityInsights";
+import { OpportunityKnowledgeBase } from "./OpportunityKnowledgeBase";
 import type { OpportunityRow, NormalizedLot } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -278,6 +279,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 
       {/* AI tender brief (derived, org-scoped — never written to the catalog) */}
       <OpportunityInsights opportunityId={opp.id} />
+
+      {/* Knowledge-base cross-reference (tender docs ↔ org KB) */}
+      <OpportunityKnowledgeBase opportunityId={opp.id} />
 
       {/* Procurement details */}
       <div className="card card-pad" style={{ marginBottom: 16 }}>
