@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOpportunity } from "@/lib/procurement/data";
+import { getRequestOrgId } from "@/lib/org";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { OpportunityActions } from "./OpportunityActions";
-import { DocumentsPanel } from "./DocumentsPanel";
-import { QuestionsPanel } from "./QuestionsPanel";
 import { OpportunityTabs } from "./OpportunityTabs";
-import type {
-  OpportunityRow,
-  NormalizedLot,
-  NormalizedDocument,
-} from "@/lib/procurement/types";
+import type { OpportunityRow, NormalizedLot } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
 
@@ -87,14 +83,35 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default async function OpportunityDetailPage({ params }: PageProps) {
   const { id } = await params;
 
-  const opp: OpportunityRow | null = await getOpportunity(id);
+  const [opp, orgId] = await Promise.all([
+    getOpportunity(id),
+    getRequestOrgId(),
+  ]);
 
   if (!opp) notFound();
+
+  // Fetch question counts for the response status card
+  let qCounts = { requirements: 0, questions: 0, total: 0 };
+  if (orgId) {
+    const supabase = getServiceSupabase();
+    const { data: qs } = await supabase
+      .from("opportunity_questions")
+      .select("question_class")
+      .eq("opportunity_id", id)
+      .eq("org_id", orgId);
+    if (qs) {
+      qCounts = {
+        requirements: qs.filter((q) => q.question_class === "requirement")
+          .length,
+        questions: qs.filter((q) => q.question_class === "question").length,
+        total: qs.length,
+      };
+    }
+  }
 
   const status = STATUS_STYLES[opp.status] ?? STATUS_STYLES.unknown;
   const days = daysUntil(opp.deadline_at);
   const lots = (opp.lots ?? []) as NormalizedLot[];
-  const docs = (opp.documents ?? []) as NormalizedDocument[];
 
   return (
     <div style={{ maxWidth: 840 }}>
@@ -353,11 +370,69 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ITT Questions — extract, AI-answer, and push to compliance matrix */}
-      <QuestionsPanel opportunityId={opp.id} opportunityTitle={opp.title} />
-
-      {/* Documents — always show the panel so users can check accessibility */}
-      <DocumentsPanel opportunityId={opp.id} initialDocs={docs} />
+      {/* Response status card — links to the RFP Response tab */}
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>
+              RFP response
+            </div>
+            {qCounts.total > 0 ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {qCounts.requirements > 0 && (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      background: "#dbeafe",
+                      color: "#1d4ed8",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {qCounts.requirements} requirement
+                    {qCounts.requirements !== 1 ? "s" : ""}
+                  </span>
+                )}
+                {qCounts.questions > 0 && (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      background: "#d1fae5",
+                      color: "#065f46",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {qCounts.questions} question
+                    {qCounts.questions !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+                No questions extracted yet.
+              </p>
+            )}
+          </div>
+          <Link
+            href={`/opportunities/${opp.id}/rfp`}
+            className="btn primary"
+            style={{ fontSize: 13, padding: "7px 18px", flexShrink: 0 }}
+          >
+            {qCounts.total > 0 ? "Work on response →" : "Start response →"}
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
