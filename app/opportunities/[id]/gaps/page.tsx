@@ -10,6 +10,20 @@ interface Client {
   vertical: string | null;
 }
 
+interface AIGapResult {
+  question_id: string;
+  coverage: "covered" | "partial" | "missing" | "expired";
+  matched_evidence_ids: string[];
+  confidence: "high" | "medium" | "low";
+  reason: string;
+}
+
+const AI_CONFIDENCE_CONFIG = {
+  high: { label: "High confidence", color: "#059669" },
+  medium: { label: "Medium confidence", color: "#d97706" },
+  low: { label: "Low confidence", color: "#6b7280" },
+} as const;
+
 interface GapResult {
   question_id: string;
   question_text: string;
@@ -103,6 +117,39 @@ export default function EvidenceGapsPage({
   const [loading, setLoading] = useState(false);
   const [coverageFilter, setCoverageFilter] = useState<string>("all");
   const [addingFor, setAddingFor] = useState<string | null>(null);
+  const [aiResults, setAiResults] = useState<AIGapResult[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiCached, setAiCached] = useState(false);
+
+  async function runAiAnalysis() {
+    if (!selectedClientId) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch(
+        `/api/opportunities/${opportunityId}/ai-gap-match`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: selectedClientId }),
+        },
+      );
+      const d = await res.json();
+      setAiResults(d.results ?? null);
+      setAiCached(d.cached ?? false);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function clearAiAnalysis() {
+    if (!selectedClientId) return;
+    await fetch(
+      `/api/opportunities/${opportunityId}/ai-gap-match?clientId=${selectedClientId}`,
+      { method: "DELETE" },
+    );
+    setAiResults(null);
+    setAiCached(false);
+  }
   const [addForm, setAddForm] = useState({
     title: "",
     evidence_type: "other",
@@ -263,6 +310,33 @@ export default function EvidenceGapsPage({
                 >
                   Manage evidence →
                 </Link>
+              )}
+              {selectedClientId && report && (
+                <>
+                  {aiResults ? (
+                    <>
+                      <span style={{ fontSize: 11.5, color: "#059669" }}>
+                        ✓ AI analysis{aiCached ? " (cached)" : ""}
+                      </span>
+                      <button
+                        className="btn ghost"
+                        onClick={clearAiAnalysis}
+                        style={{ fontSize: 11, padding: "3px 9px" }}
+                      >
+                        Clear
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn"
+                      onClick={runAiAnalysis}
+                      disabled={aiLoading}
+                      style={{ fontSize: 12, padding: "4px 12px" }}
+                    >
+                      {aiLoading ? "Analysing with AI…" : "Analyse with AI"}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -716,6 +790,50 @@ export default function EvidenceGapsPage({
                               manually and re-run
                             </p>
                           )}
+
+                        {/* AI result overlay */}
+                        {aiResults &&
+                          (() => {
+                            const ai = aiResults.find(
+                              (a) => a.question_id === r.question_id,
+                            );
+                            if (!ai) return null;
+                            const conf = AI_CONFIDENCE_CONFIG[ai.confidence];
+                            return (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  padding: "6px 10px",
+                                  background: "var(--bg)",
+                                  border: "1px solid var(--border)",
+                                  borderRadius: "var(--r-sm)",
+                                  fontSize: 11.5,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontWeight: 600,
+                                    color: "var(--muted)",
+                                    marginRight: 6,
+                                  }}
+                                >
+                                  AI:
+                                </span>
+                                <span style={{ color: "var(--ink)" }}>
+                                  {ai.reason}
+                                </span>
+                                <span
+                                  style={{
+                                    marginLeft: 8,
+                                    fontSize: 10.5,
+                                    color: conf.color,
+                                  }}
+                                >
+                                  {conf.label}
+                                </span>
+                              </div>
+                            );
+                          })()}
                       </div>
 
                       <div
