@@ -103,6 +103,8 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   const valueMax = params.valueMax ?? "";
   // Default to open tenders so the browse view is relevant out of the box.
   const deadline = params.deadline ?? "open";
+  const PAGE_SIZE = 50;
+  const page = Math.max(1, Number(params.page) || 1);
 
   let opportunities: OpportunityRow[] = [];
   let total = 0;
@@ -121,13 +123,36 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
       valueMin: valueMin ? Number(valueMin) : undefined,
       valueMax: valueMax ? Number(valueMax) : undefined,
       deadline: deadline === "all" ? undefined : deadline,
-      limit: 50,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
     });
     opportunities = result.opportunities;
     total = result.total;
   } catch (err) {
     fetchError =
       err instanceof Error ? err.message : "Failed to load opportunities";
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
+
+  // Preserve active filters when paging.
+  function pageHref(targetPage: number): string {
+    const qs = new URLSearchParams();
+    if (search) qs.set("search", search);
+    if (status) qs.set("status", status);
+    if (stage) qs.set("stage", stage);
+    if (region) qs.set("region", region);
+    if (buyer) qs.set("buyer", buyer);
+    if (source) qs.set("source", source);
+    if (sector) qs.set("sector", sector);
+    if (valueMin) qs.set("valueMin", valueMin);
+    if (valueMax) qs.set("valueMax", valueMax);
+    if (deadline && deadline !== "open") qs.set("deadline", deadline);
+    if (targetPage > 1) qs.set("page", String(targetPage));
+    const s = qs.toString();
+    return s ? `/opportunities?${s}` : "/opportunities";
   }
 
   // "open" is the default, so it doesn't count as an active filter.
@@ -292,7 +317,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
         <span style={{ fontSize: 13, color: "var(--muted)" }}>
           {total === 0
             ? "No opportunities found"
-            : `${total} opportunit${total === 1 ? "y" : "ies"}`}
+            : `${total.toLocaleString()} opportunit${total === 1 ? "y" : "ies"} · showing ${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()}`}
         </span>
         {isAdmin && (
           <Link
@@ -498,11 +523,43 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {opportunities.length > 0 && (
-        <div style={{ marginTop: 16, textAlign: "center" }}>
-          <p style={{ fontSize: 12, color: "var(--muted)" }}>
-            Showing {opportunities.length} of {total}
-          </p>
+      {opportunities.length > 0 && totalPages > 1 && (
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+          }}
+        >
+          {page > 1 ? (
+            <Link href={pageHref(page - 1)} className="btn ghost">
+              ← Prev
+            </Link>
+          ) : (
+            <span
+              className="btn ghost"
+              style={{ opacity: 0.4, pointerEvents: "none" }}
+            >
+              ← Prev
+            </span>
+          )}
+          <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+            Page {page.toLocaleString()} of {totalPages.toLocaleString()}
+          </span>
+          {page < totalPages ? (
+            <Link href={pageHref(page + 1)} className="btn ghost">
+              Next →
+            </Link>
+          ) : (
+            <span
+              className="btn ghost"
+              style={{ opacity: 0.4, pointerEvents: "none" }}
+            >
+              Next →
+            </span>
+          )}
         </div>
       )}
     </div>

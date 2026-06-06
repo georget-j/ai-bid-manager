@@ -1,5 +1,12 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 2.2: opportunity pagination (Epic 2 complete)
+
+- `app/opportunities/page.tsx`: `page` query param → offset; prev/next controls that
+  preserve all active filters; header now shows "T opportunities · showing N–M".
+  `listOpportunities` already supported `offset` + exact `total`. Submitting the filter
+  form resets to page 1 (no page field in the form).
+
 ## 2026-06-06 — Epic 2.1: opportunity browse filters
 
 - Migration `045_opportunity_filter_support.sql` (applied): btree indexes on
