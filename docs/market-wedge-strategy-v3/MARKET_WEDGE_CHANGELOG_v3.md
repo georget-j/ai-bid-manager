@@ -1,5 +1,13 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 3.2: "Recommended for you" surfacing (Epic 3 complete)
+
+- `app/my-opportunities/page.tsx`: subtitle now says "live, still-open tenders … ranked
+  by fit then closing date"; each card shows a recommended-action chip (Strong fit /
+  Worth a look / Review / Low fit) next to the score; an "💡 Add evidence to improve fit"
+  link (→ /clients) appears when the recommendation is readiness-limited (uses the new
+  `missing` payload). Pipeline-saved items are already excluded server-side.
+
 ## 2026-06-06 — Epic 3.1: recommendations are live-only + urgency-ranked
 
 - `recommendations/route.ts`: candidate pool is now `status=active` AND `deadline=open`

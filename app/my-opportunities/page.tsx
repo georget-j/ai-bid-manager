@@ -15,10 +15,27 @@ interface Recommendation {
   value_currency: string | null;
   procurement_stage: string;
   fit_score: number;
+  readiness_score: number;
   recommended_action: string;
   reasons: string[];
   risks: string[];
+  missing: string[];
   saved: boolean;
+}
+
+const ACTION_CHIP: Record<
+  string,
+  { label: string; color: string; bg: string }
+> = {
+  bid: { label: "Strong fit", color: "#059669", bg: "#d1fae5" },
+  maybe: { label: "Worth a look", color: "#3b82f6", bg: "#dbeafe" },
+  "needs-review": { label: "Review", color: "#d97706", bg: "#fef3c7" },
+  "do-not-bid": { label: "Low fit", color: "#dc2626", bg: "#fee2e2" },
+};
+
+// True when the user could lift this recommendation mainly by adding evidence.
+function isEvidenceLimited(rec: Recommendation): boolean {
+  return rec.missing.some((m) => /knowledge base|readiness|evidence/i.test(m));
 }
 
 interface PipelineItem {
@@ -507,8 +524,9 @@ export default function MyOpportunitiesPage() {
               <p
                 style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}
               >
-                Matched to your organisation profile using CPV codes, keywords,
-                regions, and contract value range.
+                Live, still-open tenders matched to your organisation profile
+                (CPV codes, keywords, value range) and ranked by fit then
+                closing date.
               </p>
             </div>
 
@@ -596,6 +614,22 @@ export default function MyOpportunitiesPage() {
                             {rec.title}
                           </Link>
                           <ScoreBadge score={rec.fit_score} />
+                          {ACTION_CHIP[rec.recommended_action] && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: "1px 7px",
+                                borderRadius: 999,
+                                color:
+                                  ACTION_CHIP[rec.recommended_action].color,
+                                background:
+                                  ACTION_CHIP[rec.recommended_action].bg,
+                              }}
+                            >
+                              {ACTION_CHIP[rec.recommended_action].label}
+                            </span>
+                          )}
                         </div>
 
                         <div
@@ -645,6 +679,25 @@ export default function MyOpportunitiesPage() {
                             }}
                           >
                             {rec.reasons.slice(0, 2).join(" · ")}
+                          </div>
+                        )}
+
+                        {isEvidenceLimited(rec) && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#92400e",
+                              marginTop: 4,
+                            }}
+                          >
+                            💡{" "}
+                            <Link
+                              href="/clients"
+                              style={{ color: "#92400e", fontWeight: 600 }}
+                            >
+                              Add evidence
+                            </Link>{" "}
+                            to improve your fit on this tender.
                           </div>
                         )}
                       </div>

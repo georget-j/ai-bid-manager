@@ -7,9 +7,9 @@
 
 ## Current pointer
 
-- **Current epic:** Epic 3 — Recommendations live/upcoming
-- **Current phase:** 3.2 ("recommended for you" surfacing) — NEXT
-- **Last commit:** `feat(recommendations): live/upcoming only + urgency ranking`
+- **Current epic:** Epic 4 — Evidence gaps rebuild
+- **Current phase:** 4.1 (requirement-only analysis + honest empty states) — NEXT
+- **Last commit:** `feat(recommendations): clearer "recommended for you" surfacing`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -51,7 +51,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 ## Epic 3 — Recommendations live/upcoming (Task 2)
 
 - [x] 3.1 Live-only pool (active + deadline open; was surfacing 139 expired), rank by fit then urgency, pass readiness_score + missing · `feat(recommendations): live/upcoming only + urgency ranking`
-- [ ] 3.2 "Recommended for you" surfacing · `feat(recommendations): clearer "recommended for you" surfacing`
+- [x] 3.2 Surfacing: "live still-open" subtitle, action chip (Strong fit/Worth a look/Review), "add evidence to improve fit" hint when readiness-limited · `feat(recommendations): clearer "recommended for you" surfacing` ✅ **EPIC 3 COMPLETE**
 
 ## Epic 4 — Evidence gaps rebuild (Task 4)
 
