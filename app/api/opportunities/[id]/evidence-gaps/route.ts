@@ -37,8 +37,10 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!client)
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
-  // Fetch requirements (question_class = 'requirement') for this opportunity
-  const { data: questions, error: qErr } = await supabase
+  // Gap analysis is requirement-only: only question_class='requirement' items are
+  // compliance gates that evidence can satisfy. Open questions and guidance are not
+  // gaps — mixing them in inflated and skewed the coverage score.
+  const { data: requirementsData, error: qErr } = await supabase
     .from("opportunity_questions")
     .select("id, question_text, section_ref, is_mandatory, question_class")
     .eq("opportunity_id", opportunityId)
@@ -48,35 +50,37 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
 
-  // Also include general questions that might imply evidence needs
-  const { data: allQuestions } = await supabase
+  const requirements = requirementsData ?? [];
+
+  // Distinguish "nothing extracted at all" from "extracted, but no requirements".
+  const { count: anyQuestionCount } = await supabase
     .from("opportunity_questions")
-    .select("id, question_text, section_ref, is_mandatory, question_class")
+    .select("id", { count: "exact", head: true })
     .eq("opportunity_id", opportunityId)
-    .eq("org_id", orgId)
-    .neq("question_class", "guidance")
-    .order("sort_order");
+    .eq("org_id", orgId);
 
-  const requirements = questions ?? [];
-  const allQ = allQuestions ?? [];
+  const emptyReport = {
+    client,
+    total_requirements: 0,
+    covered: 0,
+    partial: 0,
+    missing: 0,
+    expired: 0,
+    coverage_score: 0,
+    results: [],
+    evidence_count: 0,
+  };
 
-  if (allQ.length === 0) {
+  if (requirements.length === 0) {
+    const extractedAnything = (anyQuestionCount ?? 0) > 0;
     return NextResponse.json({
-      client,
-      total_requirements: 0,
-      covered: 0,
-      partial: 0,
-      missing: 0,
-      expired: 0,
-      coverage_score: 0,
-      results: [],
-      message:
-        "No questions extracted yet. Extract questions from tender documents first.",
+      ...emptyReport,
+      state: extractedAnything ? "no-requirements" : "no-questions",
+      message: extractedAnything
+        ? "No pass/fail compliance requirements were extracted from this tender — the items are open questions rather than requirements evidence can satisfy."
+        : "No questions extracted yet. Run “Get all details” on the RFP tab first.",
     });
   }
-
-  // Use requirements if available, fall back to all non-guidance questions
-  const toAnalyse = requirements.length > 0 ? requirements : allQ;
 
   // Fetch client evidence
   const { data: evidence } = await supabase
@@ -85,7 +89,21 @@ export async function GET(req: NextRequest, { params }: Params) {
     .eq("org_id", orgId)
     .eq("client_id", clientId);
 
-  const report = analyseGaps(toAnalyse, evidence ?? []);
+  const evidenceItems = evidence ?? [];
+  const report = analyseGaps(requirements, evidenceItems);
 
-  return NextResponse.json({ client, ...report });
+  // "no-evidence" vs "ok" lets the UI say "add evidence" instead of implying every
+  // requirement genuinely failed when the vault is simply empty.
+  const state = evidenceItems.length === 0 ? "no-evidence" : "ok";
+
+  return NextResponse.json({
+    client,
+    ...report,
+    evidence_count: evidenceItems.length,
+    state,
+    message:
+      state === "no-evidence"
+        ? `No evidence on file for ${client.name} yet — add certifications, policies, and case studies to assess coverage.`
+        : null,
+  });
 }

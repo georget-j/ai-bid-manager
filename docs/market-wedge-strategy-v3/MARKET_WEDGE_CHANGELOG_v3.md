@@ -1,5 +1,14 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 4.1: evidence gaps requirement-only + honest states
+
+- `evidence-gaps/route.ts`: analysis is now requirement-only (removed the fallback to
+  all non-guidance questions, which inflated/skewed the coverage score). Response carries
+  a machine-readable `state`: `no-questions` (extract first), `no-requirements` (only open
+  questions extracted), `no-evidence` (requirements exist but the vault is empty → "add
+  evidence", not "everything failed"), or `ok`; plus `evidence_count`. 4.2 wires these
+  into the UI.
+
 ## 2026-06-06 — Epic 3.2: "Recommended for you" surfacing (Epic 3 complete)
 
 - `app/my-opportunities/page.tsx`: subtitle now says "live, still-open tenders … ranked

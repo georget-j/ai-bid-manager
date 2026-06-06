@@ -8,8 +8,8 @@
 ## Current pointer
 
 - **Current epic:** Epic 4 — Evidence gaps rebuild
-- **Current phase:** 4.1 (requirement-only analysis + honest empty states) — NEXT
-- **Last commit:** `feat(recommendations): clearer "recommended for you" surfacing`
+- **Current phase:** 4.2 (UX rebuild + auto-refresh + suggestions) — NEXT
+- **Last commit:** `fix(gaps): requirement-only analysis + honest empty states`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -55,7 +55,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 ## Epic 4 — Evidence gaps rebuild (Task 4)
 
-- [ ] 4.1 Requirement-only analysis + honest empty states · `fix(gaps): requirement-only analysis + honest empty states`
+- [x] 4.1 Requirement-only analysis (dropped non-guidance fallback that skewed score); `state` = no-questions/no-requirements/no-evidence/ok + `evidence_count` · `fix(gaps): requirement-only analysis + honest empty states`
 - [ ] 4.2 UX rebuild + auto-refresh + suggestions · `feat(gaps): rebuilt UX with auto-refresh + suggestions`
 
 ## Epic 5 — Opportunity profile + KB cross-link (Task 6)
