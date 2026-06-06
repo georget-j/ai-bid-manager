@@ -9,6 +9,17 @@
   amber "↻ backlog pending — resumes next run" badge when a cursor is saved, and a warning
   when notices were skipped because they couldn't be parsed.
 
+## 2026-06-06 — Epic 7.3: bounded rolling catch-up (Epic 7 + uplift COMPLETE)
+
+- Migration `049_backfill_watermark.sql` (applied): `sources.backfill_watermark` +
+  `backfill_complete`.
+- `cron/sync-sources`: after the forward sync, if wall-clock budget remains, sweeps ONE
+  source one 14-day window further back into history (backfill mode — doesn't disturb
+  forward state/health), advancing the watermark every run (even on empty windows so it
+  can't stall) and finishing at a 2-year floor. Stays within the 240s budget.
+- **All 7 epics of the product uplift are complete.** Migrations 044–049 applied;
+  `npm run build` passes.
+
 ## 2026-06-06 — Epic 7.1: no-gap ingestion windows + region fix
 
 - `sync.ts`: incremental `from` now subtracts a 12h overlap from last_successful_sync_at

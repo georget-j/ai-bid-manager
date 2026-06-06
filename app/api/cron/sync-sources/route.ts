@@ -82,13 +82,85 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Bounded rolling historical catch-up ──────────────────────────────────
+  // If wall-clock budget remains, sweep ONE source one window further back into
+  // history. The watermark advances every run (even on empty windows) so the
+  // sweep can't stall, and completes once it reaches the 2-year floor.
+  const HISTORY_FLOOR = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000);
+  const CHUNK_MS = 14 * 24 * 60 * 60 * 1000;
+  const catchUp: Array<Record<string, unknown>> = [];
+  const byName = new Map(ALL_CONNECTORS.map((c) => [c.sourceName, c]));
+
+  if (Date.now() - startedAt < OVERALL_BUDGET_MS - 30_000) {
+    const { data: srcRows } = await supabase
+      .from("sources")
+      .select("name, backfill_watermark, backfill_complete")
+      .eq("enabled", true)
+      .eq("backfill_complete", false);
+
+    for (const s of srcRows ?? []) {
+      const connector = byName.get(s.name);
+      if (!connector) continue;
+
+      const wm = s.backfill_watermark
+        ? new Date(s.backfill_watermark)
+        : new Date();
+      if (wm.getTime() <= HISTORY_FLOOR.getTime()) {
+        await supabase
+          .from("sources")
+          .update({ backfill_complete: true })
+          .eq("name", s.name);
+        continue;
+      }
+
+      const to = wm;
+      const from = new Date(
+        Math.max(HISTORY_FLOOR.getTime(), wm.getTime() - CHUNK_MS),
+      );
+      const remaining = OVERALL_BUDGET_MS - (Date.now() - startedAt);
+      try {
+        const res = await syncSource(connector, {
+          fromDate: from,
+          toDate: to,
+          backfill: true, // don't disturb forward-sync state/health
+          maxPages: 8,
+          timeBudgetMs: Math.max(15_000, remaining - 10_000),
+        });
+        catchUp.push({
+          source: s.name,
+          window: `${from.toISOString().slice(0, 10)}..${to
+            .toISOString()
+            .slice(0, 10)}`,
+          fetched: res.fetched,
+          upserted: res.opportunitiesUpserted,
+        });
+      } catch (err) {
+        catchUp.push({
+          source: s.name,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      // Advance regardless so an empty window never stalls the sweep.
+      await supabase
+        .from("sources")
+        .update({
+          backfill_watermark: from.toISOString(),
+          backfill_complete: from.getTime() <= HISTORY_FLOOR.getTime(),
+        })
+        .eq("name", s.name);
+
+      break; // one source per run to stay within the time budget
+    }
+  }
+
   const totalNew = results.reduce(
     (s, r) => s + (r.opportunitiesUpserted ?? 0),
     0,
   );
   console.log(
-    `[cron/sync-sources] synced ${enabled.length} sources, ${totalNew} new opportunities`,
+    `[cron/sync-sources] synced ${enabled.length} sources, ${totalNew} new opportunities, ${catchUp.length} catch-up sweep(s)`,
   );
 
-  return NextResponse.json({ ok: true, results });
+  return NextResponse.json({ ok: true, results, catchUp });
 }
