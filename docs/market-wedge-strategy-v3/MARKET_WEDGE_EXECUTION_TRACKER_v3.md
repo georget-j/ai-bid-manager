@@ -33,11 +33,14 @@ Shipped
 
 ## Current objective
 
-All core product phases shipped (Phases 2–10 + client invite flow + UX fixes). Last commits 2026-06-05:
+All core product phases shipped. Last session (2026-06-06) reworked the RFP Response
+workflow and upgraded the evidence gap engine UX. Last commits 2026-06-06:
 
-- `9a7291b` — Admin access control: /clients and /admin restricted to admin accounts only
-- `39fcf2e` — Client account provisioning: invite email flow, auth callback linking, admin UI
-- `e233a2c` — Answer visibility fix: full-height answer blocks, edit toggle, answers-ready banner
+- `ffe2192` — RFP: answers visible after generation; export updates on approval
+- `b4a9589` — RFP: delete QuestionsPanel (1778 lines) — workflow moved to RFP tab
+- `76e8bde` — RFP: requirements + questions + export sections (7-step workflow)
+- `772f2c3` — Gaps: AI semantic gap matching with confidence reasons (migration 039)
+- `eecc39f` — Gaps: sort by risk, expiry visibility, signal hints
 
 Next: Phase 1 (founder outreach — no code needed) or Phase 11 (pilot workflow setup).
 See MARKET_WEDGE_NEXT_ACTIONS_v3.md for options.
@@ -168,11 +171,11 @@ Already partially implemented:
 
 ### Phase 6 — Evidence gap engine
 
-- [ ] Map requirements to evidence types
-- [ ] Detect missing evidence
-- [ ] Detect expired evidence
-- [ ] Assign risk levels
-- [ ] Show evidence coverage score
+- [x] Map requirements to evidence types (REQUIREMENT_SIGNALS + AI semantic match)
+- [x] Detect missing evidence
+- [x] Detect expired evidence (expiry dates surfaced on matched pills)
+- [x] Assign risk levels (sort by risk: mandatory-missing → expiring → covered)
+- [x] Show evidence coverage score (coverage counts + AI confidence per requirement)
 - [ ] Create evidence request draft
 
 ---

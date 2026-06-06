@@ -1,5 +1,84 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Buyer briefing tab: verified + regenerate fix (uncommitted)
+
+### Fixed — "Regenerate" now actually regenerates
+
+- `app/api/opportunities/[id]/buyer-research/route.ts`: the POST handler returned the
+  cached `buyer_briefing` whenever one existed, so the "Regenerate" button only ever
+  re-streamed the same text. Added a `?refresh=true` cache-bypass (matching the
+  ai-gap-match clear pattern); the cached path is now `if (opp.buyer_briefing && !refresh)`.
+  Renamed `_req` → `req` to read the query param.
+- `app/opportunities/[id]/buyer/page.tsx`: `generateBriefing(force = false)` appends
+  `?refresh=true` when forced; "Regenerate" calls `generateBriefing(true)`. Both buttons
+  wrapped in arrow functions so the click event is not passed as `force`.
+
+### Verified end-to-end
+
+- Typecheck clean; buyer page renders (HTTP 200); both routes auth-gate correctly (401)
+  with no crash; `?refresh=true` parses.
+- Ran the route's data→prompt→OpenAI-stream pipeline against a real opportunity
+  (Department for Education, 81 tenders): pulled 10 prior tenders for context, streamed a
+  grounded 3-paragraph briefing, cache write-back confirmed. Buyer history aggregation
+  validated against real data (MoJ 105 tenders, DfE 81/9 open).
+- Note: `opportunities` is an intentionally central/global catalog (migration 023), so the
+  absence of `org_id` filtering in these routes is by design, not a leak.
+
+---
+
+## 2026-06-06 — Evidence gap engine UX + RFP Response workflow rework
+
+### Added — Evidence Gaps improvements (commits eecc39f, dee6ff8, 772f2c3)
+
+**Phase 1 — gap visibility (`app/opportunities/[id]/gaps/page.tsx`, `lib/evidence-gap.ts`):**
+
+- Gap results sorted by risk: mandatory-missing → expiring → covered
+- Mandatory badge per card; expiry dates inline on matched evidence pills
+- Amber "Expiring soon" callout; "We looked for: X, Y" hints on missing cards
+
+**Phase 2 — inline quick-add:**
+
+- Inline "Quick add evidence" form on missing/expired cards; POSTs to existing `/api/clients/[id]/evidence`, auto-refreshes gap analysis; pre-fills evidence type from detected signal
+
+**Phase 3 — AI semantic matching:**
+
+- `POST /api/opportunities/[id]/ai-gap-match` — sends all requirements + evidence vault to GPT-4o-mini; returns per-requirement coverage + confidence + one-sentence reason
+- Cached in `bid_pipeline.ai_gap_analysis` JSONB (migration 039, applied); `DELETE ...?clientId=X` clears cache; "Clear" button forces regen
+
+---
+
+### Changed — RFP Response workflow complete rework (commits 6851785, 76e8bde, b4a9589)
+
+The old `QuestionsPanel.tsx` (1778 lines on the Details tab) is **deleted**. The full workflow now lives on the **RFP Response tab** (`/opportunities/[id]/rfp`) as 7 sequential sections.
+
+**New files:**
+
+- `app/opportunities/[id]/rfp/RFPWorkflow.tsx` — main client component, 7 sections
+- `app/opportunities/[id]/rfp/RequirementsSection.tsx` — compliance requirements
+- `app/opportunities/[id]/rfp/QuestionsSection.tsx` — questions section + ExportSection
+- `POST /api/opportunities/[id]/summarise` — streams a 3-bullet AI tender summary
+
+**Deleted files:**
+
+- `app/opportunities/[id]/QuestionsPanel.tsx`
+- `app/opportunities/[id]/rfp/RFPResponseContent.tsx`
+
+**The 7 steps:** (1) tender overview, (2) what this tender wants + "Summarise with AI", (3) tender documents per-doc extract, (4) extract from description with preview, (5) compliance requirements with AI statement + fit badge, (6) questions to answer with progress/filters/"Answer all" SSE/approve-all, (7) review & export DOCX.
+
+The Details tab now shows only opportunity metadata + a compact "Work on response →" card linking to the RFP tab.
+
+**Migration:** `038_buyer_briefing.sql` — `buyer_briefing text` on opportunities.
+
+---
+
+### Fixed — RFP workflow bugs (commits 6d8b172, ffe2192)
+
+- `refreshCounts()` treated `{ questions: [] }` response as a raw array → counts always 0 → requirements/questions sections never appeared. Fixed.
+- `answerAll()` / `draftAll()` did `await fetch(all questions)` inside the SSE loop per event → race conditions, answers not showing. Fixed: SSE loop reads only progress counters; single `loadQuestions()` after stream ends.
+- `ExportSection` only re-fetched on total-count changes, not individual approvals. Fixed: `approvalKey` counter incremented on every approval, passed as a `useEffect` dependency.
+
+---
+
 ## 2026-06-05 — Admin access control, client invite flow, answer visibility
 
 ### Fixed (commit 9a7291b)

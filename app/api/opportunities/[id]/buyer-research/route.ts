@@ -11,12 +11,13 @@ interface Params {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const orgId = await getRequestOrgId();
   if (!orgId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: opportunityId } = await params;
+  const refresh = new URL(req.url).searchParams.get("refresh") === "true";
   const supabase = getServiceSupabase();
 
   // Fetch opportunity details
@@ -34,8 +35,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
       { status: 404 },
     );
 
-  // Return cached briefing if it exists
-  if (opp.buyer_briefing) {
+  // Return cached briefing if it exists, unless a refresh was requested
+  if (opp.buyer_briefing && !refresh) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode(opp.buyer_briefing!));

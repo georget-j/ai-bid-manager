@@ -2,13 +2,15 @@
 
 ## Current objective
 
-All core product phases shipped. Product is ready to show to real agencies.
+All core product phases shipped. Product is ready to show to real agencies. The RFP
+Response workflow was reworked into a single 7-step tab (2026-06-06).
 
-Last three commits (2026-06-05):
+Last commits (2026-06-06):
 
-- `9a7291b` — Admin-only restriction for /clients and /admin (sidebar + middleware)
-- `39fcf2e` — Client account provisioning: migration 037, invite API, auth callback linking, ClientsAdmin component
-- `e233a2c` — QuestionsPanel answer visibility fix: full-height answer blocks, edit toggle, answers-ready banner, always-visible export button
+- `ffe2192` — RFP: answers visible after generation; export updates on approval
+- `b4a9589` — RFP: delete QuestionsPanel (1778 lines) — workflow moved to RFP tab
+- `76e8bde` — RFP: requirements + questions + export sections (7-step workflow)
+- `772f2c3` — Gaps: AI semantic gap matching with confidence reasons (migration 039)
 
 ---
 
@@ -26,6 +28,7 @@ Last three commits (2026-06-05):
 - [x] Phase 10 — Find a Tender connector (daily cron, all 4 connectors seeded, sources page)
 - [x] Phase 2B — Client account provisioning (invite flow, auth callback, admin UI)
 - [x] Phase UX — AI answer visibility fix + admin access control
+- [x] Phase UX2 — RFP Response workflow rework (7-step tab) + evidence gap engine UX (2026-06-06)
 
 ---
 
@@ -81,6 +84,25 @@ Build a reusable answer layer on top of the approved answers flow:
 - Link approved answers to evidence items used
 - Show "previously used N times" on each answer in the question panel
 - Surface the answer library as a searchable page
+
+---
+
+### Option E — Technical polish (carried over from 2026-06-06 handover)
+
+Concrete code follow-ups flagged after the RFP rework:
+
+1. **Answer quality — move generation off `gpt-4o-mini`.** `CHAT_MODEL` in `lib/openai.ts`
+   drives answer generation, extraction, and reranking. Switching `lib/generation.ts` /
+   `lib/retrieval.ts` to Claude (e.g. `claude-sonnet-4-6`) is the single highest-leverage
+   quality win for RFP answers. Highest value of the technical items.
+2. **Streaming preview during "Answer all".** The simplified SSE loop only shows a progress
+   counter; answers appear after the whole batch finishes. Update cards optimistically from
+   SSE preview text — needs careful state management in `RFPWorkflow.tsx`.
+3. ~~**Buyer briefing tab** verify end-to-end~~ — DONE 2026-06-06. Verified end-to-end
+   (page renders, routes auth-gate, AI briefing generates grounded content against real
+   data). Fixed a real bug: "Regenerate" returned cached text — now supports `?refresh=true`
+   cache-bypass. Remaining: still on `gpt-4o-mini` (see item 1); no auth-session HTTP test
+   harness exists, so the authenticated route path was validated via code + replicated logic.
 
 ---
 

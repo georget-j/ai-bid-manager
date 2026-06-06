@@ -84,14 +84,15 @@ export default function BuyerPage({
       .finally(() => setLoadingHistory(false));
   }, [id]);
 
-  async function generateBriefing() {
+  async function generateBriefing(force = false) {
     setGeneratingBriefing(true);
     setBriefingStarted(true);
     setBriefing("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/buyer-research`, {
-        method: "POST",
-      });
+      const res = await fetch(
+        `/api/opportunities/${id}/buyer-research${force ? "?refresh=true" : ""}`,
+        { method: "POST" },
+      );
       if (!res.body) return;
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -365,7 +366,7 @@ export default function BuyerPage({
               {!briefingStarted && (
                 <button
                   className="btn primary"
-                  onClick={generateBriefing}
+                  onClick={() => generateBriefing()}
                   style={{ fontSize: 12, padding: "5px 14px", flexShrink: 0 }}
                 >
                   Generate briefing
@@ -374,7 +375,7 @@ export default function BuyerPage({
               {briefingStarted && !generatingBriefing && (
                 <button
                   className="btn ghost"
-                  onClick={generateBriefing}
+                  onClick={() => generateBriefing(true)}
                   style={{ fontSize: 12, padding: "5px 14px", flexShrink: 0 }}
                 >
                   Regenerate
