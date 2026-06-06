@@ -1,5 +1,25 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 2.1: opportunity browse filters
+
+- Migration `045_opportunity_filter_support.sql` (applied): btree indexes on
+  `value_amount` + `source_name`; a `cpv_search` text column (space-padded CPV codes,
+  maintained by a BEFORE INSERT/UPDATE trigger + one-time backfill) with a pg_trgm GIN
+  index. (A generated column couldn't use `array_to_string` — not treated as immutable —
+  so a trigger maintains it instead.)
+- `listOpportunities` gains filters: deadline status (open/soon/closed, dot-free
+  timestamp in the PostgREST `or`), source (`source_name`), sector (CPV division prefix
+  via `cpv_search ilike '% NN%'`), value min/max, and region switched to `ilike`.
+- `app/opportunities/page.tsx` renders the full filter bar (search, deadline [default
+  Open], sector, source, stage, status, buyer, value min/max). Buyer was previously
+  read but never rendered.
+- **Region filter deferred to Epic 7:** `opportunities.region` and `buyer_region` are
+  100% empty in the current Contracts Finder data, so a region control would always
+  return nothing. Param plumbing kept; control hidden until ingestion populates it.
+- Live-tested all filters via `tests/opportunity-filters.test.ts` (open 272 / soon 83 /
+  closed 2950 / sector-72 321 / value-range 1779 — all valid queries, sector returns
+  only matching CPVs).
+
 ## 2026-06-06 — Epic 1.3: evaluate without approving all (Epic 1 complete)
 
 - The reevaluate API + section already accepted drafted (non-approved) items; made it

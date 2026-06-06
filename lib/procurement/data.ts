@@ -15,6 +15,14 @@ export interface ListOpportunitiesOptions {
   region?: string;
   search?: string;
   buyer?: string;
+  /** Deadline status: "open" (future or no deadline), "soon" (≤7d), "closed" (past). */
+  deadline?: string;
+  /** source_name exact match (e.g. "contracts-finder"). */
+  source?: string;
+  /** CPV division prefix, e.g. "72" for IT services. */
+  sector?: string;
+  valueMin?: number;
+  valueMax?: number;
   limit?: number;
   offset?: number;
 }
@@ -23,12 +31,16 @@ export async function listOpportunities(
   opts: ListOpportunitiesOptions,
 ): Promise<{ opportunities: OpportunityRow[]; total: number }> {
   const {
-    orgId,
     status,
     stage,
     region,
     search,
     buyer,
+    deadline,
+    source,
+    sector,
+    valueMin,
+    valueMax,
     limit = 50,
     offset = 0,
   } = opts;
@@ -42,9 +54,29 @@ export async function listOpportunities(
 
   if (status) query = query.eq("status", status);
   if (stage) query = query.eq("procurement_stage", stage);
-  if (region) query = query.eq("region", region);
+  if (region) query = query.ilike("region", `%${region}%`);
   if (buyer) query = query.ilike("buyer_name", `%${buyer}%`);
   if (search) query = query.ilike("title", `%${search}%`);
+  if (source) query = query.eq("source_name", source);
+  // CPV division prefix: cpv_search is space-padded so "% 72%" = a code starting with 72.
+  if (sector) query = query.ilike("cpv_search", `% ${sector}%`);
+  if (valueMin != null) query = query.gte("value_amount", valueMin);
+  if (valueMax != null) query = query.lte("value_amount", valueMax);
+
+  // Deadline status, computed against now.
+  if (deadline === "open") {
+    // Drop milliseconds: the dot in ".789Z" can confuse PostgREST's or-filter parser.
+    const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    query = query.or(`deadline_at.gte.${nowIso},deadline_at.is.null`);
+  } else if (deadline === "soon") {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    query = query
+      .gte("deadline_at", now.toISOString())
+      .lte("deadline_at", soon.toISOString());
+  } else if (deadline === "closed") {
+    query = query.lt("deadline_at", new Date().toISOString());
+  }
 
   const { data, count, error } = await query;
   if (error) throw new Error(`Failed to list opportunities: ${error.message}`);

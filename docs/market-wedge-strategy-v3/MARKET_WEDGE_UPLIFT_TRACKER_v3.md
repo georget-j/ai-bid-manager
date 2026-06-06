@@ -8,8 +8,8 @@
 ## Current pointer
 
 - **Current epic:** Epic 2 — Opportunities browse filters
-- **Current phase:** 2.1 (working filters + value/CPV/source/status, mig 045) — NEXT
-- **Last commit:** `feat(rfp): evaluate without approving all`
+- **Current phase:** 2.2 (pagination + result counts) — NEXT
+- **Last commit:** `feat(opportunities): working filters + value/CPV/source/status (mig 045)`
 - **Updated:** 2026-06-06
 
 ## How to resume after compaction
@@ -45,7 +45,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 ## Epic 2 — Opportunities browse filters (Task 1)
 
-- [ ] 2.1 Render region/buyer + add live/source/value/CPV filters (mig 045 indexes) · `feat(opportunities): working filters + value/CPV/source/status (mig 045)`
+- [x] 2.1 Rendered buyer + live/source/value/CPV-sector filters (mig 045: cpv_search + indexes); live-tested. Region deferred → Epic 7 (region/buyer_region are 100% empty in CF data) · `feat(opportunities): working filters + value/CPV/source/status (mig 045)`
 - [ ] 2.2 Pagination + result counts · `feat(opportunities): pagination + result counts`
 
 ## Epic 3 — Recommendations live/upcoming (Task 2)
@@ -71,7 +71,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 ## Epic 7 — Contracts Finder ingestion robustness (Task 7)
 
-- [ ] 7.1 Overlap window + cursor resume + time budget · `fix(ingest): overlap window + cursor resume`
+- [ ] 7.1 Overlap window + cursor resume + time budget. **Also: populate `buyer_region`/`region` from the OCDS payload** (currently 100% empty → blocks the region filter, Epic 2) · `fix(ingest): overlap window + cursor resume`
 - [ ] 7.2 Mig 048 sync-health monitoring + error surfacing · `feat(ingest): sync-health monitoring + error surfacing (mig 048)`
 - [ ] 7.3 Bounded rolling catch-up · `feat(ingest): bounded rolling catch-up for missed windows`
 

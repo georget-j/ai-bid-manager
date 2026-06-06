@@ -54,6 +54,38 @@ const STAGE_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
+// Source connectors (migration 036). Friendly labels for the source filter.
+const SOURCE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "find-tender", label: "Find a Tender" },
+  { value: "contracts-finder", label: "Contracts Finder" },
+  { value: "public-contracts-scotland", label: "Public Contracts Scotland" },
+  { value: "sell2wales", label: "Sell2Wales" },
+  { value: "etenders-ni", label: "eTenders NI" },
+  { value: "manual-upload", label: "Manual upload" },
+];
+
+// CPV divisions (2-digit prefix) most relevant to UK public-sector SME suppliers.
+const SECTOR_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "72", label: "IT services (72)" },
+  { value: "48", label: "Software (48)" },
+  { value: "30", label: "Computing & office equipment (30)" },
+  { value: "64", label: "Telecoms (64)" },
+  { value: "79", label: "Business & professional services (79)" },
+  { value: "71", label: "Engineering & architecture (71)" },
+  { value: "45", label: "Construction (45)" },
+  { value: "50", label: "Repair & maintenance (50)" },
+  { value: "85", label: "Health & social care (85)" },
+  { value: "80", label: "Education & training (80)" },
+  { value: "90", label: "Environmental services (90)" },
+];
+
+const DEADLINE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "open", label: "Open (default)" },
+  { value: "soon", label: "Closing soon (7d)" },
+  { value: "closed", label: "Closed" },
+  { value: "all", label: "Any deadline" },
+];
+
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
@@ -65,6 +97,12 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   const stage = params.stage ?? "";
   const region = params.region ?? "";
   const buyer = params.buyer ?? "";
+  const source = params.source ?? "";
+  const sector = params.sector ?? "";
+  const valueMin = params.valueMin ?? "";
+  const valueMax = params.valueMax ?? "";
+  // Default to open tenders so the browse view is relevant out of the box.
+  const deadline = params.deadline ?? "open";
 
   let opportunities: OpportunityRow[] = [];
   let total = 0;
@@ -78,6 +116,11 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
       stage: stage || undefined,
       region: region || undefined,
       buyer: buyer || undefined,
+      source: source || undefined,
+      sector: sector || undefined,
+      valueMin: valueMin ? Number(valueMin) : undefined,
+      valueMax: valueMax ? Number(valueMax) : undefined,
+      deadline: deadline === "all" ? undefined : deadline,
       limit: 50,
     });
     opportunities = result.opportunities;
@@ -87,7 +130,19 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
       err instanceof Error ? err.message : "Failed to load opportunities";
   }
 
-  const hasFilters = !!(search || status || stage || region || buyer);
+  // "open" is the default, so it doesn't count as an active filter.
+  const hasFilters = !!(
+    search ||
+    status ||
+    stage ||
+    region ||
+    buyer ||
+    source ||
+    sector ||
+    valueMin ||
+    valueMax ||
+    (deadline && deadline !== "open")
+  );
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -126,10 +181,48 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             style={{ flex: "1 1 220px", minWidth: 0 }}
           />
           <select
+            name="deadline"
+            defaultValue={deadline}
+            className="input"
+            style={{ flex: "0 0 150px" }}
+          >
+            {DEADLINE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            name="sector"
+            defaultValue={sector}
+            className="input"
+            style={{ flex: "0 0 200px" }}
+          >
+            <option value="">All sectors</option>
+            {SECTOR_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            name="source"
+            defaultValue={source}
+            className="input"
+            style={{ flex: "0 0 180px" }}
+          >
+            <option value="">All sources</option>
+            {SOURCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
             name="stage"
             defaultValue={stage}
             className="input"
-            style={{ flex: "0 0 140px" }}
+            style={{ flex: "0 0 130px" }}
           >
             <option value="">All stages</option>
             <option value="tender">Tender</option>
@@ -148,6 +241,34 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             <option value="closed">Closed</option>
             <option value="awarded">Awarded</option>
           </select>
+          <input
+            name="buyer"
+            defaultValue={buyer}
+            placeholder="Buyer…"
+            className="input"
+            style={{ flex: "0 0 150px" }}
+          />
+          {/* Region filter intentionally omitted: opportunities.region /
+              buyer_region are not yet populated by the connectors (Contracts
+              Finder OCDS). Re-add once Epic 7 backfills location. */}
+          <input
+            name="valueMin"
+            defaultValue={valueMin}
+            type="number"
+            min="0"
+            placeholder="Min £"
+            className="input"
+            style={{ flex: "0 0 100px" }}
+          />
+          <input
+            name="valueMax"
+            defaultValue={valueMax}
+            type="number"
+            min="0"
+            placeholder="Max £"
+            className="input"
+            style={{ flex: "0 0 100px" }}
+          />
           <button type="submit" className="btn primary">
             Filter
           </button>
