@@ -29,6 +29,10 @@ Last commits (2026-06-06):
 - [x] Phase 2B — Client account provisioning (invite flow, auth callback, admin UI)
 - [x] Phase UX — AI answer visibility fix + admin access control
 - [x] Phase UX2 — RFP Response workflow rework (7-step tab) + evidence gap engine UX (2026-06-06)
+- [x] Phase UX3 — RFP deep rework: central tender doc store + dedup (mig 040), unified
+      "Get all details" extraction + provenance (mig 041), per-card provenance/unapprove +
+      mandatory export gate, response re-evaluation + scoring visual (mig 042). 4 phases,
+      commits d3e8c41 / 25dacac / 69d7ddc / Phase 4 (2026-06-06)
 
 ---
 
@@ -103,6 +107,10 @@ Concrete code follow-ups flagged after the RFP rework:
    data). Fixed a real bug: "Regenerate" returned cached text — now supports `?refresh=true`
    cache-bypass. Remaining: still on `gpt-4o-mini` (see item 1); no auth-session HTTP test
    harness exists, so the authenticated route path was validated via code + replicated logic.
+4. **Drop `tender_doc_cache`** — Phase 1 of the RFP rework left the old per-org
+   `tender_doc_cache` table + `${org_id}/...` storage paths in place as a dormant fallback.
+   Once the central `tender_documents` store is proven in production, ship a migration to
+   drop the table and clean the old storage prefix. (Deliberately deferred; not urgent.)
 
 ---
 

@@ -33,14 +33,19 @@ Shipped
 
 ## Current objective
 
-All core product phases shipped. Last session (2026-06-06) reworked the RFP Response
-workflow and upgraded the evidence gap engine UX. Last commits 2026-06-06:
+All core product phases shipped. The opportunity RFP workflow was reworked end-to-end
+in a 4-phase effort (2026-06-06) fixing the step-3 bug and adding central document
+storage, provenance, unapprove, a mandatory export gate, and response re-evaluation.
 
-- `ffe2192` — RFP: answers visible after generation; export updates on approval
-- `b4a9589` — RFP: delete QuestionsPanel (1778 lines) — workflow moved to RFP tab
-- `76e8bde` — RFP: requirements + questions + export sections (7-step workflow)
-- `772f2c3` — Gaps: AI semantic gap matching with confidence reasons (migration 039)
-- `eecc39f` — Gaps: sort by risk, expiry visibility, signal hints
+RFP rework commits (2026-06-06):
+
+- `d3e8c41` — Phase 1: central tender document store + dedup (migration 040)
+- `25dacac` — Phase 2: unified "Get all details" extraction + provenance (migration 041)
+- `69d7ddc` — Phase 3: provenance chips, unapprove, mandatory export gate
+- Phase 4: response re-evaluation + scoring visual (migration 042)
+
+Migrations 040–042 applied to Supabase. Tenant-isolation suite made runnable
+(seeds test orgs) — 9/9 pass.
 
 Next: Phase 1 (founder outreach — no code needed) or Phase 11 (pilot workflow setup).
 See MARKET_WEDGE_NEXT_ACTIONS_v3.md for options.

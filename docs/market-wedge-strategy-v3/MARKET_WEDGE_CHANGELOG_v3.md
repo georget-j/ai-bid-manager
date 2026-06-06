@@ -1,5 +1,34 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — RFP rework Phase 4: response re-evaluation + scoring visual
+
+Final step of the RFP workflow: score the drafted/approved response against the
+original tender and show what to improve.
+
+### Added
+
+- Migration `042_rfp_reevaluation.sql` (additive): `rfp_reevaluations`
+  (opportunity_id, org_id, overall_score, results jsonb, created_at), org-scoped
+  RLS mirroring `opportunity_questions`. Applied to Supabase.
+- `GET/POST /api/opportunities/[id]/reevaluate`: POST scores every **answered**
+  item (drafted + needs-review + approved, excluding guidance) against the tender
+  description + linked documents' text via `gpt-4o-mini` → per-item `score`
+  (0-100) + `strengths[]` + `suggestions[]` + an `overall_score`; persists the
+  result. GET returns the latest stored evaluation.
+- `RfpReevaluationSection.tsx` (Step 7 in RFPWorkflow): "Evaluate response"
+  button, an overall score gauge (cloned from `ReadinessWidget`: 72px ring,
+  thresholds `#059669/#d97706/#dc2626`), and a per-item list (weakest first) with
+  score bars, improvement suggestions, and strengths.
+
+### Verified
+
+- Typecheck clean; RFP tab renders (200); both routes auth-gate (401). End-to-end
+  scoring smoke: a strong ISO-27001 answer scored high with strengths, a weak
+  "We monitor" answer scored 20 with a concrete suggestion, overall 60 persisted
+  to `rfp_reevaluations` and read back.
+
+---
+
 ## 2026-06-06 — RFP rework Phase 3: provenance, unapprove, mandatory export gate
 
 Per-card enhancements in the existing Requirements + Questions sections (kept as

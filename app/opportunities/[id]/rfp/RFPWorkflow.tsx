@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 import { RequirementsSection } from "./RequirementsSection";
 import { QuestionsSection, ExportSection } from "./QuestionsSection";
+import { RfpReevaluationSection } from "./RfpReevaluationSection";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -953,6 +954,15 @@ export function RFPWorkflow({
           requirements={counts.requirements}
           questions={counts.questions}
           approvalKey={approvalKey}
+        />
+      )}
+
+      {/* ── Step 7: Re-evaluate ── */}
+      {counts.requirements + counts.questions > 0 && (
+        <RfpReevaluationSection
+          opportunityId={opp.id}
+          answeredCount={counts.requirements + counts.questions}
+          refreshKey={approvalKey}
         />
       )}
     </div>
