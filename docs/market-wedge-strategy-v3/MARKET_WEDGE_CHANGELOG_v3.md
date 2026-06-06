@@ -1,5 +1,15 @@
 # Market Wedge Changelog v3
 
+## 2026-06-06 — Epic 5.3: seed one demo opportunity (Epic 5 complete)
+
+- `scripts/seed-demo-opportunity.sql` (idempotent upsert): one `[DEMO]` MDR security
+  tender (source_name='demo', id aab42d69-be4c-4e50-b9aa-400d48b9d249) — rich description
+  with pass/fail requirements (ISO 27001, Cyber Essentials Plus, mandatory case studies),
+  2 lots, £480k, live deadline, IT/cyber CPVs, and one real NCSC reference PDF for the
+  "Add to KB" cross-ref demo. The global catalog gains one clearly-marked demo row; real
+  notices and org KBs are untouched. Exercises the AI brief, priority extraction, gaps,
+  and KB cross-referencing end-to-end.
+
 ## 2026-06-06 — Epic 5.2: opportunity ↔ knowledge base cross-referencing
 
 - New `kb-cross-ref/route.ts` (GET): returns documents already ingested for this

@@ -7,10 +7,11 @@
 
 ## Current pointer
 
-- **Current epic:** Epic 5 — Opportunity profile + KB cross-link
-- **Current phase:** 5.3 (seed one fully-populated demo opportunity) — NEXT
-- **Last commit:** `feat(profile): bidirectional KB cross-referencing`
+- **Current epic:** Epic 6 — Buyers tab redo with charts
+- **Current phase:** 6.1 (buyer aggregate RPC, mig 047 + drill-down page) — NEXT
+- **Last commit:** `chore(profile): seed one fully-populated demo opportunity`
 - **Updated:** 2026-06-06
+- **Demo opp id:** aab42d69-be4c-4e50-b9aa-400d48b9d249 (`/opportunities/aab42d69-...`)
 
 ## How to resume after compaction
 
@@ -62,7 +63,7 @@ Tick the box → update Current pointer (epic/phase/last commit) → add a
 
 - [x] 5.1 Mig 046 `opportunity_insights` (org-scoped) + insights route (GET cached / POST generate: summary, key_points, feasibility, gaps) + `OpportunityInsights` rendered on profile · `feat(profile): derived AI insights store (mig 046)`
 - [x] 5.2 `kb-cross-ref` route + `OpportunityKnowledgeBase` panel: tender docs → Add to KB, docs already in KB, and related org-KB content via retrieveChunks (opp→KB) · `feat(profile): bidirectional KB cross-referencing`
-- [ ] 5.3 Seed one fully-populated demo opportunity · `chore(profile): seed one fully-populated demo opportunity`
+- [x] 5.3 Seeded `[DEMO]` MDR tender (scripts/seed-demo-opportunity.sql, idempotent, source=demo) — id aab42d69; live/open, rich desc+lots+doc+CPV · `chore(profile): seed one fully-populated demo opportunity` ✅ **EPIC 5 COMPLETE**
 
 ## Epic 6 — Buyers tab redo with charts (Task 5)
 
