@@ -21,9 +21,10 @@ const ALL_CONNECTORS: ProcurementSourceConnector[] = [
 // "Sync all" pulls a fixed recent window for EVERY enabled source so the result
 // is predictable ("the last week") rather than each source's incremental lag.
 const SYNC_ALL_DAYS = Number(process.env.PROCUREMENT_SYNC_ALL_DAYS ?? "7");
-// Generous per-source page cap (a week of CF/FTS is ~15-20 pages); the time
-// budget below is the real guard. Anything not reached resumes via the cursor.
-const MAX_PAGES = Number(process.env.PROCUREMENT_SYNC_ALL_MAX_PAGES ?? "50");
+// Per-source page cap. A busy week of Contracts Finder is ~55-60 pages (100/page),
+// so default high enough to finish the week in one click; the 240s time budget is
+// the real guard, and anything not reached still resumes via the cursor.
+const MAX_PAGES = Number(process.env.PROCUREMENT_SYNC_ALL_MAX_PAGES ?? "80");
 const OVERALL_BUDGET_MS = 240_000; // stay under maxDuration (300s)
 
 export async function POST() {
