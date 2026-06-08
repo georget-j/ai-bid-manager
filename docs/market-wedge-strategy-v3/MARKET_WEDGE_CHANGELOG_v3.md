@@ -1,5 +1,14 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources: "Sync all enabled sources" pulls a 7-day window
+
+- `/api/sources/sync-all` previously called `syncSource(c)` with no window — so it only did
+  each source's tiny incremental lookback (24h on a first sync) and had **no `maxDuration`**
+  (risked timing out). Now it pulls a fixed **last-7-days** window (`PROCUREMENT_SYNC_ALL_DAYS`)
+  for every enabled source, in parallel, with `maxDuration=300`, a 50-page cap and a 240s
+  time budget. Result includes `windowDays`. Predictable "get me the last week" behaviour;
+  dedup keeps it idempotent and the cursor resumes anything not reached.
+
 ## 2026-06-08 — Sources Hardening fix: Find a Tender + Contracts Finder pagination
 
 - **Find a Tender was only ever fetching 1 page.** Its `links.next` is a **full URL** (like
