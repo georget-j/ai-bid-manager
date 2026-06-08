@@ -9,6 +9,12 @@ import { normalizeOcdsRelease } from "../normalizers/ocds";
 const BASE_URL =
   process.env.FIND_TENDER_BASE_URL ?? "https://www.find-tender.service.gov.uk";
 
+// A descriptive UA — gov.uk fronting (CDN/WAF) can 400 requests from datacentre
+// IPs that send no/blank User-Agent. Overridable via env.
+const USER_AGENT =
+  process.env.PROCUREMENT_USER_AGENT ??
+  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+
 const LOOKBACK_HOURS = Number(
   process.env.PROCUREMENT_SYNC_LOOKBACK_HOURS ?? "24",
 );
@@ -43,7 +49,11 @@ export const findTenderConnector: ProcurementSourceConnector = {
           })();
 
     const response = await fetch(fetchUrl, {
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        // Identify the client — some gov.uk WAFs reject requests with no/bot UA.
+        "User-Agent": USER_AGENT,
+      },
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -60,8 +70,13 @@ export const findTenderConnector: ProcurementSourceConnector = {
           hasMore: false,
         };
       }
+      // Capture the body — the WAF/error reason lives here, not in statusText.
+      const body = await response.text().catch(() => "");
+      const detail = body
+        ? ` — ${body.slice(0, 200).replace(/\s+/g, " ")}`
+        : "";
       throw new Error(
-        `Find a Tender API returned ${response.status}: ${response.statusText}`,
+        `Find a Tender API returned ${response.status}: ${response.statusText}${detail}`,
       );
     }
 

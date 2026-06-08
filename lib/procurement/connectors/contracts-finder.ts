@@ -10,6 +10,12 @@ const BASE_URL =
   process.env.CONTRACTS_FINDER_BASE_URL ??
   "https://www.contractsfinder.service.gov.uk";
 
+// A descriptive UA — gov.uk fronting (CDN/WAF) can 400 requests from datacentre
+// IPs that send no/blank User-Agent. Overridable via env.
+const USER_AGENT =
+  process.env.PROCUREMENT_USER_AGENT ??
+  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
 
@@ -20,7 +26,7 @@ async function sleep(ms: number) {
 async function fetchWithRetry(url: string, maxRetries = 4): Promise<Response> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const res = await fetch(url, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -87,8 +93,13 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
           hasMore: false,
         };
       }
+      // Capture the body — the WAF/error reason lives here, not in statusText.
+      const body = await response.text().catch(() => "");
+      const detail = body
+        ? ` — ${body.slice(0, 200).replace(/\s+/g, " ")}`
+        : "";
       throw new Error(
-        `Contracts Finder API returned ${response.status}: ${response.statusText}`,
+        `Contracts Finder API returned ${response.status}: ${response.statusText}${detail}`,
       );
     }
 

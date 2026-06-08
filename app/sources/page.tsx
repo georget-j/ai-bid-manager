@@ -938,39 +938,84 @@ export default function SourcesPage() {
                         Sync failed: {result.error}
                       </span>
                     ) : (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 20,
-                          flexWrap: "wrap",
-                          color: "var(--ink-2)",
-                        }}
-                      >
-                        <span>
-                          <b>{result.fetched}</b> fetched
-                          {result.pages ? ` (${result.pages} pages)` : ""}
-                        </span>
-                        <span>
-                          <b>{result.rawStored}</b> raw stored
-                        </span>
-                        <span>
-                          <b>{result.duplicatesSkipped}</b> duplicates skipped
-                        </span>
-                        <span>
-                          <b>{result.opportunitiesUpserted}</b> opportunities
-                          upserted
-                        </span>
-                        {result.errors.length > 0 && (
-                          <span style={{ color: "#dc2626" }}>
-                            {result.errors.length} error(s)
+                      <>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 20,
+                            flexWrap: "wrap",
+                            color: "var(--ink-2)",
+                          }}
+                        >
+                          <span>
+                            <b>{result.fetched}</b> fetched
+                            {result.pages ? ` (${result.pages} pages)` : ""}
                           </span>
-                        )}
-                        {result.hasMore && (
-                          <span style={{ color: "var(--accent)" }}>
-                            More pages — run sync again to continue
+                          <span>
+                            <b>{result.rawStored}</b> raw stored
                           </span>
-                        )}
-                      </div>
+                          <span>
+                            <b>{result.duplicatesSkipped}</b> duplicates skipped
+                          </span>
+                          <span>
+                            <b>{result.opportunitiesUpserted}</b> opportunities
+                            upserted
+                          </span>
+                          {result.errors.length > 0 && (
+                            <span style={{ color: "#dc2626" }}>
+                              ⚠ {result.errors.length} error(s)
+                            </span>
+                          )}
+                          {result.hasMore && (
+                            <span style={{ color: "var(--accent)" }}>
+                              More pages — run sync again to continue
+                            </span>
+                          )}
+                        </div>
+                        {result.errors.length > 0 &&
+                          (() => {
+                            const distinct = Array.from(new Set(result.errors));
+                            return (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  padding: "6px 10px",
+                                  borderRadius: "var(--r-sm)",
+                                  background: "#fef2f2",
+                                  border: "1px solid #fecaca",
+                                }}
+                              >
+                                {distinct.slice(0, 5).map((e, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      color: "#b91c1c",
+                                      fontFamily: "var(--font-mono)",
+                                      fontSize: 11,
+                                      wordBreak: "break-word",
+                                      marginTop: idx === 0 ? 0 : 3,
+                                    }}
+                                  >
+                                    {e}
+                                  </div>
+                                ))}
+                                {distinct.length > 5 && (
+                                  <div
+                                    style={{
+                                      color: "#b91c1c",
+                                      fontSize: 11,
+                                      marginTop: 3,
+                                      opacity: 0.8,
+                                    }}
+                                  >
+                                    …and {distinct.length - 5} more distinct
+                                    error(s)
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                      </>
                     )}
                   </div>
                 )}
