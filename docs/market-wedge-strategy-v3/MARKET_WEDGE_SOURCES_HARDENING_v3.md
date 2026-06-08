@@ -7,8 +7,8 @@
 
 ## Current pointer
 
-- **Status:** Phase 2 COMPLETE (code) → starting Phase 3 (CF/FTS correctness).
-- **Last commit:** `fix(ingest): Sell2Wales Proactis API + bulk-download fallback, enabled`
+- **Status:** Phase 3 COMPLETE (code) → starting Phase 4 (speed).
+- **Last commit:** `fix(ingest): CF 403 rate-limit + limit param + FTS notice-type coverage`
 - **Updated:** 2026-06-08
 - **Migrations PENDING APPLY (need user approval):** 050 (Scotland base_url — cosmetic),
   051 (Wales base_url + enable — **functional**: cron needs `enabled=true` to sync Wales).
@@ -102,7 +102,10 @@ machine-readable set. Procurement Act 2023 (24 Feb 2025) added new FTS notice ty
 
 ## Phase 3 — Contracts Finder + Find a Tender correctness
 
-- [ ] CF `limit` param + 403 backoff; normalizer retains new Procurement-Act notice types ·
+- [x] CF: `size`→`limit` param (verified live: 100 releases + pagination); `fetchWithRetry`
+      now backs off on HTTP 403 (CF's rate-limit code) as well as 429. Normalizer: substring
+      stage mapping confirmed forward-compatible (Procurement-Act tags retained, never
+      dropped) + added `implementation` stage and cancellation/termination → cancelled ·
       `fix(ingest): CF 403 rate-limit + limit param + FTS notice-type coverage`
 
 ## Phase 4 — Speed: parallel sources + bulk upserts

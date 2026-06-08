@@ -1,5 +1,16 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening Phase 3: Contracts Finder + FTS correctness
+
+- **Contracts Finder:** send `limit` instead of the silently-ignored `size` param (verified
+  live: 100 releases/page + working cursor pagination); `fetchWithRetry` now backs off on
+  **HTTP 403** (CF's rate-limit status) as well as 429, respecting `Retry-After`.
+- **Normalizer / FTS notice-type coverage:** confirmed the substring-based OCDS stage
+  mapping is forward-compatible with the Procurement Act 2023 (Feb 2025) notice types
+  (pipeline → planning, contractAmendment/contractTermination → contract, awardUpdate →
+  award) and that releases are **never dropped** on unknown tags. Added an `implementation`
+  stage and mapped cancellation/withdrawal/termination tags → `cancelled` status.
+
 ## 2026-06-08 — Sources Hardening Phase 2: Sell2Wales API + bulk-download fallback
 
 - Rewrote the Sell2Wales connector for the Proactis OCDS API (host

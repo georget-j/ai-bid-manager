@@ -24,8 +24,10 @@ async function fetchWithRetry(url: string, maxRetries = 4): Promise<Response> {
       signal: AbortSignal.timeout(30_000),
     });
 
-    if (res.status !== 429) return res;
-    if (attempt === maxRetries) return res; // let caller handle final 429
+    // Contracts Finder rate-limits with HTTP 403 (not 429); 429 may also occur.
+    const rateLimited = res.status === 429 || res.status === 403;
+    if (!rateLimited) return res;
+    if (attempt === maxRetries) return res; // let caller handle the final status
 
     const retryAfter = res.headers.get("Retry-After");
     const delay = retryAfter
@@ -63,7 +65,9 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
               from.toISOString().split("T")[0],
             );
             url.searchParams.set("postedTo", to.toISOString().split("T")[0]);
-            url.searchParams.set("size", String(limit));
+            // The OCDS Search API paginates with `limit` (max/default 100); the
+            // old `size` param is silently ignored.
+            url.searchParams.set("limit", String(limit));
             return url.toString();
           })();
 

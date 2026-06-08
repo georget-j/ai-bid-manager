@@ -10,6 +10,10 @@ import type {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
 
+// Substring matching keeps us forward-compatible with the OCDS tag vocabulary,
+// including the Procurement Act 2023 (Feb 2025) additions — e.g. pipeline notices
+// (planning), contractAmendment / contractTermination (contract), awardUpdate
+// (award) all map to a sensible stage and are never dropped.
 function mapOcdsStage(tags: unknown): ProcurementStage {
   if (!Array.isArray(tags)) return "unknown";
   const t = tags.join(" ").toLowerCase();
@@ -17,13 +21,27 @@ function mapOcdsStage(tags: unknown): ProcurementStage {
   if (t.includes("tender")) return "tender";
   if (t.includes("award")) return "award";
   if (t.includes("contract")) return "contract";
+  if (t.includes("implementation")) return "implementation";
   return "unknown";
 }
 
 function mapTenderStatus(
   tenderStatus: unknown,
   deadlineAt: string | null,
+  tags?: unknown,
 ): OpportunityStatus {
+  // A cancellation/withdrawal/termination notice is cancelled regardless of the
+  // tender.status (Procurement Act contractTermination / award/tenderCancellation).
+  if (Array.isArray(tags)) {
+    const t = tags.join(" ").toLowerCase();
+    if (
+      t.includes("cancellation") ||
+      t.includes("withdraw") ||
+      t.includes("termination")
+    ) {
+      return "cancelled";
+    }
+  }
   if (typeof tenderStatus === "string") {
     const s = tenderStatus.toLowerCase();
     if (s === "active" || s === "open") return "active";
@@ -144,7 +162,7 @@ export function normalizeOcdsRelease(
 
     noticeType: Array.isArray(r.tag) ? r.tag.join(", ") : null,
     procurementStage: mapOcdsStage(r.tag),
-    status: mapTenderStatus(tender.status, deadlineAt),
+    status: mapTenderStatus(tender.status, deadlineAt, r.tag),
 
     cpvCodes: extractCpvCodes(tender),
     region: addressRegion(buyer?.address),
