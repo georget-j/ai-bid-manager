@@ -74,6 +74,8 @@ Contracts Finder (already ingested). The 4 OCDS feeds above are the complete
 machine-readable set. Procurement Act 2023 (24 Feb 2025) added new FTS notice types
 (pipeline, contract-details, contract-change) + ~143 OCDS fields — must not be dropped.
 
+→ Full defensible write-up (incl. NI gap + paid-aggregator options): `MARKET_WEDGE_SOURCES_COVERAGE_v3.md`.
+
 ## Decisions (locked)
 
 - Schedule: **23:59 BST** → vercel cron `59 22 * * *` (22:59 UTC; winter = 22:59 GMT).
