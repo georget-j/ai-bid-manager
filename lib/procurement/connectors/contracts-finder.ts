@@ -74,6 +74,19 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
     const response = await fetchWithRetry(fetchUrl);
 
     if (!response.ok) {
+      // CF returns a 4xx once a cursor runs past the end of the result set. When
+      // paging (cursor is the opaque next URL), treat that as "no more data"
+      // rather than a hard failure; a first-page error (no cursor) is real.
+      const paging = Boolean(cursor && cursor.startsWith("http"));
+      if (paging && response.status >= 400 && response.status < 500) {
+        return {
+          sourceName: "contracts-finder",
+          rawItems: [],
+          nextCursor: null,
+          fetchedAt: new Date().toISOString(),
+          hasMore: false,
+        };
+      }
       throw new Error(
         `Contracts Finder API returned ${response.status}: ${response.statusText}`,
       );
@@ -93,8 +106,10 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
             ? payload
             : [];
 
-    // The presence of links.next is the authoritative signal that more pages exist.
-    const nextCursor: string | null = payload.links?.next ?? null;
+    // The presence of links.next signals more pages — but stop if a page came
+    // back empty even with a stale next link.
+    const nextCursor: string | null =
+      rawItems.length > 0 ? (payload.links?.next ?? null) : null;
 
     return {
       sourceName: "contracts-finder",

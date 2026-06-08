@@ -28,18 +28,38 @@ export const findTenderConnector: ProcurementSourceConnector = {
     cursor,
     limit = PAGE_LIMIT,
   }: FetchSinceParams): Promise<SourceFetchResult> {
-    const url = new URL(`${BASE_URL}/api/1.0/ocdsReleasePackages`);
-    url.searchParams.set("updatedFrom", from.toISOString());
-    url.searchParams.set("updatedTo", to.toISOString());
-    url.searchParams.set("limit", String(limit));
-    if (cursor) url.searchParams.set("cursor", cursor);
+    // The FTS OCDS API returns an opaque cursor URL in links.next. On subsequent
+    // pages we must fetch that URL DIRECTLY — re-sending it as a ?cursor= param
+    // produces a malformed request the API rejects with 400.
+    const fetchUrl =
+      cursor && cursor.startsWith("http")
+        ? cursor
+        : (() => {
+            const url = new URL(`${BASE_URL}/api/1.0/ocdsReleasePackages`);
+            url.searchParams.set("updatedFrom", from.toISOString());
+            url.searchParams.set("updatedTo", to.toISOString());
+            url.searchParams.set("limit", String(limit));
+            return url.toString();
+          })();
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(fetchUrl, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
+      // These OCDS feeds return a 4xx once a cursor runs past the end of the
+      // result set. When paging (cursor set), treat that as "no more data"
+      // rather than a hard failure; a first-page error (no cursor) is real.
+      if (cursor && response.status >= 400 && response.status < 500) {
+        return {
+          sourceName: "find-tender",
+          rawItems: [],
+          nextCursor: null,
+          fetchedAt: new Date().toISOString(),
+          hasMore: false,
+        };
+      }
       throw new Error(
         `Find a Tender API returned ${response.status}: ${response.statusText}`,
       );
@@ -56,8 +76,11 @@ export const findTenderConnector: ProcurementSourceConnector = {
           )
         : [payload];
 
+    // Stop when a page is empty even if a stale next link is present.
     const nextCursor: string | null =
-      payload.nextCursor ?? payload.links?.next ?? null;
+      rawItems.length > 0
+        ? (payload.nextCursor ?? payload.links?.next ?? null)
+        : null;
 
     return {
       sourceName: "find-tender",

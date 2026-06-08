@@ -1,5 +1,20 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening fix: Find a Tender + Contracts Finder pagination
+
+- **Find a Tender was only ever fetching 1 page.** Its `links.next` is a **full URL** (like
+  Contracts Finder), but the connector re-sent it as a `?cursor=<full-url>` param →
+  malformed request → **400 on page 2** (confirmed live: old `?cursor=fullURL` = 400, new
+  follow-the-URL = 200 + 100 items). Now it follows `links.next` directly, like CF does.
+- **End-of-results was surfaced as an error.** These OCDS feeds return a **4xx once a cursor
+  runs past the end** of the result set (e.g. CF after ~1,500 notices). Both connectors now
+  treat a 4xx **while paging** (cursor present) as a clean stop, not a failure — so the
+  dashboard no longer shows a spurious `400` after a successful pull, and a first-page error
+  (no cursor) is still raised. Both also stop on an empty page even with a stale next link.
+- Public Contracts Scotland's "2 pages" is the **incremental window by design** (current +
+  previous month = 642 notices, no error); bulk history comes from "Sync last N" / Backfill,
+  which walk months. tsc + lint + build clean.
+
 ## 2026-06-08 — Sources Hardening follow-up: cursor + backfill error resilience
 
 - Two latent engine gaps found while diagnosing a stale Find a Tender `400` (FTS itself is
