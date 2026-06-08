@@ -7,14 +7,15 @@
 
 ## Current pointer
 
-- **Status:** ✅ **ALL 5 PHASES COMPLETE (code)** (2026-06-08). tsc + lint + build clean.
-- **Last commit:** `feat(ingest): 23:59 BST schedule + sources health polish + audit`
+- **Status:** ✅ **ALL 5 PHASES COMPLETE + follow-up** (2026-06-08). tsc + lint + build clean.
+- **Last commit:** `fix(ingest): cursor + backfill error resilience`
 - **Updated:** 2026-06-08
-- **⚠ Migrations PENDING APPLY (need user approval — gated by CLAUDE.md):**
-  - `050_scotland_proactis_base_url.sql` — cosmetic (connector works from code regardless).
-  - `051_sell2wales_enable.sql` — **functional**: the cron only syncs Wales once
-    `enabled=true`. Apply both via `source ~/.secrets/tokens.sh && supabase db query
---linked -f <file>`.
+- **✅ Migrations 050 + 051 APPLIED** (2026-06-08, user-approved): Scotland base_url updated;
+  **Sell2Wales enabled**. Verified read-only against the `sources` table.
+- **Follow-up shipped:** cursor + backfill error resilience — backfill blips no longer
+  clobber forward status; a poisoned/expired cursor is cleared so a source self-recovers
+  (`tests/sync-error-handling.test.ts`). FTS verified healthy; the dashboard `400`/`404` were
+  stale and self-clear on the next run.
 - Scotland (PCS) verified live (read-only): fetch + normalize OK via the Sectigo TLS fix.
   Will populate from the first cron run / "Sync now" after deploy.
 - **Sell2Wales provider is CURRENTLY DOWN (not our bug):** API leaf cert expired 2026-06-03,

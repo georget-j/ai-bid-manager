@@ -113,7 +113,14 @@ export async function syncSource(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (totalPages === 0) {
-        await updateSourceError(supabase, connector.sourceName, msg);
+        // A backfill blip must NOT clobber the forward-sync status (it runs
+        // against old windows and is best-effort). For a forward page-0 failure
+        // we record the error AND clear any stored cursor, so a poisoned/expired
+        // cursor can't wedge the source — the next run restarts from the date
+        // window, which dedup makes idempotent.
+        if (!options.backfill) {
+          await updateSourceError(supabase, connector.sourceName, msg);
+        }
         return {
           source: connector.sourceName,
           fetched: 0,
@@ -358,6 +365,10 @@ async function updateSourceError(
     .from("sources")
     .update({
       last_error: message,
+      // Clear any stored cursor: if it was poisoned/expired (the likely cause of
+      // a page-0 failure) this lets the source self-recover next run. If the
+      // cursor was already null this is a harmless no-op.
+      last_cursor: null,
       updated_at: new Date().toISOString(),
     })
     .eq("name", name);

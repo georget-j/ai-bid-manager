@@ -1,5 +1,18 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening follow-up: cursor + backfill error resilience
+
+- Two latent engine gaps found while diagnosing a stale Find a Tender `400` (FTS itself is
+  healthy across all date windows):
+  1. **Backfill page-0 errors clobbered the forward-sync status.** `updateSourceError` was
+     called even in backfill mode, so a historical-sweep blip made a healthy source _look_
+     failed on the dashboard. Now only the forward path records `last_error`.
+  2. **A poisoned/expired cursor could wedge a source forever.** On a forward page-0
+     failure we now also clear `last_cursor`, so the next run restarts from the date window
+     (dedup-safe) and self-recovers instead of re-sending the bad cursor every run.
+- Migrations 050 + 051 applied (Scotland base_url; **Sell2Wales enabled**). New unit test
+  `tests/sync-error-handling.test.ts` covers both behaviours. tsc + lint + build clean.
+
 ## 2026-06-08 — Sources Hardening Phase 5: 23:59 BST schedule + health + audit (COMPLETE)
 
 - **Schedule:** `vercel.json` sync-sources cron → `59 22 * * *` = **23:59 BST** (22:59 UTC;
