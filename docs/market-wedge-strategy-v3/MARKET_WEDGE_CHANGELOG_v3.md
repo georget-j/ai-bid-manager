@@ -1,5 +1,20 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening Phase 5: 23:59 BST schedule + health + audit (COMPLETE)
+
+- **Schedule:** `vercel.json` sync-sources cron → `59 22 * * *` = **23:59 BST** (22:59 UTC;
+  winter 22:59 GMT), per the requested "midnight UK" daily run.
+- **No-miss robustness:** `PROCUREMENT_SYNC_OVERLAP_MINUTES` default 720 → **1440 (24h)** to
+  match the once-daily cadence. `from` anchors to the last _successful_ sync, so even a
+  fully-missed run is recovered next time; dedup keeps the overlap idempotent.
+- **Sources page:** footer rewritten to state the audit conclusion (these 4 OCDS feeds are
+  the complete machine-readable UK set; eTendersNI/CCS/NHS/MOD/Jaggaer/ProContract are
+  portal-only and flow into FTS + CF) and the Sell2Wales availability caveat. Per-source
+  health (counts, last-run fetched/pages, backlog badge, normalize-error + last_error) was
+  already surfaced. tsc + lint + `npm run build` clean.
+- **Sources Hardening initiative COMPLETE** (5 phases). ⚠ Migrations 050 (cosmetic) + 051
+  (enables Wales) are **pending apply** (DB-migration approval gate).
+
 ## 2026-06-08 — Sources Hardening Phase 4: parallel sources + bulk upserts
 
 - **Cron now syncs all 4 sources in parallel** (`Promise.allSettled`). They are distinct

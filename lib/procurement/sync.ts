@@ -28,9 +28,10 @@ const SYNC_LIMIT = Number(process.env.PROCUREMENT_SYNC_LIMIT ?? "100");
 const MAX_PAGES = Number(process.env.PROCUREMENT_MAX_PAGES ?? "20");
 // Safety overlap subtracted from last_successful_sync_at so notices published right at
 // a window boundary (or during a partially-failed run) are never skipped. Dedup makes
-// re-fetching the overlap harmless. Default 12h (sources publish on date granularity).
+// re-fetching the overlap harmless. Default 24h to match the once-daily cron cadence:
+// even a fully-missed run is recovered next time (`from` anchors to the last SUCCESS).
 const OVERLAP_MINUTES = Number(
-  process.env.PROCUREMENT_SYNC_OVERLAP_MINUTES ?? "720",
+  process.env.PROCUREMENT_SYNC_OVERLAP_MINUTES ?? "1440",
 );
 
 export async function syncSource(

@@ -1213,8 +1213,15 @@ export default function SourcesPage() {
           }}
         >
           Find a Tender, Contracts Finder, Public Contracts Scotland, and
-          Sell2Wales connectors are all active. eTendersNI is planned for manual
-          import. Manual document upload is available via the{" "}
+          Sell2Wales are the complete set of machine-readable UK procurement
+          OCDS feeds. Other portals (eTendersNI, Crown Commercial, NHS/Atamis,
+          MOD Defence Sourcing, Jaggaer, ProContract) have no public API — their
+          notices are published into Find a Tender and Contracts Finder, which
+          we already ingest. The cron syncs all four nightly at 23:59 UK time.
+          Sell2Wales depends on the Welsh Government OCDS service, which can
+          have availability gaps; the connector falls back to its monthly bulk
+          download and resumes automatically. Manual document upload is
+          available via the{" "}
           <Link
             href="/documents"
             style={{ color: "var(--accent)", textDecoration: "none" }}

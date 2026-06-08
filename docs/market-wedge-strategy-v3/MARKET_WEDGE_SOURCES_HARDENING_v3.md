@@ -7,16 +7,20 @@
 
 ## Current pointer
 
-- **Status:** Phase 4 COMPLETE (code) → starting Phase 5 (schedule + polish).
-- **Last commit:** `perf(ingest): parallel sources + bulk upserts`
+- **Status:** ✅ **ALL 5 PHASES COMPLETE (code)** (2026-06-08). tsc + lint + build clean.
+- **Last commit:** `feat(ingest): 23:59 BST schedule + sources health polish + audit`
 - **Updated:** 2026-06-08
-- **Migrations PENDING APPLY (need user approval):** 050 (Scotland base_url — cosmetic),
-  051 (Wales base_url + enable — **functional**: cron needs `enabled=true` to sync Wales).
-- Scotland verified live (read-only): fetch + normalize OK via the Sectigo TLS fix.
+- **⚠ Migrations PENDING APPLY (need user approval — gated by CLAUDE.md):**
+  - `050_scotland_proactis_base_url.sql` — cosmetic (connector works from code regardless).
+  - `051_sell2wales_enable.sql` — **functional**: the cron only syncs Wales once
+    `enabled=true`. Apply both via `source ~/.secrets/tokens.sh && supabase db query
+--linked -f <file>`.
+- Scotland (PCS) verified live (read-only): fetch + normalize OK via the Sectigo TLS fix.
+  Will populate from the first cron run / "Sync now" after deploy.
 - **Sell2Wales provider is CURRENTLY DOWN (not our bug):** API leaf cert expired 2026-06-03,
   klickstream backend 500s, bulk download 500s for every month/format. Connector + bulk
-  fallback are built correctly and will self-heal when the Welsh Govt restores the
-  cert/backend; errors surface via sync-health and don't block other sources.
+  fallback are built correctly and self-heal when the Welsh Govt restores the cert/backend;
+  errors surface via sync-health and don't block other sources.
 
 ## How to resume after compaction
 
@@ -119,8 +123,12 @@ machine-readable set. Procurement Act 2023 (24 Feb 2025) added new FTS notice ty
 
 ## Phase 5 — 23:59 BST schedule + health polish + final audit
 
-- [ ] `vercel.json` `59 22 * * *`; `/sources` per-source health + non-zero Scotland/Wales;
-      finalise audit · `feat(ingest): 23:59 BST schedule + sources health polish + audit`
+- [x] `vercel.json` sync-sources → `59 22 * * *` (23:59 BST / 22:59 UTC). Overlap default
+      720 → 1440 min (24h) to match the once-daily cadence (`from` anchors to last SUCCESS,
+      so a missed day is recovered). `/sources` footer rewritten with the audit conclusion +
+      Wales availability note. Health UI (counts, last-run fetched/pages, backlog badge,
+      normalize-error + last_error) already surfaces per-source status. build clean ·
+      `feat(ingest): 23:59 BST schedule + sources health polish + audit`
 
 ---
 

@@ -1,11 +1,11 @@
 # Market Wedge Next Actions v3
 
-> **ACTIVE INITIATIVE (2026-06-08): Sources Hardening (admin sync reliability + speed).**
-> Live state + resume pointer → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`.
-> Full design → `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`.
-> On compaction: read the SOURCES_HARDENING Current pointer and resume from the first
-> unticked phase — do not work from memory.
-> (Prior initiative — 7-epic product uplift — is COMPLETE; see `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
+> **Sources Hardening initiative — code COMPLETE (2026-06-08), all 5 phases pushed.**
+> State → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`. Design → `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`.
+> **Outstanding:** apply migrations **050** (cosmetic) + **051** (enables Wales) by hand;
+> verify Scotland/Wales counts go 0 → > 0 after the next 23:59 cron run / "Sync now".
+> Sell2Wales provider was down at build time (cert/backend) — self-heals on recovery.
+> (Prior 7-epic product uplift also COMPLETE; see `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
 
 ## Current objective
 
