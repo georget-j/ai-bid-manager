@@ -9,6 +9,7 @@
 import { createHash } from "crypto";
 import { extractText } from "@/lib/extractors";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { collectTenderDocuments } from "@/lib/procurement/documents";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 
 const MAX_DOC_SIZE = 10 * 1024 * 1024;
@@ -387,27 +388,9 @@ export function collectOpportunityDocUrls(opp: {
   documents?: NormalizedDocument[] | null;
   raw_json?: unknown;
 }): NormalizedDocument[] {
-  const base = (opp.documents ?? []) as NormalizedDocument[];
-  const seen = new Set(base.map((d) => d.url).filter(Boolean));
-
-  const extra: NormalizedDocument[] = [];
-  const raw = opp.raw_json as Record<string, unknown> | null;
-  if (raw && Array.isArray(raw.documents)) {
-    for (const d of raw.documents as Array<Record<string, unknown>>) {
-      if (typeof d.url === "string" && !seen.has(d.url)) {
-        seen.add(d.url);
-        extra.push({
-          title: typeof d.title === "string" ? d.title : "Untitled document",
-          url: d.url,
-          format: typeof d.format === "string" ? d.format : undefined,
-          documentType:
-            typeof d.documentType === "string" ? d.documentType : undefined,
-        });
-      }
-    }
-  }
-
-  return [...base, ...extra].filter((d) => Boolean(d.url));
+  // Delegates to the shared, dependency-free helper so every surface (this module,
+  // the fetch-documents route, and the summary-header count) uses one implementation.
+  return collectTenderDocuments(opp);
 }
 
 export interface LinkedTenderText {

@@ -1,8 +1,8 @@
 import type { NormalizedDocument } from "./types";
 
 type DocSource = {
-  documents: NormalizedDocument[] | null;
-  raw_json: unknown;
+  documents?: NormalizedDocument[] | null;
+  raw_json?: unknown;
 };
 
 /**

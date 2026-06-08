@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { OpportunityTabs } from "../OpportunityTabs";
+import { BuyerWebResearch } from "./BuyerWebResearch";
 
 interface BuyerInfo {
   name: string;
@@ -427,6 +428,9 @@ export default function BuyerPage({
               </p>
             )}
           </div>
+
+          {/* Online (web-search) research — buyer + named people, with citations */}
+          <BuyerWebResearch opportunityId={id} />
         </>
       )}
     </div>
