@@ -210,6 +210,26 @@ const NAV_RESPOND = [
     ),
   },
   {
+    href: "/rfp",
+    label: "RFP Builder",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="3" y="2.5" width="10" height="12" rx="1" />
+        <path d="M6 2v1.5h4V2" />
+        <path d="M5.5 7.5h5M5.5 10.5h3" />
+      </svg>
+    ),
+  },
+  {
     href: "/documents",
     label: "Knowledge Base",
     icon: (
@@ -244,6 +264,26 @@ const NAV_RESPOND = [
         strokeLinejoin="round"
       >
         <path d="M2 4h12M2 8h8M2 12h5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/compliance",
+    label: "Compliance",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2.5 4l1 1 2-2" />
+        <path d="M2.5 9l1 1 2-2" />
+        <path d="M8 4h5.5M8 9h5.5M8 13h3.5" />
       </svg>
     ),
   },
