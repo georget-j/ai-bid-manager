@@ -1,5 +1,21 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening Phase 1: repair Public Contracts Scotland
+
+- **Scotland was ingesting zero notices** — the connector hit a 404 URL. Rewrote it for the
+  real Proactis OCDS contract: `{host}/v1/Notices?dateFrom=MM-YYYY&outputType=0&noticeType=N`,
+  host `api.publiccontractsscotland.gov.uk`, iterating noticeTypes 101–104.
+- New `lib/procurement/connectors/proactis.ts` shared helper: enumerates months from the
+  sync window and walks them via the engine's `cursor` (one page = one month across all
+  noticeTypes, so pages stay ≤ the backfill cap — no notices dropped mid-window).
+- **Secure TLS fix:** the Proactis API hosts omit the Sectigo `R36` intermediate, so Node
+  rejected them (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`). The helper supplies that intermediate
+  (inlined PEM, valid to 2036) alongside Node's default roots and keeps full verification on
+  — no `rejectUnauthorized:false`. Verified live (read-only): fetch + normalize of real
+  Scottish notices succeeds.
+- `seedSources()` base_url corrected; migration `050_scotland_proactis_base_url.sql`
+  (cosmetic, idempotent) — **pending apply** (connector works from code regardless).
+
 ## 2026-06-08 — Sources Hardening Phase 0: tracker + verified API audit
 
 - New initiative: fix admin Sources sync so every feed pulls correctly, schedule it at

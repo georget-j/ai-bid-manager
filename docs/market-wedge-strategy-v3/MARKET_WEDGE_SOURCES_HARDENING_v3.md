@@ -7,10 +7,13 @@
 
 ## Current pointer
 
-- **Status:** Phase 0 — scaffolding (in progress).
-- **Last commit:** (none yet for this initiative)
+- **Status:** Phase 1 COMPLETE (code) → starting Phase 2 (Sell2Wales).
+- **Last commit:** `fix(ingest): repair Public Contracts Scotland via Proactis OCDS API`
 - **Updated:** 2026-06-08
-- Next free migrations: **050** (Scotland base_url), **051** (Wales base_url + enable).
+- **Migrations PENDING APPLY (need user approval):** 050 (Scotland base_url — cosmetic),
+  051 (Wales base_url + enable — functional). Connector code works without 050.
+- Scotland fix verified live (read-only): connector fetches + normalizes real notices via
+  the Sectigo-intermediate TLS fix. Sell2Wales API leaf cert is EXPIRED → use bulk fallback.
 
 ## How to resume after compaction
 
@@ -76,14 +79,15 @@ machine-readable set. Procurement Act 2023 (24 Feb 2025) added new FTS notice ty
 
 ## Phase 0 — Compaction-safe tracker + verified API audit
 
-- [ ] This tracker created + pointers wired (NEXT_ACTIONS, EXECUTION_TRACKER) ·
-      `docs: sources-hardening tracker + verified UK procurement API audit`
+- [x] This tracker created + pointers wired (NEXT_ACTIONS, EXECUTION_TRACKER) ·
+      `docs: sources-hardening tracker + verified UK procurement API audit` (f05b95f)
 
 ## Phase 1 — Repair Public Contracts Scotland
 
-- [ ] `lib/procurement/connectors/proactis.ts` helper (month-walk cursor) + rewrite
-      `public-contracts-scotland.ts` (host `api.publiccontractsscotland.gov.uk`, types
-      101–104) + mig 050 + seedSources base_url + verify Scotland > 0 ·
+- [x] `lib/procurement/connectors/proactis.ts` helper (month-walk cursor + **secure Sectigo
+      intermediate TLS fix**) + rewrite `public-contracts-scotland.ts` (host
+      `api.publiccontractsscotland.gov.uk`, types 101–104) + seedSources base_url + mig 050
+      (pending apply). Verified live read-only: fetch + normalize OK ·
       `fix(ingest): repair Public Contracts Scotland via Proactis OCDS API (mig 050)`
 
 ## Phase 2 — Sell2Wales API + bulk-download fallback + enable

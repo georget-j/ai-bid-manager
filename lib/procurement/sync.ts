@@ -502,7 +502,7 @@ export async function seedSources(): Promise<void> {
       name: "public-contracts-scotland",
       display_name: "Public Contracts Scotland",
       type: "OCDS API",
-      base_url: "https://www.publiccontractsscotland.gov.uk",
+      base_url: "https://api.publiccontractsscotland.gov.uk",
       enabled: true,
       last_successful_sync_at: null,
       last_cursor: null,
