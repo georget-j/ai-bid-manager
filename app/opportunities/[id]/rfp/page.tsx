@@ -4,6 +4,7 @@ import { getRequestOrgId } from "@/lib/org";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { OpportunityTabs } from "../OpportunityTabs";
 import { RFPWorkflow } from "./RFPWorkflow";
+import { SaveAsDraftButton } from "./SaveAsDraftButton";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,17 @@ export default async function RFPResponsePage({ params }: PageProps) {
   return (
     <div style={{ maxWidth: 860 }}>
       <OpportunityTabs id={id} />
+      {initialCounts.total > 0 && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: 12,
+          }}
+        >
+          <SaveAsDraftButton opportunityId={id} />
+        </div>
+      )}
       <RFPWorkflow
         opp={{
           id: opp.id,

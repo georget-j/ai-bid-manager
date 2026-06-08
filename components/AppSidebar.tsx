@@ -231,8 +231,8 @@ const NAV_RESPOND = [
     ),
   },
   {
-    href: "/rfp",
-    label: "RFP Builder",
+    href: "/responses",
+    label: "Responses",
     icon: (
       <svg
         width="14"

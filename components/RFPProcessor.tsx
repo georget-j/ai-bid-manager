@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ErrorAlert } from "./ErrorAlert";
@@ -22,16 +22,31 @@ interface RFPProcessorProps {
   initialTitle?: string;
   initialOpportunityId?: string;
   initialQuestions?: ExtractedQuestion[];
+  /** When set, the processor loads/saves this persisted draft. */
+  draftId?: string;
+  initialStep?: Step;
+  initialSelected?: number[];
+  initialAnswers?: Record<string, AnsweredQuestion>;
+  /** Called once when a brand-new draft is auto-created (so the parent can track it). */
+  onDraftCreated?: (id: string) => void;
 }
 
 export function RFPProcessor({
   initialTitle = "",
   initialOpportunityId,
   initialQuestions,
+  draftId,
+  initialStep,
+  initialSelected,
+  initialAnswers,
+  onDraftCreated,
 }: RFPProcessorProps = {}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>(
-    initialQuestions && initialQuestions.length > 0 ? "reviewing" : "upload",
+    initialStep ??
+      (initialQuestions && initialQuestions.length > 0
+        ? "reviewing"
+        : "upload"),
   );
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,12 +56,79 @@ export function RFPProcessor({
     initialQuestions ?? [],
   );
   const [selected, setSelected] = useState<Set<number>>(
-    new Set((initialQuestions ?? []).map((q) => q.id)),
+    new Set(initialSelected ?? (initialQuestions ?? []).map((q) => q.id)),
   );
 
-  const [answers, setAnswers] = useState<Map<number, AnsweredQuestion>>(
-    new Map(),
-  );
+  const [answers, setAnswers] = useState<Map<number, AnsweredQuestion>>(() => {
+    const m = new Map<number, AnsweredQuestion>();
+    if (initialAnswers) {
+      for (const [k, v] of Object.entries(initialAnswers)) m.set(Number(k), v);
+    }
+    return m;
+  });
+
+  // ── Draft autosave ─────────────────────────────────────────────────────────
+  const draftIdRef = useRef<string | null>(draftId ?? null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  // Debounced persistence: create the draft on first meaningful change, then PATCH.
+  // Serialise the Map/Set state to JSON-friendly shapes.
+  useEffect(() => {
+    if (questions.length === 0 && !draftIdRef.current) return;
+    const timer = setTimeout(async () => {
+      const answersObj: Record<string, AnsweredQuestion> = {};
+      answers.forEach((v, k) => {
+        answersObj[String(k)] = v;
+      });
+      const payload = {
+        rfp_title: rfpTitle,
+        extracted_questions: questions,
+        selected_question_ids: Array.from(selected),
+        answers: answersObj,
+        status:
+          step === "done"
+            ? "completed"
+            : step === "answering"
+              ? "answering"
+              : "draft",
+      };
+      try {
+        if (!draftIdRef.current) {
+          const res = await fetch("/api/rfp/drafts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...payload,
+              opportunity_id: initialOpportunityId ?? null,
+            }),
+          });
+          const body = await res.json();
+          if (body?.draft?.id) {
+            draftIdRef.current = body.draft.id as string;
+            onDraftCreated?.(draftIdRef.current);
+          }
+        } else {
+          await fetch(`/api/rfp/drafts/${draftIdRef.current}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        }
+        setSavedAt(Date.now());
+      } catch {
+        /* autosave is best-effort — ignore transient failures */
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [
+    rfpTitle,
+    questions,
+    selected,
+    answers,
+    step,
+    initialOpportunityId,
+    onDraftCreated,
+  ]);
   const [answering, setAnswering] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState({ done: 0, total: 0 });
 
@@ -385,6 +467,7 @@ export function RFPProcessor({
                 {questions.length !== 1 ? "s" : ""} extracted
                 {selected.size < questions.length &&
                   ` · ${selected.size} selected`}
+                {savedAt && <span style={{ color: "#059669" }}> · Saved</span>}
               </p>
             </div>
             {step === "reviewing" && (
