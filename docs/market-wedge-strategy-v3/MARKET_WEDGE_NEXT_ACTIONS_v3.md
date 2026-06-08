@@ -1,10 +1,11 @@
 # Market Wedge Next Actions v3
 
-> **ACTIVE INITIATIVE (2026-06-06): 7-epic product uplift.**
-> Live state + resume pointer → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.
+> **ACTIVE INITIATIVE (2026-06-08): Sources Hardening (admin sync reliability + speed).**
+> Live state + resume pointer → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`.
 > Full design → `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`.
-> On compaction: read the UPLIFT_TRACKER Current pointer and resume from the first
+> On compaction: read the SOURCES_HARDENING Current pointer and resume from the first
 > unticked phase — do not work from memory.
+> (Prior initiative — 7-epic product uplift — is COMPLETE; see `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
 
 ## Current objective
 

@@ -1,5 +1,20 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening Phase 0: tracker + verified API audit
+
+- New initiative: fix admin Sources sync so every feed pulls correctly, schedule it at
+  23:59 BST, and maximise speed with no tenders missed.
+- **Live read-only probing found 2 of 4 connectors silently broken:** Public Contracts
+  Scotland hit a 404 URL and Sell2Wales hit the wrong host — both ingesting **zero**
+  notices. The real Proactis contract (verified + cross-checked against OCP Kingfisher) is
+  `{host}/v1/Notices?dateFrom=MM-YYYY&outputType=0&noticeType=N`, iterating noticeTypes
+  (Scotland 101–104, Wales 51–56), no cursor.
+- **Audit conclusion: no other machine-readable UK procurement APIs to add** — eTendersNI,
+  CCS/GCA, NHS/Atamis, MOD DSP, Jaggaer, Delta/ProContract/In-tend are portal-only and flow
+  downstream into FTS + Contracts Finder.
+- New `MARKET_WEDGE_SOURCES_HARDENING_v3.md` recovery anchor; NEXT_ACTIONS +
+  EXECUTION_TRACKER pointers repointed to it.
+
 ## 2026-06-06 — Epic 7.2: sync-health monitoring
 
 - Migration `048_sync_health.sql` (applied): `sources.last_run_at`, `last_fetched_count`,

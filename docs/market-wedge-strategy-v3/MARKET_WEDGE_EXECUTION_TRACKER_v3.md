@@ -1,7 +1,8 @@
 # Market Wedge Execution Tracker v3
 
-> **ACTIVE INITIATIVE (2026-06-06): 7-epic product uplift** →
-> `MARKET_WEDGE_UPLIFT_TRACKER_v3.md` holds the live resume pointer + per-phase checklist.
+> **ACTIVE INITIATIVE (2026-06-08): Sources Hardening** →
+> `MARKET_WEDGE_SOURCES_HARDENING_v3.md` holds the live resume pointer + per-phase checklist.
+> (Prior 7-epic product uplift is COMPLETE → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
 
 ## Current strategic phase
 
