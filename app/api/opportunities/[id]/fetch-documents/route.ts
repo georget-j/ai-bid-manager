@@ -3,6 +3,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { getOpportunity } from "@/lib/procurement/data";
+import { collectTenderDocuments } from "@/lib/procurement/documents";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 import { getOrFetchTenderDoc } from "@/lib/tender-docs";
 
@@ -170,33 +171,6 @@ async function checkAccessibility(url: string): Promise<{
   }
 }
 
-function collectDocUrls(opp: {
-  documents: NormalizedDocument[] | null;
-  raw_json: unknown;
-}): NormalizedDocument[] {
-  const base = (opp.documents ?? []) as NormalizedDocument[];
-  const seen = new Set(base.map((d) => d.url).filter(Boolean));
-
-  const extra: NormalizedDocument[] = [];
-  const raw = opp.raw_json as Record<string, unknown> | null;
-  if (raw && Array.isArray(raw.documents)) {
-    for (const d of raw.documents as Array<Record<string, unknown>>) {
-      if (typeof d.url === "string" && !seen.has(d.url)) {
-        seen.add(d.url);
-        extra.push({
-          title: typeof d.title === "string" ? d.title : "Untitled document",
-          url: d.url,
-          format: typeof d.format === "string" ? d.format : undefined,
-          documentType:
-            typeof d.documentType === "string" ? d.documentType : undefined,
-        });
-      }
-    }
-  }
-
-  return [...base, ...extra].filter((d) => Boolean(d.url));
-}
-
 export async function POST(_request: NextRequest, { params }: Params) {
   const orgId = await getRequestOrgId();
   if (!orgId) {
@@ -209,7 +183,7 @@ export async function POST(_request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const allDocs = collectDocUrls(opp);
+  const allDocs = collectTenderDocuments(opp);
 
   const CONCURRENCY = 8;
   const results: EnrichedDocument[] = [];

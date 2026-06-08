@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOpportunity } from "@/lib/procurement/data";
+import { countTenderDocuments } from "@/lib/procurement/documents";
 import { getRequestOrgId } from "@/lib/org";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { OpportunityActions } from "./OpportunityActions";
@@ -115,6 +116,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
   const status = STATUS_STYLES[opp.status] ?? STATUS_STYLES.unknown;
   const days = daysUntil(opp.deadline_at);
   const lots = (opp.lots ?? []) as NormalizedLot[];
+  const docCount = countTenderDocuments(opp);
 
   return (
     <div style={{ maxWidth: 840 }}>
@@ -250,6 +252,27 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                 : `${days} day${days === 1 ? "" : "s"} until deadline · ${formatDate(opp.deadline_at)}`}
           </div>
         )}
+
+        {/* Tender document count */}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "5px 11px",
+            borderRadius: 999,
+            background: "var(--bg-tint)",
+            border: "1px solid var(--border)",
+            fontSize: 12.5,
+            color: docCount > 0 ? "var(--ink-2)" : "var(--muted)",
+            marginBottom: 16,
+          }}
+        >
+          <span aria-hidden>📄</span>
+          {docCount > 0
+            ? `${docCount} tender document${docCount === 1 ? "" : "s"} listed`
+            : "No tender documents listed"}
+        </div>
 
         {/* Actions */}
         <OpportunityActions
