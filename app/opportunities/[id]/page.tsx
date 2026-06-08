@@ -7,6 +7,7 @@ import { OpportunityActions } from "./OpportunityActions";
 import { OpportunityTabs } from "./OpportunityTabs";
 import { OpportunityInsights } from "./OpportunityInsights";
 import { OpportunityKnowledgeBase } from "./OpportunityKnowledgeBase";
+import { OpportunityLifecycle } from "./OpportunityLifecycle";
 import type { OpportunityRow, NormalizedLot } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -276,6 +277,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           </p>
         </div>
       )}
+
+      {/* Tender lifecycle (Find a Tender record package — compiled timeline) */}
+      <OpportunityLifecycle opportunityId={opp.id} />
 
       {/* AI tender brief (derived, org-scoped — never written to the catalog) */}
       <OpportunityInsights opportunityId={opp.id} />

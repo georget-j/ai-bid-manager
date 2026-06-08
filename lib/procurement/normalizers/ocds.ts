@@ -14,7 +14,7 @@ type AnyRecord = Record<string, any>;
 // including the Procurement Act 2023 (Feb 2025) additions — e.g. pipeline notices
 // (planning), contractAmendment / contractTermination (contract), awardUpdate
 // (award) all map to a sensible stage and are never dropped.
-function mapOcdsStage(tags: unknown): ProcurementStage {
+export function mapOcdsStage(tags: unknown): ProcurementStage {
   if (!Array.isArray(tags)) return "unknown";
   const t = tags.join(" ").toLowerCase();
   if (t.includes("planning") || t.includes("prior")) return "planning";

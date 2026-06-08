@@ -1,5 +1,19 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Profile: Find a Tender lifecycle timeline (record packages)
+
+- Source-coverage audit (`MARKET_WEDGE_SOURCES_COVERAGE_v3.md`): confirmed the 4 OCDS feeds
+  are the complete free UK tender set; nothing else to add (NI sub-threshold has no feed
+  anywhere; paid aggregators add spend/supplier data, not notices — out of scope).
+- New **tender lifecycle** panel on the opportunity profile for Find a Tender notices:
+  `fetchFindTenderRecord(ocid)` (find-tender.ts) calls the compiled record endpoint
+  `…/ocdsRecordPackages/{ocid}` (by-OCID; the list form takes no params and is unusable);
+  new `…/[id]/lifecycle` route (auth-gated, `supported:false` for non-FTS) returns the
+  compiled current state + the notice history; `OpportunityLifecycle.tsx` renders a vertical
+  timeline (stage dot · date · title) with the current status. Read-only — no ingestion or
+  data-model change. Verified live: real OCIDs return 1–3 events, bad OCID → null (graceful).
+  `mapOcdsStage` exported for reuse. tsc + lint + build clean.
+
 ## 2026-06-08 — Sources: state-aware, informative sync-status banner
 
 - The Sources page showed a permanent red `Error: <raw message>` from the stored `last_error`,

@@ -117,4 +117,40 @@ export const findTenderConnector: ProcurementSourceConnector = {
   },
 };
 
+export interface FindTenderRecord {
+  ocid: string | null;
+  compiledRelease: AnyRecord | null;
+  releases: AnyRecord[];
+  versionedRelease: AnyRecord | null;
+}
+
+/**
+ * Fetch the compiled OCDS record (full lifecycle) for one Find a Tender process
+ * by OCID (`ocds-h6vhtk-…`). Read-only — powers the lifecycle timeline on the
+ * opportunity profile. Returns null on any non-200 / empty / parse failure.
+ */
+export async function fetchFindTenderRecord(
+  ocid: string,
+): Promise<FindTenderRecord | null> {
+  try {
+    const url = `${BASE_URL}/api/1.0/ocdsRecordPackages/${encodeURIComponent(ocid)}`;
+    const res = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return null;
+    const payload = (await res.json()) as AnyRecord;
+    const record = Array.isArray(payload.records) ? payload.records[0] : null;
+    if (!record) return null;
+    return {
+      ocid: record.ocid ?? ocid,
+      compiledRelease: record.compiledRelease ?? null,
+      releases: Array.isArray(record.releases) ? record.releases : [],
+      versionedRelease: record.versionedRelease ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export { LOOKBACK_HOURS, PAGE_LIMIT };
