@@ -1,5 +1,18 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources: state-aware, informative sync-status banner
+
+- The Sources page showed a permanent red `Error: <raw message>` from the stored `last_error`,
+  which stayed up even when stale and gave no context — confusing (e.g. a 12:53 end-of-results
+  `400` looked like a live failure). New `describeSyncError()` turns it into a state-aware status:
+  - **Amber "warning"** when the run still fetched data or the source has synced before (the
+    feed works — often just end-of-results), vs **red "error"** only when nothing ever came
+    through.
+  - Shows **when** it happened (`3h ago (8 Jun, 12:53)`) and a **"cleared on next sync"** chip
+    when a later success means the message is outdated.
+  - A plain-English **hint** per error class (end-of-results / 404 / network·TLS / 5xx /
+    rate-limit) plus the raw message in muted mono for detail.
+
 ## 2026-06-08 — Sources: "Sync all enabled sources" pulls a 7-day window
 
 - `/api/sources/sync-all` previously called `syncSource(c)` with no window — so it only did

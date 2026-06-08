@@ -103,6 +103,82 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+interface SyncStatus {
+  tone: "warn" | "error";
+  title: string;
+  hint: string | null;
+  raw: string;
+  when: string | null;
+  stale: boolean;
+}
+
+/**
+ * Turn the raw stored last_error into a state-aware, user-facing status:
+ * - a "warning" (amber) when the run still pulled data or the source has synced
+ *   before — the feed works, it just reported something (often end-of-results);
+ * - an "error" (red) only when nothing has ever come through;
+ * - flagged "stale" when a later successful sync means the message is outdated;
+ * - with a plain-English hint and the timestamp so the user knows WHEN + whether
+ *   to worry, instead of a permanent scary banner.
+ */
+function describeSyncError(s: SourceRow): SyncStatus | null {
+  if (!s.last_error) return null;
+  const raw = s.last_error;
+  const lower = raw.toLowerCase();
+  const fetched = s.last_fetched_count ?? 0;
+  const everSucceeded = Boolean(s.last_successful_sync_at);
+  const when = s.last_run_at ?? s.last_successful_sync_at;
+
+  // The error came from a run that still pulled data (or a source that has
+  // succeeded before) → treat it as a soft note, not a hard failure.
+  const soft = fetched > 0 || everSucceeded;
+
+  // A success recorded at/after the error means the message no longer reflects
+  // the current state (it clears on the next clean run).
+  const stale =
+    everSucceeded &&
+    s.last_run_at != null &&
+    new Date(s.last_successful_sync_at!).getTime() >=
+      new Date(s.last_run_at).getTime();
+
+  let hint: string | null = null;
+  if (lower.includes("400") || lower.includes("end of")) {
+    hint =
+      "Usually the feed signalling the end of available results — harmless if the run still fetched notices.";
+  } else if (lower.includes("404")) {
+    hint = "The feed endpoint wasn't found — the connector may need updating.";
+  } else if (
+    lower.includes("cert") ||
+    lower.includes("fetch failed") ||
+    lower.includes("timeout") ||
+    lower.includes("econn") ||
+    lower.includes("network")
+  ) {
+    hint =
+      "The provider's site was unreachable (network/TLS). It retries automatically.";
+  } else if (
+    lower.includes("500") ||
+    lower.includes("502") ||
+    lower.includes("503")
+  ) {
+    hint =
+      "The provider's service returned a server error. It retries automatically.";
+  } else if (lower.includes("429") || lower.includes("403")) {
+    hint = "The feed rate-limited us. It backs off and resumes automatically.";
+  }
+
+  return {
+    tone: soft ? "warn" : "error",
+    title: soft
+      ? `Last run completed with a note${fetched > 0 ? ` · fetched ${fetched.toLocaleString()}` : ""}`
+      : "Last sync did not complete",
+    hint,
+    raw,
+    when,
+    stale,
+  };
+}
+
 export default function SourcesPage() {
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -705,21 +781,64 @@ export default function SourcesPage() {
                         </div>
                       )}
 
-                    {source.last_error && (
-                      <div
-                        style={{
-                          marginTop: 6,
-                          padding: "4px 10px",
-                          borderRadius: "var(--r-sm)",
-                          background: "#fee2e2",
-                          color: "#dc2626",
-                          fontSize: 11.5,
-                          display: "inline-block",
-                        }}
-                      >
-                        Error: {source.last_error}
-                      </div>
-                    )}
+                    {(() => {
+                      const status = describeSyncError(source);
+                      if (!status) return null;
+                      const isWarn = status.tone === "warn";
+                      const bg = isWarn ? "#fef3c7" : "#fee2e2";
+                      const fg = isWarn ? "#92400e" : "#dc2626";
+                      return (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            padding: "6px 10px",
+                            borderRadius: "var(--r-sm)",
+                            background: bg,
+                            color: fg,
+                            fontSize: 11.5,
+                            maxWidth: 520,
+                          }}
+                        >
+                          <div style={{ fontWeight: 600 }}>
+                            {isWarn ? "⚠" : "⛔"} {status.title}
+                            {status.when && (
+                              <span style={{ fontWeight: 400, opacity: 0.85 }}>
+                                {" · "}
+                                {timeAgo(status.when)} (
+                                {formatDate(status.when)})
+                              </span>
+                            )}
+                            {status.stale && (
+                              <span
+                                style={{
+                                  fontWeight: 400,
+                                  marginLeft: 6,
+                                  padding: "0 6px",
+                                  borderRadius: 999,
+                                  background: "rgba(0,0,0,0.06)",
+                                }}
+                              >
+                                cleared on next sync
+                              </span>
+                            )}
+                          </div>
+                          {status.hint && (
+                            <div style={{ marginTop: 2 }}>{status.hint}</div>
+                          )}
+                          <div
+                            style={{
+                              marginTop: 3,
+                              opacity: 0.7,
+                              fontFamily: "var(--font-mono)",
+                              fontSize: 10.5,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {status.raw}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div
