@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { seedCyberDemoDocuments } from "@/lib/cyber-demo-seed";
+import {
+  seedCyberDemoDocuments,
+  seedCyberDemoProfile,
+} from "@/lib/cyber-demo-seed";
 import { getRequestOrgId } from "@/lib/org";
 import { checkRateLimit } from "@/lib/rate-limit";
+
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   const limited = await checkRateLimit(request, "seed");
@@ -17,7 +22,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await seedCyberDemoDocuments(orgId);
-    return NextResponse.json(result);
+    // Build out the Fortis Cyber account profile too (fills empty fields only).
+    const profile = await seedCyberDemoProfile(orgId);
+    return NextResponse.json({ ...result, profile });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[seed-cyber-demo]", message);
