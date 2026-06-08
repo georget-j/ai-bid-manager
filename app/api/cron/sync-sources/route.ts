@@ -51,36 +51,39 @@ export async function GET(request: NextRequest) {
   const OVERALL_BUDGET_MS = 240_000; // stay well under maxDuration (300s)
   const startedAt = Date.now();
 
-  // Run sequentially to avoid hammering APIs in parallel
-  const results = [];
-  for (let i = 0; i < enabled.length; i++) {
-    const connector = enabled[i];
-    const remaining = OVERALL_BUDGET_MS - (Date.now() - startedAt);
-    const timeBudgetMs = Math.max(
-      20_000,
-      Math.floor(remaining / (enabled.length - i)),
-    );
-    try {
-      const result = await syncSource(connector, {
+  // Sync all sources in PARALLEL. They are distinct hosts (find-tender,
+  // contractsfinder, publiccontractsscotland, sell2wales), so concurrency does
+  // not hammer any single API — and total wall-clock becomes ~max(per-source)
+  // instead of the sum. Each source gets the full forward budget; a slow/failing
+  // source can't starve the others, and resumes via its saved cursor next run.
+  const settled = await Promise.allSettled(
+    enabled.map((connector) =>
+      syncSource(connector, {
         maxPages: MAX_PAGES,
-        timeBudgetMs,
-      });
-      results.push(result);
-    } catch (err) {
-      results.push({
-        source: connector.sourceName,
-        error: err instanceof Error ? err.message : String(err),
-        fetched: 0,
-        rawStored: 0,
-        duplicatesSkipped: 0,
-        opportunitiesUpserted: 0,
-        opportunitiesErrored: 0,
-        errors: [],
-        hasMore: false,
-        nextCursor: null,
-      });
-    }
-  }
+        timeBudgetMs: OVERALL_BUDGET_MS,
+      }),
+    ),
+  );
+  const results = settled.map((s, i) =>
+    s.status === "fulfilled"
+      ? s.value
+      : {
+          source: enabled[i].sourceName,
+          error:
+            s.reason instanceof Error ? s.reason.message : String(s.reason),
+          fetched: 0,
+          pages: 0,
+          rawStored: 0,
+          duplicatesSkipped: 0,
+          opportunitiesUpserted: 0,
+          opportunitiesErrored: 0,
+          errors: [
+            s.reason instanceof Error ? s.reason.message : String(s.reason),
+          ],
+          hasMore: false,
+          nextCursor: null,
+        },
+  );
 
   // ── Bounded rolling historical catch-up ──────────────────────────────────
   // If wall-clock budget remains, sweep ONE source one window further back into

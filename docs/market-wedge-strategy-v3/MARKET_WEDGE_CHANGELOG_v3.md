@@ -1,5 +1,18 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening Phase 4: parallel sources + bulk upserts
+
+- **Cron now syncs all 4 sources in parallel** (`Promise.allSettled`). They are distinct
+  hosts, so concurrency doesn't hammer any one API — total wall-clock drops from the sum of
+  per-source times to ~the slowest source, and each source gets the full forward budget. A
+  failing/slow source can no longer starve the others; it resumes via its cursor next run.
+- **`syncSource` page processing is now bulk** (was ~2 DB round-trips per notice): chunked
+  dedup `.in()` over content hashes → one bulk `raw_notices` insert → one bulk
+  `opportunities` upsert (overwrite, `.select` ids for alert matching), deduped by conflict
+  key so a single statement never touches the same row twice. Skipping already-seen hashes
+  keeps alerts from re-firing on unchanged notices. Extracted a shared `toOpportunityRow`
+  used by both `syncSource` and `syncPage`. tsc + lint + `npm run build` clean.
+
 ## 2026-06-08 — Sources Hardening Phase 3: Contracts Finder + FTS correctness
 
 - **Contracts Finder:** send `limit` instead of the silently-ignored `size` param (verified

@@ -7,8 +7,8 @@
 
 ## Current pointer
 
-- **Status:** Phase 3 COMPLETE (code) → starting Phase 4 (speed).
-- **Last commit:** `fix(ingest): CF 403 rate-limit + limit param + FTS notice-type coverage`
+- **Status:** Phase 4 COMPLETE (code) → starting Phase 5 (schedule + polish).
+- **Last commit:** `perf(ingest): parallel sources + bulk upserts`
 - **Updated:** 2026-06-08
 - **Migrations PENDING APPLY (need user approval):** 050 (Scotland base_url — cosmetic),
   051 (Wales base_url + enable — **functional**: cron needs `enabled=true` to sync Wales).
@@ -110,8 +110,12 @@ machine-readable set. Procurement Act 2023 (24 Feb 2025) added new FTS notice ty
 
 ## Phase 4 — Speed: parallel sources + bulk upserts
 
-- [ ] Cron forward sync via `Promise.allSettled` (distinct hosts); `syncSource` bulk
-      dedup/insert/upsert (mirror `syncPage`) · `perf(ingest): parallel sources + bulk upserts`
+- [x] Cron forward sync now `Promise.allSettled` across the 4 distinct hosts (wall-clock
+      ~max instead of sum; each gets full budget; a slow source can't starve others).
+      `syncSource` page processing refactored to bulk: chunked dedup `.in()` on content
+      hashes → bulk raw_notices insert → bulk opportunities upsert (overwrite, `.select`
+      ids for alerts), deduped by conflict key. Shared `toOpportunityRow` (also used by
+      `syncPage`). tsc+lint+build clean · `perf(ingest): parallel sources + bulk upserts`
 
 ## Phase 5 — 23:59 BST schedule + health polish + final audit
 

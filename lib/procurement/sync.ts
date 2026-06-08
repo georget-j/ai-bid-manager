@@ -135,87 +135,99 @@ export async function syncSource(
     totalFetched += rawItems.length;
     totalPages++;
 
+    // ── Bulk page processing ────────────────────────────────────────────────
+    // Dedup against already-stored content hashes (chunked .in() to bound the
+    // query-string size), then bulk-insert raw_notices + bulk-upsert
+    // opportunities — a handful of DB round-trips per page instead of ~2 per
+    // notice. Skipping already-seen hashes also keeps alert matching from
+    // re-firing on unchanged notices.
+    const seenInPage = new Set<string>();
+    const pageItems: Array<{ raw: unknown; hash: string; noticeId: string }> =
+      [];
     for (const raw of rawItems) {
-      const contentHash = hashPayload(raw);
+      const hash = hashPayload(raw);
+      if (seenInPage.has(hash)) continue; // identical payload twice in one page
+      seenInPage.add(hash);
+      pageItems.push({ raw, hash, noticeId: extractSourceId(raw) ?? hash });
+    }
 
-      const { error: rawError } = await supabase.from("raw_notices").insert({
+    const existingHashes = new Set<string>();
+    for (const group of chunk(
+      pageItems.map((i) => i.hash),
+      100,
+    )) {
+      const { data: rows } = await supabase
+        .from("raw_notices")
+        .select("content_hash")
+        .eq("source_name", connector.sourceName)
+        .in("content_hash", group);
+      for (const row of rows ?? []) existingHashes.add(row.content_hash);
+    }
+
+    const freshItems = pageItems.filter((i) => !existingHashes.has(i.hash));
+    duplicatesSkipped += pageItems.length - freshItems.length;
+
+    if (freshItems.length > 0) {
+      const rawRows = freshItems.map((i) => ({
         source_name: connector.sourceName,
-        source_notice_id: extractSourceId(raw) ?? contentHash,
-        ocid: extractOcid(raw),
-        raw_payload: raw as object,
-        content_hash: contentHash,
+        source_notice_id: i.noticeId,
+        ocid: extractOcid(i.raw),
+        raw_payload: i.raw as object,
+        content_hash: i.hash,
         fetched_at: fetchResult.fetchedAt,
         parser_version: "1",
-      });
+      }));
+      const { error: rawErr } = await supabase
+        .from("raw_notices")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert(rawRows as any, {
+          onConflict: "source_name,source_notice_id,content_hash",
+          ignoreDuplicates: true,
+        });
+      if (rawErr) errors.push(`raw_notices: ${rawErr.message}`);
+      else rawStored += freshItems.length;
 
-      if (rawError) {
-        if (rawError.code === "23505") {
-          duplicatesSkipped++;
-        } else {
-          errors.push(`raw_notice insert: ${rawError.message}`);
+      const normResults = await Promise.allSettled(
+        freshItems.map((i) => connector.normalize(i.raw)),
+      );
+      // Dedupe by (source_name, source_notice_id) so a single bulk upsert never
+      // tries to touch the same conflict target twice (Postgres errors on that).
+      const oppByKey = new Map<string, Record<string, unknown>>();
+      for (const res of normResults) {
+        if (res.status === "rejected") {
+          normalizeErrors++;
+          errors.push(`normalize: ${String(res.reason)}`);
+          continue;
         }
-        continue;
+        for (const opp of res.value) {
+          oppByKey.set(
+            `${opp.sourceName}|${opp.sourceNoticeId}`,
+            toOpportunityRow(opp),
+          );
+        }
       }
+      const oppRows = [...oppByKey.values()];
 
-      rawStored++;
-
-      let normalized: NormalizedOpportunity[];
-      try {
-        normalized = await connector.normalize(raw);
-      } catch (err) {
-        normalizeErrors++;
-        errors.push(
-          `normalize: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        continue;
-      }
-
-      for (const opp of normalized) {
-        const { data: oppData, error: oppError } = await supabase
+      if (oppRows.length > 0) {
+        // ignoreDuplicates:false so incremental syncs keep existing
+        // opportunities fresh (status/award updates); .select() returns the
+        // upserted ids for alert matching.
+        const { data: upData, error: oppErr } = await supabase
           .from("opportunities")
-          .upsert(
-            {
-              canonical_ocid: opp.canonicalOcid ?? null,
-              source_name: opp.sourceName,
-              source_notice_id: opp.sourceNoticeId,
-              source_url: opp.sourceUrl ?? null,
-              submission_url: opp.submissionUrl ?? null,
-              title: opp.title,
-              description: opp.description ?? null,
-              buyer_name: opp.buyerName ?? null,
-              buyer_identifier: opp.buyerIdentifier ?? null,
-              buyer_region: opp.buyerRegion ?? null,
-              notice_type: opp.noticeType ?? null,
-              procurement_stage: opp.procurementStage,
-              status: opp.status,
-              cpv_codes: opp.cpvCodes,
-              region: opp.region ?? null,
-              value_amount: opp.valueAmount ?? null,
-              value_currency: opp.valueCurrency ?? "GBP",
-              published_at: opp.publishedAt ?? null,
-              deadline_at: opp.deadlineAt ?? null,
-              contract_start_at: opp.contractStartAt ?? null,
-              contract_end_at: opp.contractEndAt ?? null,
-              framework_flag: opp.frameworkFlag ?? false,
-              lots: opp.lots ?? null,
-              documents: opp.documents ?? null,
-              raw_json: opp.rawJson ?? null,
-              updated_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "source_name,source_notice_id",
-              ignoreDuplicates: false,
-            },
-          )
-          .select("id")
-          .single();
-
-        if (oppError) {
-          errors.push(`opportunity upsert: ${oppError.message}`);
-          opportunitiesErrored++;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .upsert(oppRows as any, {
+            onConflict: "source_name,source_notice_id",
+            ignoreDuplicates: false,
+          })
+          .select("id");
+        if (oppErr) {
+          errors.push(`opportunities: ${oppErr.message}`);
+          opportunitiesErrored += oppRows.length;
         } else {
-          opportunitiesUpserted++;
-          if (oppData?.id) upsertedIds.push(oppData.id);
+          opportunitiesUpserted += oppRows.length;
+          for (const row of upData ?? []) {
+            if (row?.id) upsertedIds.push(row.id);
+          }
         }
       }
     }
@@ -283,6 +295,45 @@ export async function syncSource(
     errors,
     hasMore: hasMoreAfterCap,
     nextCursor: hasMoreAfterCap ? currentCursor : null,
+  };
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/** Map a normalized opportunity to the `opportunities` row shape (shared by the
+ *  incremental sync and the single-page sync). */
+function toOpportunityRow(opp: NormalizedOpportunity): Record<string, unknown> {
+  return {
+    canonical_ocid: opp.canonicalOcid ?? null,
+    source_name: opp.sourceName,
+    source_notice_id: opp.sourceNoticeId,
+    source_url: opp.sourceUrl ?? null,
+    submission_url: opp.submissionUrl ?? null,
+    title: opp.title,
+    description: opp.description ?? null,
+    buyer_name: opp.buyerName ?? null,
+    buyer_identifier: opp.buyerIdentifier ?? null,
+    buyer_region: opp.buyerRegion ?? null,
+    notice_type: opp.noticeType ?? null,
+    procurement_stage: opp.procurementStage,
+    status: opp.status,
+    cpv_codes: opp.cpvCodes,
+    region: opp.region ?? null,
+    value_amount: opp.valueAmount ?? null,
+    value_currency: opp.valueCurrency ?? "GBP",
+    published_at: opp.publishedAt ?? null,
+    deadline_at: opp.deadlineAt ?? null,
+    contract_start_at: opp.contractStartAt ?? null,
+    contract_end_at: opp.contractEndAt ?? null,
+    framework_flag: opp.frameworkFlag ?? false,
+    lots: opp.lots ?? null,
+    documents: opp.documents ?? null,
+    raw_json: opp.rawJson ?? null,
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -413,34 +464,7 @@ export async function syncPage(
       continue;
     }
     for (const opp of r.value) {
-      oppRows.push({
-        canonical_ocid: opp.canonicalOcid ?? null,
-        source_name: opp.sourceName,
-        source_notice_id: opp.sourceNoticeId,
-        source_url: opp.sourceUrl ?? null,
-        submission_url: opp.submissionUrl ?? null,
-        title: opp.title,
-        description: opp.description ?? null,
-        buyer_name: opp.buyerName ?? null,
-        buyer_identifier: opp.buyerIdentifier ?? null,
-        buyer_region: opp.buyerRegion ?? null,
-        notice_type: opp.noticeType ?? null,
-        procurement_stage: opp.procurementStage,
-        status: opp.status,
-        cpv_codes: opp.cpvCodes,
-        region: opp.region ?? null,
-        value_amount: opp.valueAmount ?? null,
-        value_currency: opp.valueCurrency ?? "GBP",
-        published_at: opp.publishedAt ?? null,
-        deadline_at: opp.deadlineAt ?? null,
-        contract_start_at: opp.contractStartAt ?? null,
-        contract_end_at: opp.contractEndAt ?? null,
-        framework_flag: opp.frameworkFlag ?? false,
-        lots: opp.lots ?? null,
-        documents: opp.documents ?? null,
-        raw_json: opp.rawJson ?? null,
-        updated_at: new Date().toISOString(),
-      });
+      oppRows.push(toOpportunityRow(opp));
     }
   }
 
