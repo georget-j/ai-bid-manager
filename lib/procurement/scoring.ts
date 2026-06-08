@@ -60,8 +60,13 @@ export function scoreOpportunity(
     );
   }
 
-  // Keyword / service match — up to 20 pts
-  const keywords = [...profile.keywords, ...profile.services];
+  // Keyword / service / sector match — up to 20 pts.
+  // Sectors are folded in here so they contribute without inflating the 100-pt ceiling.
+  const keywords = [
+    ...profile.keywords,
+    ...profile.services,
+    ...profile.sectors,
+  ];
   const keywordMatches = keywords.filter((kw) =>
     text.includes(kw.toLowerCase()),
   );
@@ -69,7 +74,7 @@ export function scoreOpportunity(
     const pts = Math.min(20, keywordMatches.length * 5);
     score += pts;
     reasons.push(
-      `Matches service keywords: ${[...new Set(keywordMatches)].slice(0, 5).join(", ")}`,
+      `Matches your services / sectors: ${[...new Set(keywordMatches)].slice(0, 5).join(", ")}`,
     );
   }
 
@@ -128,6 +133,44 @@ export function scoreOpportunity(
     }
   } else {
     risks.push("No contract value specified for this opportunity.");
+  }
+
+  // Financial standing — turnover vs contract value (informational risk, no score change).
+  // UK buyers commonly cap a single contract at ~50% of supplier turnover
+  // (i.e. require turnover of roughly 2× the annual contract value).
+  if (profile.annual_turnover && value !== null) {
+    if (value > profile.annual_turnover * 0.5) {
+      risks.push(
+        `Contract value (£${value.toLocaleString()}) is high relative to your annual turnover (£${profile.annual_turnover.toLocaleString()}) — buyers often require turnover of ~2× the contract value.`,
+      );
+      missingRequirements.push(
+        "Check the financial-standing / minimum-turnover requirement before bidding.",
+      );
+    } else {
+      reasons.push(
+        "Contract value is comfortably within your financial capacity.",
+      );
+    }
+  }
+
+  // Insurance signal — surface a gap when the tender references insurance and none is on file.
+  if (/insurance|indemnity|liability/.test(text)) {
+    const ins = profile.insurance;
+    const hasCover = Boolean(
+      ins &&
+      (ins.professional_indemnity ||
+        ins.public_liability ||
+        ins.employers_liability),
+    );
+    if (hasCover) {
+      reasons.push(
+        "Insurance cover is on file (this tender references insurance requirements).",
+      );
+    } else {
+      missingRequirements.push(
+        "Record your insurance cover (professional indemnity, public & employers' liability) — this tender references insurance requirements.",
+      );
+    }
   }
 
   // Evidence / readiness — up to 20 pts (heuristic: certs + accreditations present)

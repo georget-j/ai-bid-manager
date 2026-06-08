@@ -3,6 +3,15 @@ import * as z from "zod";
 import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile, upsertOrgProfile } from "@/lib/procurement/data";
 
+const InsuranceSchema = z
+  .object({
+    professional_indemnity: z.number().nullable().optional(),
+    public_liability: z.number().nullable().optional(),
+    employers_liability: z.number().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
 const ProfileSchema = z.object({
   name: z.string().min(1),
   organisation_type: z.string().optional(),
@@ -13,11 +22,18 @@ const ProfileSchema = z.object({
   regions: z.array(z.string()).default([]),
   certifications: z.array(z.string()).default([]),
   accreditations: z.array(z.string()).default([]),
+  insurance: InsuranceSchema,
   min_contract_value: z.number().nullable().optional(),
   max_contract_value: z.number().nullable().optional(),
   preferred_buyers: z.array(z.string()).default([]),
   excluded_buyers: z.array(z.string()).default([]),
   excluded_keywords: z.array(z.string()).default([]),
+  // Buildout (migration 053)
+  company_size_band: z.string().nullable().optional(),
+  annual_turnover: z.number().nullable().optional(),
+  year_established: z.number().int().nullable().optional(),
+  delivery_models: z.array(z.string()).default([]),
+  social_value: z.array(z.string()).default([]),
 });
 
 export async function GET() {
@@ -54,7 +70,10 @@ export async function POST(request: NextRequest) {
       organisation_type: parsed.data.organisation_type ?? null,
       min_contract_value: parsed.data.min_contract_value ?? null,
       max_contract_value: parsed.data.max_contract_value ?? null,
-      insurance: null,
+      insurance: parsed.data.insurance ?? null,
+      company_size_band: parsed.data.company_size_band ?? null,
+      annual_turnover: parsed.data.annual_turnover ?? null,
+      year_established: parsed.data.year_established ?? null,
     });
 
     return NextResponse.json({ profile });

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 interface Profile {
   name: string;
   organisation_type: string;
+  sectors: string;
   services: string;
   keywords: string;
   cpv_codes: string;
@@ -13,6 +14,14 @@ interface Profile {
   accreditations: string;
   min_contract_value: string;
   max_contract_value: string;
+  company_size_band: string;
+  annual_turnover: string;
+  year_established: string;
+  delivery_models: string;
+  social_value: string;
+  insurance_pi: string;
+  insurance_pl: string;
+  insurance_el: string;
   preferred_buyers: string;
   excluded_buyers: string;
   excluded_keywords: string;
@@ -21,6 +30,7 @@ interface Profile {
 const EMPTY: Profile = {
   name: "",
   organisation_type: "",
+  sectors: "",
   services: "",
   keywords: "",
   cpv_codes: "",
@@ -29,10 +39,27 @@ const EMPTY: Profile = {
   accreditations: "",
   min_contract_value: "",
   max_contract_value: "",
+  company_size_band: "",
+  annual_turnover: "",
+  year_established: "",
+  delivery_models: "",
+  social_value: "",
+  insurance_pi: "",
+  insurance_pl: "",
+  insurance_el: "",
   preferred_buyers: "",
   excluded_buyers: "",
   excluded_keywords: "",
 };
+
+const COMPANY_SIZE_BANDS = [
+  "Micro (0-9)",
+  "Small (10-49)",
+  "Medium (50-249)",
+  "Large (250+)",
+];
+
+const DELIVERY_MODELS = ["On-site", "Remote", "Hybrid", "Nationwide"];
 
 const UK_REGIONS = [
   "England",
@@ -134,6 +161,50 @@ function TagInput({
   );
 }
 
+function insurancePayload(form: Profile) {
+  const pi = form.insurance_pi ? Number(form.insurance_pi) : null;
+  const pl = form.insurance_pl ? Number(form.insurance_pl) : null;
+  const el = form.insurance_el ? Number(form.insurance_el) : null;
+  if (pi == null && pl == null && el == null) return null;
+  return {
+    professional_indemnity: pi,
+    public_liability: pl,
+    employers_liability: el,
+  };
+}
+
+// Fields that feed opportunity-fit scoring — drives the completeness meter so the
+// user knows which gaps most limit their recommendations.
+function computeCompleteness(form: Profile): {
+  pct: number;
+  missing: string[];
+} {
+  const checks: { label: string; filled: boolean }[] = [
+    { label: "CPV codes", filled: !!form.cpv_codes.trim() },
+    { label: "Services", filled: !!form.services.trim() },
+    { label: "Keywords", filled: !!form.keywords.trim() },
+    { label: "Sectors", filled: !!form.sectors.trim() },
+    { label: "Target regions", filled: !!form.regions.trim() },
+    { label: "Certifications", filled: !!form.certifications.trim() },
+    { label: "Accreditations", filled: !!form.accreditations.trim() },
+    {
+      label: "Contract value range",
+      filled: !!(form.min_contract_value || form.max_contract_value),
+    },
+    { label: "Company size", filled: !!form.company_size_band },
+    { label: "Annual turnover", filled: !!form.annual_turnover },
+    { label: "Delivery models", filled: !!form.delivery_models.trim() },
+    {
+      label: "Insurance cover",
+      filled: !!(form.insurance_pi || form.insurance_pl || form.insurance_el),
+    },
+  ];
+  const filled = checks.filter((c) => c.filled).length;
+  const pct = Math.round((filled / checks.length) * 100);
+  const missing = checks.filter((c) => !c.filled).map((c) => c.label);
+  return { pct, missing };
+}
+
 export default function ProfilePage() {
   const [form, setForm] = useState<Profile>(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -149,19 +220,28 @@ export default function ProfilePage() {
           const p = data.profile;
           const arr = (v: unknown) =>
             Array.isArray(v) ? (v as string[]).join(", ") : "";
+          const ins = (p.insurance ?? {}) as Record<string, unknown>;
+          const num = (v: unknown) => (v != null ? String(v) : "");
           setForm({
             name: String(p.name ?? ""),
             organisation_type: String(p.organisation_type ?? ""),
+            sectors: arr(p.sectors),
             services: arr(p.services),
             keywords: arr(p.keywords),
             cpv_codes: arr(p.cpv_codes),
             regions: arr(p.regions),
             certifications: arr(p.certifications),
             accreditations: arr(p.accreditations),
-            min_contract_value:
-              p.min_contract_value != null ? String(p.min_contract_value) : "",
-            max_contract_value:
-              p.max_contract_value != null ? String(p.max_contract_value) : "",
+            min_contract_value: num(p.min_contract_value),
+            max_contract_value: num(p.max_contract_value),
+            company_size_band: String(p.company_size_band ?? ""),
+            annual_turnover: num(p.annual_turnover),
+            year_established: num(p.year_established),
+            delivery_models: arr(p.delivery_models),
+            social_value: arr(p.social_value),
+            insurance_pi: num(ins.professional_indemnity),
+            insurance_pl: num(ins.public_liability),
+            insurance_el: num(ins.employers_liability),
             preferred_buyers: arr(p.preferred_buyers),
             excluded_buyers: arr(p.excluded_buyers),
             excluded_keywords: arr(p.excluded_keywords),
@@ -203,6 +283,7 @@ export default function ProfilePage() {
         body: JSON.stringify({
           name: form.name.trim(),
           organisation_type: form.organisation_type || undefined,
+          sectors: splitTags(form.sectors),
           services: splitTags(form.services),
           keywords: splitTags(form.keywords),
           cpv_codes: splitTags(form.cpv_codes),
@@ -215,6 +296,16 @@ export default function ProfilePage() {
           max_contract_value: form.max_contract_value
             ? Number(form.max_contract_value)
             : null,
+          company_size_band: form.company_size_band || null,
+          annual_turnover: form.annual_turnover
+            ? Number(form.annual_turnover)
+            : null,
+          year_established: form.year_established
+            ? Number(form.year_established)
+            : null,
+          delivery_models: splitTags(form.delivery_models),
+          social_value: splitTags(form.social_value),
+          insurance: insurancePayload(form),
           preferred_buyers: splitTags(form.preferred_buyers),
           excluded_buyers: splitTags(form.excluded_buyers),
           excluded_keywords: splitTags(form.excluded_keywords),
@@ -242,6 +333,8 @@ export default function ProfilePage() {
     );
   }
 
+  const completeness = computeCompleteness(form);
+
   return (
     <div style={{ maxWidth: 760 }}>
       <div
@@ -256,6 +349,69 @@ export default function ProfilePage() {
           Your profile powers opportunity matching, bid/no-bid scoring, and
           evidence gap analysis. Complete as much as possible for best results.
         </p>
+      </div>
+
+      {/* Completeness meter — which fit-scoring fields are still empty */}
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 8,
+          }}
+        >
+          <div className="eyebrow" style={{ margin: 0 }}>
+            Profile strength
+          </div>
+          <span
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color:
+                completeness.pct >= 80
+                  ? "#059669"
+                  : completeness.pct >= 50
+                    ? "#d97706"
+                    : "#dc2626",
+            }}
+          >
+            {completeness.pct}%
+          </span>
+        </div>
+        <div
+          style={{
+            height: 7,
+            borderRadius: 999,
+            background: "var(--surface-2)",
+            overflow: "hidden",
+            marginBottom: completeness.missing.length ? 10 : 0,
+          }}
+        >
+          <div
+            style={{
+              width: `${completeness.pct}%`,
+              height: "100%",
+              borderRadius: 999,
+              background:
+                completeness.pct >= 80
+                  ? "#059669"
+                  : completeness.pct >= 50
+                    ? "#d97706"
+                    : "#dc2626",
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
+        {completeness.missing.length > 0 && (
+          <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+            Add to improve recommendations:{" "}
+            <span style={{ color: "var(--ink-2)" }}>
+              {completeness.missing.join(" · ")}
+            </span>
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSave}>
@@ -320,6 +476,14 @@ export default function ProfilePage() {
           <div className="eyebrow" style={{ marginBottom: 16 }}>
             Services and discovery
           </div>
+
+          <TagInput
+            label="Sectors"
+            hint="Industries you serve. Matched against opportunity titles and descriptions."
+            value={form.sectors}
+            onChange={set("sectors")}
+            placeholder="e.g. Healthcare, Local government, Education, Defence"
+          />
 
           <TagInput
             label="Services"
@@ -445,6 +609,191 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Capacity and delivery */}
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <div className="eyebrow" style={{ marginBottom: 16 }}>
+            Capacity and delivery
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+              marginBottom: 20,
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                  color: "var(--ink)",
+                }}
+              >
+                Company size
+              </label>
+              <select
+                className="input"
+                value={form.company_size_band}
+                onChange={(e) => set("company_size_band")(e.target.value)}
+                style={{ width: "100%" }}
+              >
+                <option value="">Select size…</option>
+                {COMPANY_SIZE_BANDS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                  color: "var(--ink)",
+                }}
+              >
+                Year established
+              </label>
+              <input
+                className="input"
+                type="number"
+                value={form.year_established}
+                onChange={(e) => set("year_established")(e.target.value)}
+                placeholder="e.g. 2014"
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 500,
+                marginBottom: 4,
+                color: "var(--ink)",
+              }}
+            >
+              Annual turnover (£)
+            </label>
+            <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+              Used to flag opportunities where the contract value may exceed
+              your financial-standing capacity.
+            </p>
+            <input
+              className="input"
+              type="number"
+              value={form.annual_turnover}
+              onChange={(e) => set("annual_turnover")(e.target.value)}
+              placeholder="e.g. 2400000"
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "var(--ink)",
+              }}
+            >
+              Delivery models
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {DELIVERY_MODELS.map((model) => {
+                const selected = splitTags(form.delivery_models).includes(
+                  model,
+                );
+                return (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => {
+                      const current = splitTags(form.delivery_models);
+                      const next = selected
+                        ? current.filter((m) => m !== model)
+                        : [...current, model];
+                      set("delivery_models")(next.join(", "));
+                    }}
+                    style={{
+                      fontSize: 12,
+                      padding: "4px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      background: selected
+                        ? "var(--accent-tint)"
+                        : "transparent",
+                      color: selected ? "var(--accent)" : "var(--ink-2)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {model}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Insurance */}
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <div className="eyebrow" style={{ marginBottom: 4 }}>
+            Insurance cover
+          </div>
+          <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>
+            Cover levels (£). Surfaced when a tender references insurance
+            requirements.
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: 16,
+            }}
+          >
+            {(
+              [
+                ["insurance_pi", "Professional indemnity"],
+                ["insurance_pl", "Public liability"],
+                ["insurance_el", "Employers' liability"],
+              ] as [keyof Profile, string][]
+            ).map(([key, label]) => (
+              <div key={key}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    marginBottom: 4,
+                    color: "var(--ink)",
+                  }}
+                >
+                  {label}
+                </label>
+                <input
+                  className="input"
+                  type="number"
+                  value={form[key]}
+                  onChange={(e) => set(key)(e.target.value)}
+                  placeholder="e.g. 1000000"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Credentials */}
         <div className="card card-pad" style={{ marginBottom: 16 }}>
           <div className="eyebrow" style={{ marginBottom: 16 }}>
@@ -465,6 +814,14 @@ export default function ProfilePage() {
             value={form.accreditations}
             onChange={set("accreditations")}
             placeholder="e.g. G-Cloud 14, NHS DSPT"
+          />
+
+          <TagInput
+            label="Social value"
+            hint="Commitments that strengthen social-value scoring in UK tenders."
+            value={form.social_value}
+            onChange={set("social_value")}
+            placeholder="e.g. Net Zero by 2030, local employment, SME supply chain"
           />
         </div>
 

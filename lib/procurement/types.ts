@@ -150,6 +150,13 @@ export interface SourceRow {
   updated_at: string;
 }
 
+/** Structured insurance cover (amounts in GBP). All optional. */
+export interface InsuranceCover {
+  professional_indemnity?: number | null;
+  public_liability?: number | null;
+  employers_liability?: number | null;
+}
+
 export interface OrganisationProfileRow {
   id: string;
   org_id: string;
@@ -162,12 +169,18 @@ export interface OrganisationProfileRow {
   regions: string[];
   certifications: string[];
   accreditations: string[];
-  insurance: unknown | null;
+  insurance: InsuranceCover | null;
   min_contract_value: number | null;
   max_contract_value: number | null;
   preferred_buyers: string[];
   excluded_buyers: string[];
   excluded_keywords: string[];
+  // Buildout (migration 053) — capability/capacity signals for fit scoring.
+  company_size_band: string | null;
+  annual_turnover: number | null;
+  year_established: number | null;
+  delivery_models: string[];
+  social_value: string[];
   created_at: string;
   updated_at: string;
 }
