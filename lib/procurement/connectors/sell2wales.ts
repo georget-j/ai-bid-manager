@@ -1,67 +1,36 @@
 import type {
   ProcurementSourceConnector,
-  FetchSinceParams,
-  SourceFetchResult,
   NormalizedOpportunity,
 } from "../types";
 import { normalizeOcdsRelease } from "../normalizers/ocds";
+import { createProactisFetchSince } from "./proactis";
+import { fetchSell2WalesMonthBulk } from "./sell2wales-bulk";
 
+// Sell2Wales runs on the same Proactis/Millstream platform as Public Contracts
+// Scotland. Primary path is the OCDS API:
+//   {host}/v1/Notices?dateFrom=MM-YYYY&outputType=0&noticeType=N
+// The API host periodically has TLS problems (it omits the Sectigo intermediate,
+// handled by the shared secure fetch, and has at times an expired leaf cert), so
+// the connector falls back to the monthly bulk download when the API yields nothing.
 const BASE_URL =
-  process.env.SELL2WALES_BASE_URL ?? "https://www.sell2wales.gov.wales";
+  process.env.SELL2WALES_BASE_URL ?? "https://api.sell2wales.gov.wales";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRecord = Record<string, any>;
+// Proactis noticeType ids for Sell2Wales (Welsh notice categories).
+const NOTICE_TYPES = [51, 52, 53, 54, 55, 56];
+
+const fetchSince = createProactisFetchSince({
+  sourceName: "sell2wales",
+  apiBaseUrl: BASE_URL,
+  noticeTypes: NOTICE_TYPES,
+  monthFallback: fetchSell2WalesMonthBulk,
+});
 
 export const sell2walesConnector: ProcurementSourceConnector = {
   sourceName: "sell2wales",
   displayName: "Sell2Wales",
   baseUrl: BASE_URL,
 
-  async fetchSince({
-    from,
-    to,
-    cursor,
-    limit = 100,
-  }: FetchSinceParams): Promise<SourceFetchResult> {
-    // Sell2Wales publishes an OCDS-compatible feed
-    const url = new URL(`${BASE_URL}/api/1.0/ocdsReleasePackages`);
-    url.searchParams.set("updatedFrom", from.toISOString());
-    url.searchParams.set("updatedTo", to.toISOString());
-    url.searchParams.set("limit", String(limit));
-    if (cursor) url.searchParams.set("cursor", cursor);
-
-    const response = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Sell2Wales API returned ${response.status}: ${response.statusText}`,
-      );
-    }
-
-    const payload = (await response.json()) as AnyRecord;
-
-    const rawItems: unknown[] = Array.isArray(payload.releases)
-      ? payload.releases
-      : Array.isArray(payload.packages)
-        ? (payload.packages as AnyRecord[]).flatMap((pkg) =>
-            Array.isArray(pkg.releases) ? pkg.releases : [pkg],
-          )
-        : [payload];
-
-    const nextCursor: string | null =
-      payload.nextCursor ?? payload.links?.next ?? null;
-
-    return {
-      sourceName: "sell2wales",
-      rawItems,
-      nextCursor,
-      fetchedAt: new Date().toISOString(),
-      hasMore: Boolean(nextCursor),
-    };
-  },
+  fetchSince,
 
   async normalize(raw: unknown): Promise<NormalizedOpportunity[]> {
     try {

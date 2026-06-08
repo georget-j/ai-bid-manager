@@ -1,5 +1,22 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Sources Hardening Phase 2: Sell2Wales API + bulk-download fallback
+
+- Rewrote the Sell2Wales connector for the Proactis OCDS API (host
+  `api.sell2wales.gov.wales`, noticeTypes 51–56) via the shared `proactis.ts` helper, and
+  added `sell2wales-bulk.ts` — a month-level bulk-download fallback that drives the
+  Download.aspx ASP.NET form (rblCollectionType=0, OCDS+JSON, exact month option, per
+  F-type) and returns OCDS releases. The helper now uses a single **month-level** fallback
+  (called once per month when the API yields nothing) instead of per-noticeType.
+- Enabled Sell2Wales: `seedSources()` + migration `051_sell2wales_enable.sql`
+  (base_url + `enabled=true`, idempotent) — **pending apply**.
+- **HONEST STATUS — the Sell2Wales provider is currently down (not our code):** the API
+  leaf cert expired 2026-06-03, the legacy klickstream backend returns 500 ("nvarchar to
+  float"), and the bulk download 500s for every month/format tried (incl. Jan 2025). So
+  neither path returns data right now. The connector is built correctly and will self-heal
+  when the Welsh Government restores the cert/backend; failures surface via sync-health and
+  (after Phase 4) do not block other sources. Scotland regression re-verified live.
+
 ## 2026-06-08 — Sources Hardening Phase 1: repair Public Contracts Scotland
 
 - **Scotland was ingesting zero notices** — the connector hit a 404 URL. Rewrote it for the

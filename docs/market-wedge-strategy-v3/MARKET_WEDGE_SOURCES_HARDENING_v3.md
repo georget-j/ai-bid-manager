@@ -7,13 +7,16 @@
 
 ## Current pointer
 
-- **Status:** Phase 1 COMPLETE (code) → starting Phase 2 (Sell2Wales).
-- **Last commit:** `fix(ingest): repair Public Contracts Scotland via Proactis OCDS API`
+- **Status:** Phase 2 COMPLETE (code) → starting Phase 3 (CF/FTS correctness).
+- **Last commit:** `fix(ingest): Sell2Wales Proactis API + bulk-download fallback, enabled`
 - **Updated:** 2026-06-08
 - **Migrations PENDING APPLY (need user approval):** 050 (Scotland base_url — cosmetic),
-  051 (Wales base_url + enable — functional). Connector code works without 050.
-- Scotland fix verified live (read-only): connector fetches + normalizes real notices via
-  the Sectigo-intermediate TLS fix. Sell2Wales API leaf cert is EXPIRED → use bulk fallback.
+  051 (Wales base_url + enable — **functional**: cron needs `enabled=true` to sync Wales).
+- Scotland verified live (read-only): fetch + normalize OK via the Sectigo TLS fix.
+- **Sell2Wales provider is CURRENTLY DOWN (not our bug):** API leaf cert expired 2026-06-03,
+  klickstream backend 500s, bulk download 500s for every month/format. Connector + bulk
+  fallback are built correctly and will self-heal when the Welsh Govt restores the
+  cert/backend; errors surface via sync-health and don't block other sources.
 
 ## How to resume after compaction
 
@@ -92,8 +95,9 @@ machine-readable set. Procurement Act 2023 (24 Feb 2025) added new FTS notice ty
 
 ## Phase 2 — Sell2Wales API + bulk-download fallback + enable
 
-- [ ] Wales connector via proactis.ts + monthly bulk-download fallback + mig 051
-      (base_url + enabled) + seedSources enabled=true + verify ·
+- [x] Wales connector via proactis.ts (api host, types 51–56) + `sell2wales-bulk.ts`
+      month-level bulk-download fallback (ASP.NET form → OCDS JSON) + mig 051 (base_url +
+      enabled) + seedSources enabled=true. **Provider down at build time** (cert expired + backend 500s) — code self-heals on recovery; PCS regression re-verified ·
       `fix(ingest): Sell2Wales Proactis API + bulk-download fallback, enabled (mig 051)`
 
 ## Phase 3 — Contracts Finder + Find a Tender correctness

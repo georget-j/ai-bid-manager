@@ -92,14 +92,12 @@ function secureGetJson(url: string, timeoutMs: number): Promise<AnyRecord> {
 }
 
 /**
- * Optional fallback used when the primary API is unreachable for a given
- * (month, noticeType) — e.g. Sell2Wales' API host has a broken TLS chain, so it
- * falls back to the monthly bulk download. Must return OCDS release objects.
+ * Optional fallback used when the primary API yields nothing for a whole month —
+ * e.g. Sell2Wales' API host cert is expired, so it falls back to the monthly bulk
+ * download (which returns every noticeType for the month). Must return OCDS
+ * release objects. Called once per month, not per noticeType.
  */
-export type ProactisBulkFallback = (
-  month: string,
-  noticeType: number,
-) => Promise<unknown[]>;
+export type ProactisMonthFallback = (month: string) => Promise<unknown[]>;
 
 export interface ProactisConnectorConfig {
   sourceName: ProcurementSourceName;
@@ -107,8 +105,8 @@ export interface ProactisConnectorConfig {
   apiBaseUrl: string;
   /** Proactis noticeType ids to iterate, e.g. [101,102,103,104]. */
   noticeTypes: number[];
-  /** Optional bulk-download fallback per (month, noticeType). */
-  bulkFallback?: ProactisBulkFallback;
+  /** Optional month-level fallback (e.g. bulk download) when the API yields nothing. */
+  monthFallback?: ProactisMonthFallback;
   /** Defensive cap on how many months a single window may enumerate. */
   maxMonths?: number;
 }
@@ -204,24 +202,29 @@ export function createProactisFetchSince(
           ...(await fetchMonthType(config.apiBaseUrl, month, noticeType)),
         );
       } catch (err) {
-        // Try the bulk-download fallback for this (month, noticeType) if provided.
-        if (config.bulkFallback) {
-          try {
-            rawItems.push(...(await config.bulkFallback(month, noticeType)));
-            continue;
-          } catch (fbErr) {
-            lastErr = fbErr;
-          }
-        } else {
-          lastErr = err;
-        }
+        lastErr = err;
         failures += 1;
       }
     }
 
-    // Whole month unreachable (every noticeType failed and nothing recovered) —
-    // surface it so the engine records last_error and the page loop stops.
-    if (failures === config.noticeTypes.length && rawItems.length === 0) {
+    // If the API produced nothing for the month but at least one call failed,
+    // try the month-level fallback (e.g. Sell2Wales bulk download) once.
+    if (rawItems.length === 0 && failures > 0 && config.monthFallback) {
+      try {
+        rawItems.push(...(await config.monthFallback(month)));
+        lastErr = null;
+      } catch (fbErr) {
+        lastErr = fbErr;
+      }
+    }
+
+    // Nothing worked for this month — surface it so the engine records
+    // last_error and the page loop stops (resumes next run).
+    if (
+      rawItems.length === 0 &&
+      failures === config.noticeTypes.length &&
+      lastErr
+    ) {
       throw new Error(
         `${config.sourceName} ${month}: ${
           lastErr instanceof Error ? lastErr.message : String(lastErr)
