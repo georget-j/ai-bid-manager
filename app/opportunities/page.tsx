@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listOpportunities } from "@/lib/procurement/data";
-import { getIsAdmin } from "@/lib/admin-auth";
+import { getIsOperator } from "@/lib/admin-auth";
 import type { OpportunityRow } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -109,7 +109,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   let opportunities: OpportunityRow[] = [];
   let total = 0;
   let fetchError: string | null = null;
-  const isAdmin = await getIsAdmin();
+  const isOperator = await getIsOperator();
 
   try {
     const result = await listOpportunities({
@@ -323,7 +323,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             ? "No opportunities found"
             : `${total.toLocaleString()} opportunit${total === 1 ? "y" : "ies"} · showing ${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()}`}
         </span>
-        {isAdmin && (
+        {isOperator && (
           <Link
             href="/sources"
             style={{
@@ -383,11 +383,11 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           >
             {hasFilters
               ? "Try removing some filters or broadening your search."
-              : isAdmin
+              : isOperator
                 ? "Connect a procurement source and run a sync to start seeing live UK tender opportunities here."
                 : "Your admin is setting up procurement sources. Check back soon."}
           </p>
-          {!hasFilters && isAdmin && (
+          {!hasFilters && isOperator && (
             <Link href="/sources" className="btn primary">
               Connect a source
             </Link>

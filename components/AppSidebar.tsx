@@ -8,7 +8,6 @@ const NAV_INTELLIGENCE = [
   {
     href: "/clients",
     label: "Clients",
-    adminOnly: true,
     icon: (
       <svg
         width="14"
@@ -106,7 +105,7 @@ const NAV_INTELLIGENCE = [
   {
     href: "/sources",
     label: "Sources",
-    adminOnly: true,
+    operatorOnly: true,
     icon: (
       <svg
         width="14"
@@ -160,6 +159,28 @@ const NAV_INTELLIGENCE = [
       >
         <circle cx="8" cy="5" r="2.5" />
         <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/team",
+    label: "Team",
+    ownerAdmin: true,
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="5.5" cy="5.5" r="2.2" />
+        <circle cx="11" cy="6" r="1.8" />
+        <path d="M1.5 13.5c0-2.6 1.6-4 4-4s4 1.4 4 4" />
+        <path d="M10 13.5c0-2 1-3.2 2.5-3.2" />
       </svg>
     ),
   },
@@ -312,6 +333,7 @@ const NAV_BOTTOM = [
   {
     href: "/admin",
     label: "Admin",
+    operatorOnly: true,
     icon: (
       <svg
         width="14"
@@ -348,19 +370,23 @@ const HELP_ICON = (
 );
 
 export function AppSidebar({
-  isAdmin: isAdminProp = false,
+  isOperator: isOperatorProp = false,
+  orgRole: orgRoleProp = null,
   userEmail: userEmailProp,
 }: {
-  isAdmin?: boolean;
+  isOperator?: boolean;
+  orgRole?: string | null;
   userEmail?: string | null;
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   // mounted ensures server HTML and client initial render agree (both false),
-  // eliminating hydration mismatches. Admin items only render post-mount.
+  // eliminating hydration mismatches. Role-gated items only render post-mount.
   const [mounted, setMounted] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userEmail, setUserEmail] = useState(userEmailProp ?? null);
+  const [isOperator, setIsOperator] = useState(isOperatorProp);
+  const [orgRole, setOrgRole] = useState<string | null>(orgRoleProp);
+  const [userEmail] = useState(userEmailProp ?? null);
+  const canManageTeam = orgRole === "owner" || orgRole === "admin";
 
   useEffect(() => {
     const toggle = () => setOpen((v) => !v);
@@ -375,13 +401,16 @@ export function AppSidebar({
 
   useEffect(() => {
     setMounted(true);
-    // Read the x-is-admin cookie set by middleware on every authenticated
-    // request. Synchronous — no network round-trip, no race condition.
-    const cookie = document.cookie
-      .split("; ")
-      .find((r) => r.startsWith("x-is-admin="))
-      ?.split("=")[1];
-    setIsAdmin(cookie === "1");
+    // Read the role cookies set by middleware on every authenticated request.
+    // Synchronous — no round-trip, no race. UI hint only; server gates enforce.
+    const read = (name: string) =>
+      document.cookie
+        .split("; ")
+        .find((r) => r.startsWith(`${name}=`))
+        ?.split("=")[1];
+    setIsOperator(read("x-is-operator") === "1");
+    const role = read("x-org-role");
+    if (role) setOrgRole(decodeURIComponent(role));
   }, []);
 
   function isActive(href: string, exact = false) {
@@ -406,10 +435,13 @@ export function AppSidebar({
 
         <nav className="nav-section">
           <div className="nav-group-label">Intelligence</div>
-          {NAV_INTELLIGENCE.filter(
-            (item) =>
-              !("adminOnly" in item && item.adminOnly && !(mounted && isAdmin)),
-          ).map((item) => (
+          {NAV_INTELLIGENCE.filter((item) => {
+            if ("operatorOnly" in item && item.operatorOnly)
+              return mounted && isOperator;
+            if ("ownerAdmin" in item && item.ownerAdmin)
+              return mounted && canManageTeam;
+            return true;
+          }).map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -447,7 +479,14 @@ export function AppSidebar({
             <span className="nav-icon">{HELP_ICON}</span>
             Help
           </button>
-          {NAV_BOTTOM.map((item) => (
+          {NAV_BOTTOM.filter(
+            (item) =>
+              !(
+                "operatorOnly" in item &&
+                item.operatorOnly &&
+                !(mounted && isOperator)
+              ),
+          ).map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -475,7 +514,12 @@ export function AppSidebar({
             >
               {userEmail ?? "UK Bid Intelligence"}
             </div>
-            <div className="role">{isAdmin ? "Admin" : "Member"}</div>
+            <div className="role">
+              {orgRole
+                ? orgRole.charAt(0).toUpperCase() + orgRole.slice(1)
+                : "Member"}
+              {isOperator ? " · Operator" : ""}
+            </div>
           </div>
         </div>
       </aside>

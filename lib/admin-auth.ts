@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "./supabase-server";
 import { isDemoMode, env } from "./env";
 
-export async function getIsAdmin(): Promise<boolean> {
+/**
+ * "Platform operator" = an email on the ADMIN_EMAILS allowlist. Operators manage
+ * GLOBAL system config (procurement sources, review routing, integrations). This is
+ * distinct from a user's per-org role (owner/admin/member); see lib/org.ts.
+ */
+export async function getIsOperator(): Promise<boolean> {
   if (isDemoMode) return true;
   const user = await getAuthUser();
   if (!user?.email) return false;
@@ -12,6 +17,9 @@ export async function getIsAdmin(): Promise<boolean> {
   }
   return env.ADMIN_EMAILS.includes(user.email);
 }
+
+/** @deprecated Use getIsOperator — "admin" now refers to the per-org role. */
+export const getIsAdmin = getIsOperator;
 
 /**
  * Returns null if the caller has a valid session.
@@ -28,11 +36,10 @@ export async function requireAuth(): Promise<NextResponse | null> {
 }
 
 /**
- * Returns null if the caller is allowed to perform an admin action.
- * Returns a 401/403 NextResponse if not.
- * Always returns null in DEMO_MODE.
+ * Returns null if the caller is a platform operator (global system config).
+ * Returns a 401/403 NextResponse if not. Always returns null in DEMO_MODE.
  */
-export async function requireAdmin(): Promise<NextResponse | null> {
+export async function requireOperator(): Promise<NextResponse | null> {
   if (isDemoMode) return null;
 
   const user = await getAuthUser();
@@ -40,17 +47,20 @@ export async function requireAdmin(): Promise<NextResponse | null> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const adminAllowed =
+  const operatorAllowed =
     env.ADMIN_EMAILS.length === 0
       ? process.env.NODE_ENV !== "production"
       : env.ADMIN_EMAILS.includes(user.email);
 
-  if (!adminAllowed) {
+  if (!operatorAllowed) {
     return NextResponse.json(
-      { error: "Forbidden — admin access required" },
+      { error: "Forbidden — operator access required" },
       { status: 403 },
     );
   }
 
   return null;
 }
+
+/** @deprecated Use requireOperator — "admin" now refers to the per-org role. */
+export const requireAdmin = requireOperator;

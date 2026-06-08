@@ -20,10 +20,11 @@ const PUBLIC_PAGES = [
   "/contact",
 ];
 
-// Admin-only page prefixes — non-admins are redirected to /
-const ADMIN_PAGES = ["/sources", "/clients", "/admin"];
+// Platform-operator-only page prefixes (global system config) — others redirect to /.
+// NOTE: /clients is org-scoped data, NOT operator-only — it's accessible to org members.
+const OPERATOR_PAGES = ["/sources", "/admin"];
 
-function computeIsAdmin(email: string): boolean {
+function computeIsOperator(email: string): boolean {
   const adminEmails = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim())
@@ -118,23 +119,36 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // ── Admin role enforcement ─────────────────────────────────────────────────
-  const isAdmin = computeIsAdmin(user.email ?? "");
+  // ── Platform-operator enforcement ──────────────────────────────────────────
+  const isOperator = computeIsOperator(user.email ?? "");
 
-  // Block non-admins from admin-only page routes
-  if (!isAdmin && ADMIN_PAGES.some((p) => pathname.startsWith(p))) {
+  // Block non-operators from operator-only page routes
+  if (!isOperator && OPERATOR_PAGES.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Set a plain (JS-readable) cookie so the client sidebar can determine role
-  // without a network round-trip. This is a UI hint only — the redirect above
-  // is the actual security boundary.
-  response.cookies.set("x-is-admin", isAdmin ? "1" : "0", {
-    httpOnly: false, // must be readable by client JS for sidebar
-    sameSite: "lax",
+  // Plain (JS-readable) cookies so the client sidebar can render role-aware nav
+  // without a round-trip. UI hints only — the redirect above + server-side
+  // requireOrgRole/requireOperator are the real security boundaries.
+  const cookieOpts = {
+    httpOnly: false,
+    sameSite: "lax" as const,
     path: "/",
     secure: process.env.NODE_ENV === "production",
-  });
+  };
+  response.cookies.set("x-is-operator", isOperator ? "1" : "0", cookieOpts);
+
+  // Org role drives org-scoped nav (Team, etc.). Look it up for page requests only
+  // (the sidebar needs it; API handlers use getRequestOrgRole directly).
+  if (!isApi) {
+    const { data: membership } = await supabase
+      .from("org_memberships")
+      .select("role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    response.cookies.set("x-org-role", membership?.role ?? "", cookieOpts);
+  }
 
   return response;
 }

@@ -5,7 +5,8 @@ import { AppTopbar } from "@/components/AppTopbar";
 import { HelpNavigator } from "@/components/HelpNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getAuthUser } from "@/lib/supabase-server";
-import { getIsAdmin } from "@/lib/admin-auth";
+import { getIsOperator } from "@/lib/admin-auth";
+import { getRequestOrgRole } from "@/lib/org";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ export default async function RootLayout({
 }) {
   const user = isDemoMode ? null : await getAuthUser();
   const showNav = isDemoMode || !!user;
-  const isAdmin = showNav ? await getIsAdmin() : false;
+  const [isOperator, orgRole] = showNav
+    ? await Promise.all([getIsOperator(), getRequestOrgRole()])
+    : [false, null];
   const userEmail = user?.email ?? null;
 
   return (
@@ -45,7 +48,11 @@ export default async function RootLayout({
       <body>
         {showNav ? (
           <div className="app">
-            <AppSidebar isAdmin={isAdmin} userEmail={userEmail} />
+            <AppSidebar
+              isOperator={isOperator}
+              orgRole={orgRole}
+              userEmail={userEmail}
+            />
             <div className="main">
               <AppTopbar />
               <div className="content">
