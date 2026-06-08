@@ -1,8 +1,11 @@
 # Market Wedge Execution Tracker v3
 
-> **ACTIVE INITIATIVE (2026-06-08): Sources Hardening** →
-> `MARKET_WEDGE_SOURCES_HARDENING_v3.md` holds the live resume pointer + per-phase checklist.
-> (Prior 7-epic product uplift is COMPLETE → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
+> **LATEST (2026-06-08): Opportunity docs · buyer web research · profile buildout · UX review**
+> — all 4 phases COMPLETE & pushed (`a7212b7`, `c0e1b6d`, `ce1e5b4`, `b87db7a`, `bbcfa7e`),
+> migrations 052 + 053 applied. Next decision point = UX review open questions
+> (`MARKET_WEDGE_UX_REVIEW_v3.md` §8) — await user before any Phase-4 build.
+> Prior: **Sources Hardening** → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`.
+> (7-epic product uplift COMPLETE → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
 
 ## Current strategic phase
 

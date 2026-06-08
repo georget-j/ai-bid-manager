@@ -9,15 +9,23 @@
 
 ## Current objective
 
-All core product phases shipped. Product is ready to show to real agencies. The RFP
-Response workflow was reworked into a single 7-step tab (2026-06-06).
+All core product phases shipped. Latest initiative (opportunity docs · buyer web research ·
+profile buildout · UX review) **COMPLETE (2026-06-08)** — all 4 phases pushed, migrations
+052 + 053 applied.
 
-Last commits (2026-06-06):
+**Next decision point:** the UX review (`MARKET_WEDGE_UX_REVIEW_v3.md` §8) poses open
+questions — multi-response ambition (persisted drafts vs tabbed workspace vs realtime),
+where "responses" live in nav, de-orphaning `/compliance` + `/rfp`, role gating, and review
+concurrency. **Await the user's answers before building Phase-4 changes.** Quick wins ready
+if approved: add Compliance to nav, surface RFP + history, standardise back-nav.
 
-- `ffe2192` — RFP: answers visible after generation; export updates on approval
-- `b4a9589` — RFP: delete QuestionsPanel (1778 lines) — workflow moved to RFP tab
-- `76e8bde` — RFP: requirements + questions + export sections (7-step workflow)
-- `772f2c3` — Gaps: AI semantic gap matching with confidence reasons (migration 039)
+Last commits (2026-06-08):
+
+- `bbcfa7e` — docs: UX & navigation review + multi-response workspace options
+- `b87db7a` — seed: AI-generated Fortis Cyber organisation profile from sample docs
+- `ce1e5b4` — profile: org buildout — capacity/sector fields, scoring signals, meter (mig 053)
+- `c0e1b6d` — research: OpenAI web-search buyer & people research (mig 052)
+- `a7212b7` — opportunity: tender document count in summary header
 
 ---
 

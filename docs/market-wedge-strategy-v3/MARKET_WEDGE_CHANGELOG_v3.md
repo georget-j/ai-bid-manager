@@ -1,5 +1,40 @@
 # Market Wedge Changelog v3
 
+## 2026-06-08 — Opportunity docs · buyer web research · profile buildout · UX review
+
+Four-phase initiative (design: `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`).
+
+- **Phase 1 — Tender doc count** (`a7212b7`): opportunity summary header now shows a deduped
+  count of tender documents. Consolidated three copies of the doc-URL dedup onto one shared
+  `collectTenderDocuments()` helper (`lib/procurement/documents.ts`) so the header and the
+  Documents panel can never disagree.
+- **Phase 2 — Grounded buyer/people web research** (`c0e1b6d`, mig **052**): new
+  `lib/research/web-search.ts` `webSearchSummary()` uses the OpenAI Responses API `web_search`
+  tool (gpt-4o-mini) returning text + the URLs it cited. New `…/[id]/buyer-research-online`
+  route extracts people named in the description + extracted tender-doc text, searches the
+  buyer + each person in parallel, caches to `opportunities.buyer_web_research`
+  (`?refresh=true` regenerates). `BuyerWebResearch.tsx` panel on the Buyer tab shows the
+  summaries with source links + an "AI-researched, verify before use" disclaimer. Verified
+  live: web_search returns a grounded summary with 5 citations.
+- **Phase 3a — Org profile buildout** (`ce1e5b4`, mig **053**): added
+  `company_size_band, annual_turnover, year_established, delivery_models, social_value` to
+  `organisation_profiles`. Scoring now folds the previously-unused `sectors` into the match
+  pool and adds financial-standing (turnover vs value) + insurance signals. Profile API
+  accepts the new fields + structured insurance (no more hard-coded `insurance: null`). Form
+  gains Sectors (was never editable), Capacity & delivery, Insurance cover, Social value, and
+  a **profile-strength meter** naming the empty fit-scoring fields.
+- **Phase 3b — AI Fortis seed** (`b87db7a`): `seedCyberDemoProfile()` extracts a structured
+  supplier profile from the Fortis sample docs via gpt-4o-mini and upserts it (fills empty
+  fields only; `force` overrides). The seed-cyber-demo action now builds out the full account
+  (KB + profile). Verified live: extraction yields size band, turnover £2.4m, 6 sectors,
+  8 CPV codes, insurance cover, contract range.
+- **Phase 4 — UX review** (`bbcfa7e`, advisory): `MARKET_WEDGE_UX_REVIEW_v3.md` — route/nav
+  audit (orphaned `/compliance`, `/rfp`, `/rfp/history`), the reality of "open multiple
+  responses at once" (RFP = single in-memory doc, no persistence; Review = no concurrency
+  safety), a multi-response workspace proposal, and open questions. No code changes.
+
+tsc + lint + build clean throughout; migrations 052 + 053 applied by hand (additive, idempotent).
+
 ## 2026-06-08 — Profile: Find a Tender lifecycle timeline (record packages)
 
 - Source-coverage audit (`MARKET_WEDGE_SOURCES_COVERAGE_v3.md`): confirmed the 4 OCDS feeds
