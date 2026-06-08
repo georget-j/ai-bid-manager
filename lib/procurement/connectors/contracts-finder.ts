@@ -71,9 +71,10 @@ export const contractsFinderConnector: ProcurementSourceConnector = {
               from.toISOString().split("T")[0],
             );
             url.searchParams.set("postedTo", to.toISOString().split("T")[0]);
-            // The OCDS Search API paginates with `limit` (max/default 100); the
-            // old `size` param is silently ignored.
-            url.searchParams.set("limit", String(limit));
+            // The OCDS Search API paginates with `limit` (max/default 100; the old
+            // `size` param is silently ignored). It 400s anything over 100, so
+            // clamp regardless of a misconfigured PROCUREMENT_SYNC_LIMIT.
+            url.searchParams.set("limit", String(Math.min(limit, 100)));
             return url.toString();
           })();
 

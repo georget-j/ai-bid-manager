@@ -44,7 +44,9 @@ export const findTenderConnector: ProcurementSourceConnector = {
             const url = new URL(`${BASE_URL}/api/1.0/ocdsReleasePackages`);
             url.searchParams.set("updatedFrom", from.toISOString());
             url.searchParams.set("updatedTo", to.toISOString());
-            url.searchParams.set("limit", String(limit));
+            // The API hard-caps `limit` at 100 and 400s anything larger, so clamp
+            // regardless of a misconfigured PROCUREMENT_SYNC_LIMIT.
+            url.searchParams.set("limit", String(Math.min(limit, 100)));
             return url.toString();
           })();
 
