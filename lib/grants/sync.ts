@@ -278,6 +278,9 @@ function toGrantRow(g: NormalizedGrant): Record<string, unknown> {
 
 function extractGrantId(raw: unknown): string | null {
   const r = raw as Record<string, unknown>;
+  // 360Giving wraps the grant under `data` with a top-level `grant_id`; other
+  // sources use `id`.
+  if (typeof r?.grant_id === "string") return r.grant_id;
   if (typeof r?.id === "string") return r.id;
   if (typeof r?.id === "number") return String(r.id);
   return null;

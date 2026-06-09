@@ -11,6 +11,7 @@ export type GrantStatus =
   | "forthcoming"
   | "closed"
   | "rolling"
+  | "awarded" // historical award (360Giving) — browse-only, not applyable
   | "unknown";
 
 export type GrantRecommendedAction =
