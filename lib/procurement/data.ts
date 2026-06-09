@@ -8,6 +8,16 @@ import type {
 
 // ── Opportunities ─────────────────────────────────────────────────────────────
 
+// List/scoring paths never read the heavy jsonb (raw_json / documents / lots) — only
+// the single-row getOpportunity() does. Projecting the scalar columns avoids shipping
+// ~4 KB of unused raw_json per row (×50 list / ×300 recommendations) every request.
+const LIST_COLUMNS =
+  "id, canonical_ocid, source_name, source_notice_id, source_url, submission_url, " +
+  "title, description, buyer_name, buyer_identifier, buyer_region, notice_type, " +
+  "procurement_stage, status, cpv_codes, region, value_amount, value_currency, " +
+  "published_at, deadline_at, contract_start_at, contract_end_at, framework_flag, " +
+  "created_at, updated_at";
+
 export interface ListOpportunitiesOptions {
   orgId?: string;
   status?: string;
@@ -25,6 +35,8 @@ export interface ListOpportunitiesOptions {
   valueMax?: number;
   limit?: number;
   offset?: number;
+  /** Select the full row incl. raw_json/documents/lots (default: narrowed columns). */
+  full?: boolean;
 }
 
 export async function listOpportunities(
@@ -48,7 +60,7 @@ export async function listOpportunities(
   const supabase = getServiceSupabase();
   let query = supabase
     .from("opportunities")
-    .select("*", { count: "exact" })
+    .select(opts.full ? "*" : LIST_COLUMNS, { count: "exact" })
     .order("deadline_at", { ascending: true, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
@@ -81,7 +93,10 @@ export async function listOpportunities(
   const { data, count, error } = await query;
   if (error) throw new Error(`Failed to list opportunities: ${error.message}`);
 
-  return { opportunities: (data ?? []) as OpportunityRow[], total: count ?? 0 };
+  return {
+    opportunities: (data ?? []) as unknown as OpportunityRow[],
+    total: count ?? 0,
+  };
 }
 
 export async function getOpportunity(
