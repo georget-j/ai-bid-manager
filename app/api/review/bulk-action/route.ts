@@ -47,109 +47,110 @@ export async function POST(req: NextRequest) {
   const supabase = getServiceSupabase();
   const failed: string[] = [];
   let processed = 0;
+  const now = new Date().toISOString();
 
-  for (const id of ids) {
-    try {
-      const { data: reviewRequest, error: rrError } = await supabase
-        .from("review_requests")
-        .select("id, query_id, topic, assigned_to")
-        .eq("id", id)
-        .in("status", ["pending", "assigned"])
-        .single();
+  // Batch-read the requested review requests once (avoids a per-id round-trip).
+  const { data: rrs } = await supabase
+    .from("review_requests")
+    .select("id, query_id, topic, assigned_to, status")
+    .in("id", ids);
+  type RR = {
+    id: string;
+    query_id: string;
+    topic: string;
+    assigned_to: string;
+  };
+  const rrMap = new Map<string, RR>((rrs ?? []).map((r) => [r.id, r as RR]));
 
-      if (rrError || !reviewRequest) {
-        failed.push(id);
-        continue;
-      }
+  // Atomically claim ALL actionable items in a single guarded update — the rows
+  // returned are the ones this request won (still pending/assigned).
+  const targetStatus = action === "reject" ? "rejected" : "approved";
+  const { data: claimedRows } = await supabase
+    .from("review_requests")
+    .update({ status: targetStatus, updated_at: now })
+    .in("id", ids)
+    .in("status", ["pending", "assigned"])
+    .select("id");
+  const claimedIds = new Set<string>((claimedRows ?? []).map((c) => c.id));
+  for (const id of ids) if (!claimedIds.has(id)) failed.push(id);
 
-      if (action === "reject") {
-        const { data: claimed } = await supabase
-          .from("review_requests")
-          .update({ status: "rejected", updated_at: new Date().toISOString() })
-          .eq("id", id)
-          .in("status", ["pending", "assigned"])
-          .select("id");
-        if (!claimed || claimed.length === 0) {
-          failed.push(id);
-          continue;
-        }
-        void logReviewAction(
-          id,
-          actorEmail ?? reviewRequest.assigned_to,
-          "rejected",
-          { bulk: true },
-        );
-        processed++;
-        continue;
-      }
-
-      // Approve — claim the transition atomically before any side-effects.
-      const { data: claimedApprove } = await supabase
-        .from("review_requests")
-        .update({ status: "approved", updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .in("status", ["pending", "assigned"])
-        .select("id");
-      if (!claimedApprove || claimedApprove.length === 0) {
-        failed.push(id);
-        continue;
-      }
-
-      const { data: queryData, error: qError } = await supabase
-        .from("queries")
-        .select("query_text, rfp_context, query_results(answer)")
-        .eq("id", reviewRequest.query_id)
-        .single();
-
-      if (qError || !queryData) {
-        failed.push(id);
-        continue;
-      }
-
-      const originalAnswer = (
-        queryData.query_results as Array<{ answer: Record<string, unknown> }>
-      )?.[0]?.answer;
-      const approvedText = (originalAnswer?.draft_answer as string) ?? "";
-
-      let ingestedDocumentId: string | null = null;
-      try {
-        const today = new Date().toISOString().slice(0, 10);
-        const shortQ = queryData.query_text.slice(0, 80);
-        const result = await ingestDocument({
-          text: `Q: ${queryData.query_text}\n\nA: ${approvedText}\n\nApproved on: ${today}`,
-          title: `Approved Answer: ${shortQ}`,
-          sourceType: "upload",
-        });
-        ingestedDocumentId = result.document_id;
-      } catch {
-        // ingestion failure doesn't block approval
-      }
-
-      await supabase.from("approved_answers").insert({
-        review_request_id: id,
-        query_id: reviewRequest.query_id,
-        original_question: queryData.query_text,
-        approved_answer: approvedText,
-        approved_by: actorEmail ?? reviewRequest.assigned_to,
-        topic: reviewRequest.topic,
-        source_rfp:
-          ((queryData.rfp_context as Record<string, unknown> | null)
-            ?.rfp_title as string) ?? null,
-        ingested_as_document_id: ingestedDocumentId,
-        reusable: true,
-      });
-
-      // Status was already set to "approved" by the atomic claim above.
+  if (action === "reject") {
+    for (const id of claimedIds) {
       void logReviewAction(
         id,
-        actorEmail ?? reviewRequest.assigned_to,
-        "approved",
+        actorEmail ?? rrMap.get(id)?.assigned_to ?? "unknown",
+        "rejected",
         { bulk: true },
       );
       processed++;
-    } catch {
-      failed.push(id);
     }
+    return NextResponse.json({ processed, failed });
+  }
+
+  // Approve: batch-read the source queries for the claimed items, then ingest +
+  // collect the approved_answers rows for a single bulk insert.
+  const claimed = [...claimedIds]
+    .map((id) => rrMap.get(id))
+    .filter((r): r is RR => Boolean(r));
+  const queryIds = [...new Set(claimed.map((r) => r.query_id))];
+  const { data: queries } = queryIds.length
+    ? await supabase
+        .from("queries")
+        .select("id, query_text, rfp_context, query_results(answer)")
+        .in("id", queryIds)
+    : { data: [] as unknown[] };
+  type Q = {
+    id: string;
+    query_text: string;
+    rfp_context: Record<string, unknown> | null;
+    query_results: Array<{ answer: Record<string, unknown> }> | null;
+  };
+  const qMap = new Map<string, Q>(
+    (queries ?? []).map((q) => [(q as Q).id, q as Q]),
+  );
+
+  const answerRows: Record<string, unknown>[] = [];
+  for (const rr of claimed) {
+    const q = qMap.get(rr.query_id);
+    if (!q) {
+      failed.push(rr.id);
+      continue;
+    }
+    const approvedText =
+      (q.query_results?.[0]?.answer?.draft_answer as string) ?? "";
+
+    let ingestedDocumentId: string | null = null;
+    try {
+      const today = now.slice(0, 10);
+      const result = await ingestDocument({
+        text: `Q: ${q.query_text}\n\nA: ${approvedText}\n\nApproved on: ${today}`,
+        title: `Approved Answer: ${q.query_text.slice(0, 80)}`,
+        sourceType: "upload",
+      });
+      ingestedDocumentId = result.document_id;
+    } catch {
+      // ingestion failure doesn't block approval
+    }
+
+    answerRows.push({
+      review_request_id: rr.id,
+      query_id: rr.query_id,
+      original_question: q.query_text,
+      approved_answer: approvedText,
+      approved_by: actorEmail ?? rr.assigned_to,
+      topic: rr.topic,
+      source_rfp: (q.rfp_context?.rfp_title as string) ?? null,
+      ingested_as_document_id: ingestedDocumentId,
+      reusable: true,
+    });
+    void logReviewAction(rr.id, actorEmail ?? rr.assigned_to, "approved", {
+      bulk: true,
+    });
+    processed++;
+  }
+
+  if (answerRows.length > 0) {
+    await supabase.from("approved_answers").insert(answerRows);
   }
 
   return NextResponse.json({ processed, failed });
