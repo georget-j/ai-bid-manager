@@ -1,10 +1,12 @@
 # Market Wedge Execution Tracker v3
 
-> **LATEST (2026-06-08): Opportunity docs · buyer web research · profile buildout · UX review**
-> — all 4 phases COMPLETE & pushed (`a7212b7`, `c0e1b6d`, `ce1e5b4`, `b87db7a`, `bbcfa7e`),
-> migrations 052 + 053 applied. Next decision point = UX review open questions
-> (`MARKET_WEDGE_UX_REVIEW_v3.md` §8) — await user before any Phase-4 build.
-> Prior: **Sources Hardening** → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`.
+> **LATEST (2026-06-09): Org roles & teams · responses workspace · review concurrency**
+> — all 3 phases COMPLETE & pushed (`55acdb5`, `8055e23`, `106001e`), migrations 054 + 055 applied.
+> Built on the UX-review answers (multi-user org roles + members UI, tabbed responses workspace,
+> optimistic review concurrency). Follow-ups (not requested): invite-email delivery, real-time
+> co-editing, review locking/assignment UI. See `MARKET_WEDGE_NEXT_ACTIONS_v3.md`.
+> Prior: opportunity docs · buyer web research · profile buildout · UX review (2026-06-08);
+> **Sources Hardening** → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`.
 > (7-epic product uplift COMPLETE → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)
 
 ## Current strategic phase

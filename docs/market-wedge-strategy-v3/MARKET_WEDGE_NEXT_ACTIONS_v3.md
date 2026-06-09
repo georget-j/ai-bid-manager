@@ -9,23 +9,25 @@
 
 ## Current objective
 
-All core product phases shipped. Latest initiative (opportunity docs · buyer web research ·
-profile buildout · UX review) **COMPLETE (2026-06-08)** — all 4 phases pushed, migrations
-052 + 053 applied.
+All core product phases shipped. Latest initiative (org roles & teams · responses workspace ·
+review concurrency) **COMPLETE (2026-06-09)** — all 3 phases pushed, migrations 054 + 055 applied.
+(Prior: docs · buyer web research · profile buildout · UX review, 2026-06-08.)
 
-**Next decision point:** the UX review (`MARKET_WEDGE_UX_REVIEW_v3.md` §8) poses open
-questions — multi-response ambition (persisted drafts vs tabbed workspace vs realtime),
-where "responses" live in nav, de-orphaning `/compliance` + `/rfp`, role gating, and review
-concurrency. **Await the user's answers before building Phase-4 changes.** Quick wins ready
-if approved: add Compliance to nav, surface RFP + history, standardise back-nav.
+**Follow-ups available (not yet requested):**
 
-Last commits (2026-06-08):
+- Multi-user orgs now exist — but invites are delivered as a **shareable link** (no email
+  dispatch). Wire invite emails if a transactional-email integration is added.
+- Responses workspace shipped tabbed + autosave; **real-time co-editing/presence** was explicitly
+  deferred. Review concurrency uses optimistic guards (no locking/assignment UI yet).
+- `ADMIN_EMAILS` must be set in prod to scope platform-operator (sources/admin); empty = dev-only.
 
-- `bbcfa7e` — docs: UX & navigation review + multi-response workspace options
-- `b87db7a` — seed: AI-generated Fortis Cyber organisation profile from sample docs
-- `ce1e5b4` — profile: org buildout — capacity/sector fields, scoring signals, meter (mig 053)
-- `c0e1b6d` — research: OpenAI web-search buyer & people research (mig 052)
-- `a7212b7` — opportunity: tender document count in summary header
+Last commits (2026-06-09):
+
+- `106001e` — review: optimistic-concurrency guard on approve/reject
+- `8055e23` — responses: persisted RFP drafts + tabbed responses workspace (mig 055)
+- `55acdb5` — auth: org roles + multi-user teams; operator vs org-role split (mig 054)
+- `bbcfa7e` — docs: UX & navigation review (2026-06-08)
+- `05e51ee` — nav: surface RFP Builder + Compliance in the sidebar (2026-06-08)
 
 ---
 

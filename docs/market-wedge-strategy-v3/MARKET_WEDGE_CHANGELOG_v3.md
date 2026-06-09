@@ -1,5 +1,30 @@
 # Market Wedge Changelog v3
 
+## 2026-06-09 — Org roles & teams · responses workspace · review concurrency
+
+Follow-on from the UX review (design: `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`).
+
+- **Phase 1 — Org roles + multi-user teams** (`55acdb5`, mig **054**): split the conflated
+  "admin" into **platform operator** (ADMIN_EMAILS → /sources, /admin, sync) vs **per-org role**
+  (owner/admin/member). `requireAdmin`→`requireOperator`, new `getRequestOrgRole`/`requireOrgRole`
+  (`lib/org.ts`). `org_invitations` table + invite-into-existing-org in `getOrCreateOrgForUser`.
+  New `/team` page + `/api/team[/...]` (invite, change role, remove, revoke; last-owner guard).
+  Middleware operator gate is now /sources+/admin only — **fixes the bug where normal members
+  were blocked from Clients + the evidence vault**. Sidebar is role-aware (Team for owner/admin;
+  Sources/Admin operator-only; Clients for all).
+- **Phase 2 — Responses workspace** (`8055e23`, mig **055**): `response_drafts` (org-scoped) makes
+  RFP responses durable — RFPProcessor gains an optional `draftId`, loads from a draft, and
+  **debounced autosaves** (creates on first change, then PATCHes). New **/responses tabbed
+  workspace** opens several drafts at once (kept mounted so in-flight answering survives) + a saved
+  list; `/rfp/drafts/[id]` resumes one. Opportunity RFP tab gains "Save as response draft"
+  (snapshot → draft). Sidebar "RFP Builder" → "Responses".
+- **Phase 3 — Review concurrency** (`106001e`, no migration): approve/reject now **claim the
+  status transition atomically** (`.in(status, actionable)` + optional `.eq(updated_at, expected)`)
+  before side-effects; a 0-row claim → **409** "already actioned — refresh". Kills last-write-wins
+  and double KB-ingestion. ReviewCard sends the `updated_at` it last saw.
+
+tsc + lint + build clean throughout; migrations 054 + 055 applied by hand (additive, idempotent).
+
 ## 2026-06-08 — Opportunity docs · buyer web research · profile buildout · UX review
 
 Four-phase initiative (design: `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`).
