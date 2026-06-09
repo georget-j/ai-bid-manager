@@ -1,10 +1,12 @@
 # Market Wedge Execution Tracker v3
 
-> **LATEST (2026-06-09): Org roles & teams · responses workspace · review concurrency**
-> — all 3 phases COMPLETE & pushed (`55acdb5`, `8055e23`, `106001e`), migrations 054 + 055 applied.
-> Built on the UX-review answers (multi-user org roles + members UI, tabbed responses workspace,
-> optimistic review concurrency). Follow-ups (not requested): invite-email delivery, real-time
-> co-editing, review locking/assignment UI. See `MARKET_WEDGE_NEXT_ACTIONS_v3.md`.
+> **LATEST (2026-06-09): Database query performance review** — 4 phases COMPLETE & pushed
+> (`43cac95` indexes mig 056, `78f701b` narrow selects, `b448922` bulk-action N+1, `c637ab0` RLS
+> consistency mig 057). Right-sized to live data (8k opportunities); headline list `title ILIKE`
+> 419ms→0.3ms. Perf follow-ups only past ~100k rows (estimated counts, materialized KPIs).
+> Prior (same day): **Org roles & teams · responses workspace · review concurrency**
+> (`55acdb5`, `8055e23`, `106001e`; migs 054 + 055) — follow-ups: invite-email, real-time co-edit,
+> review locking UI.
 > Prior: opportunity docs · buyer web research · profile buildout · UX review (2026-06-08);
 > **Sources Hardening** → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`.
 > (7-epic product uplift COMPLETE → `MARKET_WEDGE_UPLIFT_TRACKER_v3.md`.)

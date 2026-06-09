@@ -1,5 +1,33 @@
 # Market Wedge Changelog v3
 
+## 2026-06-09 — Database query performance review
+
+Audit-driven, right-sized to the live data (opportunities ≈8k rows/32MB; RAG only 436 chunks),
+so: payload reduction + cheap indexes, no materialized views.
+
+- **Phase 1 — Indexes** (`43cac95`, mig **056**): added missing FK indexes
+  (`document_chunks(document_id)`, `query_results(query_id)`, `approved_answers(review_request_id|query_id)`,
+  `opportunity_tender_documents(tender_document_id)`), composites
+  (`opportunities(status, deadline_at)`, `bid_pipeline(org_id, status)`), and **gin_trgm** indexes on
+  `opportunities(title|buyer_name|region)`. Verified: the active+`title ILIKE` list query went
+  **419ms → 0.3ms** (bitmap scan on the title trigram). Omitted `bid_pipeline(opportunity_id)` —
+  already covered by the unique `(opportunity_id, org_id)`.
+- **Phase 2 — Narrow selects** (`78f701b`): `listOpportunities` projects scalar columns instead of
+  `select("*")`; the list + recommendations never read the heavy jsonb. Sheds ~2.3KB raw_json +
+  0.4KB documents per row → ~116KB (list/50) and ~682KB (recommendations/300) per request. Added a
+  `full?` escape hatch; single-row `getOpportunity` still returns `*`.
+- **Phase 3 — Batch N+1** (`b448922`): review bulk-action went from ~3N per-id round-trips to ~4
+  queries (batch read → single atomic guarded claim for all → batch read queries → bulk
+  approved_answers insert), preserving the concurrency guard. Buyer/pipeline JS aggregation reviewed
+  and left as-is (bounded ≤50/≤1000/small-per-org rows; not a bottleneck).
+- **Phase 4 — Consistency** (`c637ab0`, mig **057**): aligned `opportunity_questions` RLS to the
+  standard `org_id in (select … from org_memberships)` (was a single-org `= (… limit 1)`) for
+  multi-user-team correctness. Sync pre-check dedup KEPT (it skips re-normalizing unchanged notices —
+  dropping it would be slower); RAG rerank left as-is (quality-sensitive, tiny).
+
+tsc + lint + build clean; migrations 056 + 057 applied (additive/idempotent); verified via
+`EXPLAIN ANALYZE` + `pg_stat_user_tables`.
+
 ## 2026-06-09 — Org roles & teams · responses workspace · review concurrency
 
 Follow-on from the UX review (design: `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`).

@@ -9,9 +9,15 @@
 
 ## Current objective
 
-All core product phases shipped. Latest initiative (org roles & teams · responses workspace ·
-review concurrency) **COMPLETE (2026-06-09)** — all 3 phases pushed, migrations 054 + 055 applied.
-(Prior: docs · buyer web research · profile buildout · UX review, 2026-06-08.)
+All core product phases shipped. Latest initiative (**database query performance review**)
+**COMPLETE (2026-06-09)** — 4 phases pushed (`43cac95`, `78f701b`, `b448922`, `c637ab0`),
+migrations 056 + 057 applied. Headline: list `title ILIKE` 419ms→0.3ms via trigram index;
+`listOpportunities` stops shipping raw_json (~682KB saved on recommendations). Prior same day:
+org roles & teams · responses workspace · review concurrency (mig 054 + 055).
+
+**Perf follow-ups (only past ~100k opportunities; not needed now):** estimated counts on the
+dashboard/list; materialized KPI table; buyer-detail SQL-aggregate RPC. RAG (436 chunks) needs
+nothing yet.
 
 **Follow-ups available (not yet requested):**
 
@@ -23,11 +29,11 @@ review concurrency) **COMPLETE (2026-06-09)** — all 3 phases pushed, migration
 
 Last commits (2026-06-09):
 
-- `106001e` — review: optimistic-concurrency guard on approve/reject
-- `8055e23` — responses: persisted RFP drafts + tabbed responses workspace (mig 055)
-- `55acdb5` — auth: org roles + multi-user teams; operator vs org-role split (mig 054)
-- `bbcfa7e` — docs: UX & navigation review (2026-06-08)
-- `05e51ee` — nav: surface RFP Builder + Compliance in the sidebar (2026-06-08)
+- `c637ab0` — perf(db): opportunity_questions RLS consistency (mig 057)
+- `b448922` — perf(db): batch review bulk-action (N+1 → ~4 queries)
+- `78f701b` — perf(db): narrow opportunity list/recommendations selects (drop raw_json)
+- `43cac95` — perf(db): add missing FK + filter + trigram indexes (mig 056)
+- `106001e` — review: optimistic-concurrency guard on approve/reject (mig 054/055 initiative)
 
 ---
 
