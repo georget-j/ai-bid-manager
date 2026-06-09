@@ -14,7 +14,22 @@ export const maxDuration = 60;
 const ActionSchema = z.object({
   action: z.enum(["approve", "reject"]),
   edited_answer: z.string().optional(),
+  // Optimistic-concurrency token: the updated_at the reviewer last saw.
+  expected_updated_at: z.string().optional(),
 });
+
+// Statuses from which an approve/reject transition is allowed.
+const ACTIONABLE = ["pending", "assigned", "escalated"];
+
+function conflict() {
+  return NextResponse.json(
+    {
+      error:
+        "This item was already actioned by another reviewer. Refresh to see the latest.",
+    },
+    { status: 409 },
+  );
+}
 
 export async function POST(
   req: NextRequest,
@@ -27,6 +42,7 @@ export async function POST(
 
   let action: string;
   let editedAnswer: string | undefined;
+  let expectedUpdatedAt: string | undefined;
   try {
     const body = await req.json();
     const parsed = ActionSchema.safeParse(body);
@@ -38,6 +54,7 @@ export async function POST(
     }
     action = parsed.data.action;
     editedAnswer = parsed.data.edited_answer;
+    expectedUpdatedAt = parsed.data.expected_updated_at;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -46,12 +63,22 @@ export async function POST(
 
   const { data: reviewRequest, error: rrError } = await supabase
     .from("review_requests")
-    .select("id, query_id, topic, risk_level, rfp_run_id, assigned_to")
+    .select(
+      "id, query_id, topic, risk_level, rfp_run_id, assigned_to, status, updated_at",
+    )
     .eq("id", id)
     .single();
 
   if (rrError || !reviewRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Already finalised by someone else?
+  if (
+    reviewRequest.status === "approved" ||
+    reviewRequest.status === "rejected"
+  ) {
+    return conflict();
   }
 
   // In auth mode use the session user's email; in demo mode fall back to assigned_to
@@ -78,15 +105,32 @@ export async function POST(
   const approvedText = editedAnswer?.trim() || draftAnswer;
 
   if (action === "reject") {
-    await supabase
+    let rejectQuery = supabase
       .from("review_requests")
       .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .in("status", ACTIONABLE);
+    if (expectedUpdatedAt)
+      rejectQuery = rejectQuery.eq("updated_at", expectedUpdatedAt);
+    const { data: claimed } = await rejectQuery.select("id");
+    if (!claimed || claimed.length === 0) return conflict();
 
     void logReviewAction(id, actorEmail, "rejected");
 
     return NextResponse.json({ success: true, action: "rejected" });
   }
+
+  // Approve — claim the transition atomically BEFORE any side-effects, so two
+  // reviewers can't both approve (which would double-ingest + double-record).
+  let claimQuery = supabase
+    .from("review_requests")
+    .update({ status: "approved", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .in("status", ACTIONABLE);
+  if (expectedUpdatedAt)
+    claimQuery = claimQuery.eq("updated_at", expectedUpdatedAt);
+  const { data: claimedApprove } = await claimQuery.select("id");
+  if (!claimedApprove || claimedApprove.length === 0) return conflict();
 
   let ingestedDocumentId: string | null = null;
 
@@ -120,11 +164,7 @@ export async function POST(
     reusable: true,
   });
 
-  await supabase
-    .from("review_requests")
-    .update({ status: "approved", updated_at: new Date().toISOString() })
-    .eq("id", id);
-
+  // Status was already set to "approved" by the atomic claim above.
   void logReviewAction(id, actorEmail, "approved", {
     edited: !!editedAnswer?.trim(),
     ingested: !!ingestedDocumentId,

@@ -63,10 +63,16 @@ export async function POST(req: NextRequest) {
       }
 
       if (action === "reject") {
-        await supabase
+        const { data: claimed } = await supabase
           .from("review_requests")
           .update({ status: "rejected", updated_at: new Date().toISOString() })
-          .eq("id", id);
+          .eq("id", id)
+          .in("status", ["pending", "assigned"])
+          .select("id");
+        if (!claimed || claimed.length === 0) {
+          failed.push(id);
+          continue;
+        }
         void logReviewAction(
           id,
           actorEmail ?? reviewRequest.assigned_to,
@@ -74,6 +80,18 @@ export async function POST(req: NextRequest) {
           { bulk: true },
         );
         processed++;
+        continue;
+      }
+
+      // Approve — claim the transition atomically before any side-effects.
+      const { data: claimedApprove } = await supabase
+        .from("review_requests")
+        .update({ status: "approved", updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .in("status", ["pending", "assigned"])
+        .select("id");
+      if (!claimedApprove || claimedApprove.length === 0) {
+        failed.push(id);
         continue;
       }
 
@@ -121,11 +139,7 @@ export async function POST(req: NextRequest) {
         reusable: true,
       });
 
-      await supabase
-        .from("review_requests")
-        .update({ status: "approved", updated_at: new Date().toISOString() })
-        .eq("id", id);
-
+      // Status was already set to "approved" by the atomic claim above.
       void logReviewAction(
         id,
         actorEmail ?? reviewRequest.assigned_to,

@@ -12,6 +12,7 @@ type ReviewRequest = {
   assigned_to: string;
   status: string;
   due_at: string | null;
+  updated_at?: string | null;
   audit_log?: AuditEntry[];
   queries: {
     query_text: string;
@@ -181,6 +182,7 @@ export function ReviewCard({ review }: { review: ReviewRequest }) {
         body: JSON.stringify({
           action,
           edited_answer: savedEdit ?? undefined,
+          expected_updated_at: review.updated_at ?? undefined,
         }),
       });
       const json = await res.json();
