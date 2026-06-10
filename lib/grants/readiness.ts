@@ -36,9 +36,17 @@ export function assessGrantReadiness(input: {
   grant: GrantRow;
   fit: GrantScoringResult | null;
   kbDocCount: number;
+  pendingReview?: number;
 }): ReadinessResult {
-  const { extractedQuestions, answers, selectedIds, grant, fit, kbDocCount } =
-    input;
+  const {
+    extractedQuestions,
+    answers,
+    selectedIds,
+    grant,
+    fit,
+    kbDocCount,
+    pendingReview = 0,
+  } = input;
   const checks: ReadinessCheck[] = [];
 
   if (fit) {
@@ -88,6 +96,13 @@ export function assessGrantReadiness(input: {
     label: "Grant evidence in knowledge base",
     ok: kbDocCount > 0,
     detail: `${kbDocCount} resource${kbDocCount === 1 ? "" : "s"}`,
+  });
+
+  checks.push({
+    label: "High-risk answers reviewed",
+    ok: pendingReview === 0,
+    detail:
+      pendingReview > 0 ? `${pendingReview} awaiting review` : "none pending",
   });
 
   const passed = checks.filter((c) => c.ok).length;

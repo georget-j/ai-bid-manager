@@ -9,6 +9,7 @@ import { getOrgProfile } from "@/lib/procurement/data";
 import { scoreGrant } from "@/lib/grants/scoring";
 import { grantCollection } from "@/lib/grants/ingest-docs";
 import { assessGrantReadiness } from "@/lib/grants/readiness";
+import { getRunReviewStatus } from "@/lib/grants/review-status";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ async function grantReadiness(draft: ResponseDraft, orgId: string) {
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
     .eq("collection", grantCollection(grant.id));
+  const review = await getRunReviewStatus(draft.latest_rfp_run_id);
   return assessGrantReadiness({
     extractedQuestions: (draft.extracted_questions ??
       []) as ExtractedQuestion[],
@@ -32,6 +34,7 @@ async function grantReadiness(draft: ResponseDraft, orgId: string) {
     grant,
     fit,
     kbDocCount: count ?? 0,
+    pendingReview: review.pending,
   });
 }
 

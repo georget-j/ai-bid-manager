@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { getRunReviewStatuses } from "@/lib/grants/review-status";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET() {
     .select(
       `
       id, rfp_title, stage, submitted_at, question_count, answered_count,
-      grant_id, updated_at,
+      grant_id, latest_rfp_run_id, updated_at,
       grant:grants(id, title, funder_name, deadline_at, status)
     `,
     )
@@ -26,5 +27,17 @@ export async function GET() {
 
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ applications: data ?? [] });
+
+  const rows = data ?? [];
+  const reviews = await getRunReviewStatuses(
+    rows.map((r) => r.latest_rfp_run_id as string | null),
+  );
+  const applications = rows.map((r) => ({
+    ...r,
+    review: r.latest_rfp_run_id
+      ? (reviews.get(r.latest_rfp_run_id as string) ?? null)
+      : null,
+  }));
+
+  return NextResponse.json({ applications });
 }

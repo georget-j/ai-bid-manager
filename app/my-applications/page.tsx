@@ -20,6 +20,7 @@ interface Application {
   grant_id: string | null;
   updated_at: string;
   grant: GrantRef | null;
+  review: { total: number; pending: number; resolved: number } | null;
 }
 
 const STAGES: Array<{ key: string; label: string }> = [
@@ -243,6 +244,22 @@ export default function MyApplicationsPage() {
                             >
                               {a.answered_count}/{a.question_count} answered
                             </span>
+                          )}
+                          {a.review && a.review.pending > 0 && (
+                            <Link
+                              href="/review"
+                              style={{
+                                fontSize: 10.5,
+                                fontWeight: 600,
+                                padding: "1px 7px",
+                                borderRadius: 999,
+                                background: "#ede9fe",
+                                color: "#6d28d9",
+                                textDecoration: "none",
+                              }}
+                            >
+                              {a.review.pending} in review
+                            </Link>
                           )}
                         </div>
                         {a.question_count > 0 && (
