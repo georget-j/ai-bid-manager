@@ -12,7 +12,6 @@ import { assessGrantReadiness } from "@/lib/grants/readiness";
 import { getRunReviewStatus } from "@/lib/grants/review-status";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { BudgetBuilder } from "./BudgetBuilder";
-import { hasBudget, isBudgetBalanced } from "@/lib/grants/budget";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +36,8 @@ async function grantReadiness(draft: ResponseDraft, orgId: string) {
     fit,
     kbDocCount: count ?? 0,
     pendingReview: review.pending,
-    budgetBalanced: hasBudget(draft.budget)
-      ? isBudgetBalanced(draft.budget)
-      : null,
+    budget: draft.budget,
+    stage: draft.stage,
   });
 }
 
