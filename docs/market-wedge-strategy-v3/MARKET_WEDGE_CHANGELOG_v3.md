@@ -1,5 +1,17 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Per-grant "how to apply" navigator (`b31e428`)
+
+Application processes differ per grant, so this reads each grant's how-to-apply / eligibility /
+key-dates / supporting text and generates a tailored, navigable guide: a short summary, a tickable
+**eligibility checklist**, and **ordered steps** each with the documents/info required and any
+deadline. `lib/grants/guide.ts` (`generateApplicationGuide` LLM grounded strictly in the grant text;
+`ensureApplicationGuide` caches into `details.guide` — no migration; `generatePendingGuides` capped
+cron pass, 10/run). `/api/grants/[id]/guide` builds on demand. Grant detail "How to apply" section
+(`ApplicationGuide`) renders the checklist + steps with a progress bar; progress persists per grant
+via `useSyncExternalStore` + localStorage; in the jump-nav; applyable grants only. Verified live
+(Future Leaders Fellowships): accurate 8-item checklist + 8 steps with correct deadlines.
+
 ## 2026-06-10 — Grant-scoped KB (docs + links) + isolated retrieval + collapsible UI (`3c84334`, mig 063)
 
 Three things on top of grant applications: (1) import **links** too, not just files —
