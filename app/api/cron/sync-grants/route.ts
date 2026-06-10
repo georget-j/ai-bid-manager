@@ -3,6 +3,7 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { allGrantConnectors } from "@/lib/grants/connectors";
 import { syncGrantSource, seedGrantSources } from "@/lib/grants/sync";
 import { enrichPendingGrants } from "@/lib/grants/enrich";
+import { generatePendingGuides } from "@/lib/grants/guide";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -47,11 +48,20 @@ export async function GET(req: NextRequest) {
     /* best-effort */
   }
 
+  // Generate how-to-apply guides for a capped batch of enriched grants that lack one.
+  let guides = { generated: 0, attempted: 0 };
+  try {
+    guides = await generatePendingGuides(10);
+  } catch {
+    /* best-effort */
+  }
+
   return NextResponse.json({
     ran: connectors.map((c) => c.sourceName),
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { error: String(r.reason) },
     ),
     enriched,
+    guides,
   });
 }

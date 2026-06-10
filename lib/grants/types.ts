@@ -44,6 +44,23 @@ export interface GrantDetails {
   links: GrantLink[]; // links embedded in the detail content (e.g. eligibility criteria)
   documents: GrantLink[]; // downloadable documents (PDF / DOCX / ...)
   webpageUrl?: string | null; // canonical apply / info page on the source
+  guide?: ApplicationGuide | null; // generated "how to apply" navigator (lazy)
+}
+
+// A tailored, navigable "how to apply" guide generated from the grant's detail text.
+// The process differs per grant, so this is grant-specific.
+export interface ApplicationStep {
+  title: string;
+  detail: string;
+  requirements: string[]; // documents / information / actions needed for this step
+  deadline: string | null; // a date or time-bound note, if the step is time-sensitive
+}
+
+export interface ApplicationGuide {
+  summary: string; // 1–2 sentence overview of how to apply for this grant
+  eligibilityChecklist: string[]; // criteria to confirm before applying
+  steps: ApplicationStep[]; // ordered steps to apply
+  generatedAt: string;
 }
 
 export interface NormalizedGrant {

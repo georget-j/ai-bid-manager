@@ -8,6 +8,7 @@ import { enrichGrant } from "@/lib/grants/enrich";
 import { DraftApplicationButton } from "./DraftApplicationButton";
 import { IngestDocumentsButton } from "./IngestDocumentsButton";
 import { GrantSectionNav, type NavSection } from "./GrantSectionNav";
+import { ApplicationGuide } from "./ApplicationGuide";
 
 export const dynamic = "force-dynamic";
 
@@ -104,13 +105,15 @@ export default async function GrantDetailPage({ params }: PageProps) {
 
   // Right-hand jump-nav ("hot bar") entries, in render order.
   const navSections: NavSection[] = [];
+  if (fit)
+    navSections.push({ id: "eligibility-fit", label: "Eligibility & fit" });
+  if (applyable)
+    navSections.push({ id: "how-to-apply", label: "How to apply" });
   if (grant.description) navSections.push({ id: "about", label: "About" });
   for (const s of details?.sections ?? [])
     navSections.push({ id: `sec-${slug(s.heading)}`, label: s.heading });
   if (details && details.documents.length + details.links.length > 0)
     navSections.push({ id: "resources", label: "Documents & links" });
-  if (fit)
-    navSections.push({ id: "eligibility-fit", label: "Eligibility & fit" });
   navSections.push({ id: "key-details", label: "Key details" });
 
   return (
@@ -333,6 +336,13 @@ export default async function GrantDetailPage({ params }: PageProps) {
               </p>
             ))}
           </div>
+        )}
+
+        {applyable && (
+          <ApplicationGuide
+            grantId={grant.id}
+            initialGuide={details?.guide ?? null}
+          />
         )}
 
         {grant.description && (
