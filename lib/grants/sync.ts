@@ -332,7 +332,7 @@ export async function seedGrantSources(): Promise<void> {
         display_name: "GOV.UK Find a Grant",
         type: "Web (guardrailed)",
         base_url: "https://www.find-government-grants.service.gov.uk",
-        enabled: false, // off until the guardrailed scraper is verified
+        enabled: true, // open calls — reads the service's own embedded JSON
         last_successful_sync_at: null,
         last_cursor: null,
         last_error: null,
