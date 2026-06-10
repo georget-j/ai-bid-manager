@@ -1,5 +1,29 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants advanced: semantic matching, post-award reporting, budgets
+
+Approved queue (3 of 4 built; 4th investigated):
+
+1. **Semantic matching** (`389e687`, mig **065**): `grants.embedding vector(1536)`; embed grants +
+   the org profile (text-embedding-3-small) and add a bounded, min-max-normalised, ADDITIVE semantic
+   boost (+0..20) on top of `scoreGrant` in `/api/grants/recommendations` (never lowers the keyword
+   result; never overrides eligibility). `embedPendingGrants` cron pass; 134 open grants backfilled.
+   Verified: for a cyber/tech profile the top semantic matches are innovation competitions (sim
+   ~0.37–0.39) vs unrelated EV grants (~0.15).
+2. **Post-award reporting** (`56e95a3`, mig **066**): `grant_reports` (org-scoped RLS); My
+   Applications "Awarded" cards get a reporting panel (milestones with due dates + status).
+3. **Budget builder** (`4102911`, mig **067**): `response_drafts.budget jsonb`; a project costs /
+   funding-sources builder on grant drafts with totals + balance, debounced autosave, and a
+   "Project budget balanced" readiness check. (DOCX export of the budget deferred.)
+4. **More open-call sources — investigated, deferred.** Probed Funding Scotland (search is
+   **login-gated**), TNL Community Fund (no clean programme listing / no embedded JSON), and looked
+   for public APIs (none found). The two clean UK open-call sources (GOV.UK Find a Grant, Innovate
+   UK) are already connected; a further robust source needs dedicated per-site work (a real project,
+   not a quick scrape) — candidates: EU Funding & Tenders SEDIA API (public JSON, but UK Horizon
+   eligibility caveats) or a data partnership. Not shipped to avoid a brittle connector.
+
+Migrations applied through **067** (next free: 068).
+
 ## 2026-06-10 — Grants gap-closing: export, deadline reminders, review, more funders
 
 1. **Application DOCX export** (`80d6556`): `GET /api/grants/applications/[id]/export` builds a
