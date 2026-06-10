@@ -9,6 +9,24 @@
 
 ## Current objective
 
+### GRANTS — guided application UX overhaul DONE (2026-06-10); NO new migration (next free still 068)
+
+Reworked the whole grant **view → understand → respond** journey into a guided, plain-English
+step-by-step flow for non-technical users (5 phases, `096548e`→`b68b890`; full detail in CHANGELOG).
+Core: `lib/grants/application-flow.ts` (`buildApplicationFlow` — single source of truth for the 6
+steps + readiness; `readiness.ts` is now a thin adapter) + `app/rfp/drafts/[id]/GrantApplicationFlow.tsx`
+(the sticky step spine that reuses `RFPProcessor` / `BudgetBuilder` / `ApplicationGuide` / eligibility
+/ evidence). `lib/grants/copy.ts` keeps enums + jargon out of the UI. **No schema change** — step
+status derives from existing `response_drafts` columns. Also: grant detail one-CTA + auto-surfaced
+guide; discover cross-links + deadlines + fixed stale `/my-grants` copy; **budget now in the DOCX
+export**; profile `#grant-eligibility` anchor + grant fields in the completeness meter.
+
+**Remaining (optional / blocked, not started):** a robust additional open-call source (still no clean
+source — see item 4 below); config you control — `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY`
+(register auto-enrich), `RESEND_API_KEY` (deadline email digest; cron already wired).
+
+---
+
 ### GRANTS — advanced batch DONE (2026-06-10); migrations applied through 067 (next free 068)
 
 The approved 4-item queue is resolved — 3 built + shipped, the 4th investigated + deferred:
@@ -28,9 +46,8 @@ The approved 4-item queue is resolved — 3 built + shipped, the 4th investigate
 
 ### Remaining grants follow-ups (small / optional)
 
-- **Render the project budget into the DOCX export** (`app/api/grants/applications/[id]/export`) —
-  deferred because it needs a synthetic `RFPResponse`; instead extend `generateBatchDocx` (lib/export-docx.ts)
-  with an optional budget table.
+- ✅ **Budget in the DOCX export** — DONE (`b68b890`): `generateBatchDocx` takes an optional
+  `GrantBudget` and renders a costs/funding table; the grant export route passes `draft.budget`.
 - **Blocked on user (config, not buildable by me):** register auto-enrich needs `COMPANIES_HOUSE_API_KEY`
   - `CHARITY_COMMISSION_API_KEY`; the email deadline digest needs `RESEND_API_KEY` (cron already wired).
 

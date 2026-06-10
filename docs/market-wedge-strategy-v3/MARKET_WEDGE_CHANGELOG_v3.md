@@ -1,5 +1,38 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants UX overhaul: guided, plain-English application journey
+
+A step-by-step review of the grant **view → understand → respond** journey found the pieces were
+competent but had **no spine** — nothing told a non-technical bid writer what to do next, and the
+grant's identity dissolved the moment they started applying (the app landed them in the RFP
+"Respond" workspace with "← All responses"). Rebuilt the whole journey as a guided flow. **No
+schema change** — every step status derives from existing `response_drafts` columns. 5 phases,
+all tsc/lint(baseline)/build green:
+
+1. **Foundation** (`096548e`): `lib/grants/application-flow.ts` — `buildApplicationFlow()` is the
+   single source of truth, deriving 6 plain-English steps (eligible / requirements / evidence /
+   answers / budget / review) + the granular readiness checks. `readiness.ts` is now a thin adapter
+   over it. `lib/grants/copy.ts` — plain-English helpers (`matchVerdict` / `actionLabel` /
+   `matchColor`) so enums ("do-not-apply") and jargon ("fit score", "confidence") never reach the UI.
+2. **Guided flow (centrepiece)** (`d3b31c9`): `app/rfp/drafts/[id]/GrantApplicationFlow.tsx` — grant
+   draft workspace becomes a grant-framed flow: header (name · match · deadline) + breadcrumbs back
+   to the grant / My applications (kills the "Respond" leak); a sticky `StepSpine` (scroll-spy,
+   status dots, % done, persistent "Next:" CTA); ordered sections reusing the eligibility panel,
+   how-to-apply guide, an inline "Add the funder's documents" action, `RFPProcessor`, `BudgetBuilder`,
+   and a Review & submit step whose checks are clickable ("Fix this →") ending in a working "Mark as
+   submitted". `RFPProcessor`/`BudgetBuilder` gained an `onSaved` callback → the spine recomputes via
+   `router.refresh()` after each autosave (single source of truth, no lifted state).
+3. **Grant detail "understand"** (`e40fe6b`): one primary CTA "Start your application →" (button wall
+   collapsed; external links demoted to a quiet row); how-to-apply guide auto-surfaced on view via
+   `ensureApplicationGuide`; plain-English "/100 match" + verdict instead of "confidence" + raw enum.
+4. **Discover polish** (`c403d62`): `/grants` ↔ `/my-grants` cross-links; deadline urgency on every
+   card; real empty state on filtered `/grants`; `/my-grants` shows 2 reasons + top risk, "/100
+   match", and the **stale "open-call sources being added" copy fixed** (they're connected).
+5. **Track + first-run** (`b68b890`): **budget now in the DOCX export** (`generateBatchDocx` optional
+   budget table — runtime-verified); My applications "View grant →" back-link + reporting hint before
+   "Awarded"; profile gains the `#grant-eligibility` anchor (deep-linked from the flow) + grant fields
+   folded into the completeness meter.
+
 ## 2026-06-10 — Grants advanced: semantic matching, post-award reporting, budgets
 
 Approved queue (3 of 4 built; 4th investigated):

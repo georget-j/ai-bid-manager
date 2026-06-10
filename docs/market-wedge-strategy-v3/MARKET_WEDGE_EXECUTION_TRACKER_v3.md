@@ -1,5 +1,14 @@
 # Market Wedge Execution Tracker v3
 
+> **GRANTS GUIDED-UX OVERHAUL — COMPLETE (2026-06-10, no new migration; next free still 068).**
+> The grant view→understand→respond journey is now a guided, plain-English step-by-step flow for
+> non-technical users: `lib/grants/application-flow.ts` (single source of truth) +
+> `app/rfp/drafts/[id]/GrantApplicationFlow.tsx` (sticky 6-step spine reusing the existing panels).
+> Grant detail one-CTA + auto-surfaced guide; discover cross-links + deadlines; budget in DOCX
+> export; profile `#grant-eligibility` + grant fields in completeness. 5 phases `096548e`→`b68b890`.
+> See CHANGELOG + ADR-grants-guided-flow. Optional remaining: a robust extra open-call source; config
+> keys (Companies House / Charity Commission / Resend).
+>
 > **GRANTS FEATURE — COMPLETE (2026-06-10)** (migs 058–061). Discovery (list/detail) + confidence
 > scoring (eligibility card + `/my-grants`) + KB-grounded applications + funder directory +
 > **open-call connectors** (GOV.UK Find a Grant 112 + Innovate UK 25) + **grant alerts** (reuse

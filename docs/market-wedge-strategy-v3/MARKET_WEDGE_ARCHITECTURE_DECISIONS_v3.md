@@ -158,3 +158,39 @@ Introduce a global `tender_documents` store (migration 040): one row per documen
 All bid-private data (`opportunity_questions`, `bid_pipeline`, drafts, re-evaluations) remains strictly org-scoped. Sharing is limited to public tender material only; no org can see another org's answers, evidence, or that they are bidding.
 
 `tender_doc_cache` is left in place as a dormant per-org fallback and will be dropped in a later migration once the central store is proven in production. `lib/tender-docs.ts` (`getOrFetchTenderDoc`) is the single fetch/cache entry point: URL fast-path (no download), then content-hash dedup (no re-upload/re-extract), then store.
+
+## ADR-012: Grant application as an anchored step spine (not a multi-route wizard)
+
+Status: accepted (2026-06-10)
+
+Context:
+
+The grant view→understand→respond journey needed to become a guided, plain-English flow usable by
+non-technical applicants. The answering engine (`components/RFPProcessor.tsx`) already owns its own
+internal step state (`upload→reviewing→answering→done`) plus debounced autosave, and `BudgetBuilder`
+/ `ApplicationGuide` are likewise self-contained client components.
+
+Decision:
+
+Implement the guided flow as a **single workspace with an anchored progress spine**, NOT a
+multi-route wizard that mounts one step at a time:
+
+- `lib/grants/application-flow.ts` `buildApplicationFlow()` is the **single source of truth** — it
+  derives the 6 plain-English steps and the granular readiness checks from existing
+  `response_drafts` columns (`grant_id`, `extracted_questions`, `answers`, `budget`, `stage`). There
+  is **no stored "current step"** and **no new migration**. `lib/grants/readiness.ts` is now a thin
+  adapter over it so the spine and the review gate can never disagree.
+- `app/rfp/drafts/[id]/GrantApplicationFlow.tsx` renders a sticky `StepSpine` (scroll-spy + status
+  dots + "Next:" CTA) over ordered sections that **reuse** `RFPProcessor` / `BudgetBuilder` /
+  `ApplicationGuide` / the eligibility panel / the evidence import — kept as-is.
+- The spine stays accurate without lifting state: `RFPProcessor` and `BudgetBuilder` call an
+  `onSaved` callback after each autosave, and the flow calls `router.refresh()` (debounced) to
+  recompute the server-side flow. App-Router preserves client component state across refresh.
+
+Consequences:
+
+A true wizard would have fought RFPProcessor's internal state and autosave, and risked regressing
+the plain-RFP path (which still uses RFPProcessor directly, unchanged). The anchored spine reuses
+everything, needs no schema change, and the server stays the single source of truth for progress.
+`lib/grants/copy.ts` centralises plain-English wording so internal enums ("do-not-apply") and jargon
+("fit score", "confidence", "knowledge base") never reach the UI.
