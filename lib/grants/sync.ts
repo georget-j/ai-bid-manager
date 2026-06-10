@@ -18,6 +18,7 @@ export interface GrantSyncResult {
   errors: string[];
   hasMore: boolean;
   nextCursor: string | null;
+  closedPruned: number;
 }
 
 const LOOKBACK_HOURS = Number(process.env.GRANTS_SYNC_LOOKBACK_HOURS ?? "168"); // 7d
@@ -48,7 +49,9 @@ export async function syncGrantSource(
   let normalizeErrors = 0;
   let totalFetched = 0;
   let totalPages = 0;
+  let closedPruned = 0;
   const upsertedIds: string[] = [];
+  const seenNoticeIds = new Set<string>();
 
   const { data: sourceRow } = await supabase
     .from("grant_sources")
@@ -104,6 +107,7 @@ export async function syncGrantSource(
           errors: [msg],
           hasMore: false,
           nextCursor: null,
+          closedPruned: 0,
         };
       }
       errors.push(`page ${totalPages + 1} fetch: ${msg}`);
@@ -121,9 +125,11 @@ export async function syncGrantSource(
       [];
     for (const raw of rawItems) {
       const hash = hashPayload(raw);
+      const noticeId = extractGrantId(raw) ?? hash;
+      seenNoticeIds.add(noticeId); // every fetched item, for delisting prune
       if (seenInPage.has(hash)) continue;
       seenInPage.add(hash);
-      pageItems.push({ raw, hash, noticeId: extractGrantId(raw) ?? hash });
+      pageItems.push({ raw, hash, noticeId });
     }
 
     const existingHashes = new Set<string>();
@@ -229,6 +235,40 @@ export async function syncGrantSource(
       .eq("name", connector.sourceName);
   }
 
+  // Prune delisted grants: for sources that return their whole current open set,
+  // any previously-open grant not seen in a COMPLETE, clean sync has been delisted
+  // (closed at source) — mark it closed so it drops out of recommendations and
+  // stops showing dead "Apply"/"View source" links. Guarded to avoid mass-closing
+  // on a partial run or a source outage.
+  if (
+    connector.listsAllOpenCalls &&
+    !options.backfill &&
+    !hasMoreAfterCap &&
+    totalFetched > 0 &&
+    seenNoticeIds.size > 0 &&
+    !errors.some((e) => e.includes("fetch"))
+  ) {
+    try {
+      const { data: existing } = await supabase
+        .from("grants")
+        .select("id, source_notice_id")
+        .eq("source_name", connector.sourceName)
+        .neq("status", "closed");
+      const absent = (existing ?? [])
+        .filter((g) => !seenNoticeIds.has(g.source_notice_id))
+        .map((g) => g.id as string);
+      for (const group of chunk(absent, 100)) {
+        await supabase
+          .from("grants")
+          .update({ status: "closed", updated_at: now.toISOString() })
+          .in("id", group);
+      }
+      closedPruned = absent.length;
+    } catch (err) {
+      errors.push(`prune: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // Fire grant alerts for newly upserted grants (best-effort; never fail the sync).
   if (upsertedIds.length > 0) {
     try {
@@ -251,6 +291,7 @@ export async function syncGrantSource(
     errors,
     hasMore: hasMoreAfterCap,
     nextCursor: hasMoreAfterCap ? currentCursor : null,
+    closedPruned,
   };
 }
 

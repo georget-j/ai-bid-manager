@@ -150,6 +150,13 @@ export interface GrantSourceConnector {
   sourceName: GrantSourceName;
   displayName: string;
   baseUrl: string;
+  /**
+   * True when a complete sync returns the source's entire current set of open calls
+   * (e.g. GOV.UK Find a Grant, Innovate UK). Lets the sync prune grants that have been
+   * delisted at source (closed) by marking any not seen in a complete run as "closed".
+   * Leave false/undefined for paged/partial sources (e.g. 360Giving awarded grants).
+   */
+  listsAllOpenCalls?: boolean;
   fetchSince(params: GrantFetchSinceParams): Promise<GrantFetchResult>;
   normalize(raw: unknown): Promise<NormalizedGrant[]>;
 }

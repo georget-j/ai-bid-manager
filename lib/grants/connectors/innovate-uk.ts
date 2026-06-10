@@ -163,6 +163,7 @@ export const innovateUkConnector: GrantSourceConnector = {
   sourceName: "innovate-uk",
   displayName: "Innovate UK (Innovation Funding Service)",
   baseUrl: BASE_URL,
+  listsAllOpenCalls: true,
 
   async fetchSince(params: GrantFetchSinceParams): Promise<GrantFetchResult> {
     const page = params.cursor ? Number(params.cursor) || 0 : 0;

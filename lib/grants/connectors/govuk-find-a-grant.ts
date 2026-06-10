@@ -93,6 +93,7 @@ export const govukFindAGrantConnector: GrantSourceConnector = {
   sourceName: "govuk-find-a-grant",
   displayName: "GOV.UK Find a Grant",
   baseUrl: BASE_URL,
+  listsAllOpenCalls: true,
 
   async fetchSince(params: GrantFetchSinceParams): Promise<GrantFetchResult> {
     const page = params.cursor ? Number(params.cursor) || 1 : 1;

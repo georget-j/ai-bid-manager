@@ -43,7 +43,7 @@ export const PROGRAMMES: Programme[] = [
     cadence: "Rolling applications, themed challenges",
     offer: "Access to NCSC experts, no equity taken, product feedback",
     applicationUrl:
-      "https://www.ncsc.gov.uk/section/products-services/ncsc-for-startups",
+      "https://www.ncsc.gov.uk/section/ncsc-for-startups/overview",
     description:
       "The National Cyber Security Centre's startup programme, run with Plexal. Helps early-stage cyber companies adapt and pilot their products against real national-security challenges. Equity-free.",
     cyberRelevant: true,
@@ -57,7 +57,7 @@ export const PROGRAMMES: Programme[] = [
     location: "UK (national)",
     cadence: "Annual cohorts (Launch / Grow / Scale tracks)",
     offer: "Grant-funded support, mentoring, masterclasses, investor access",
-    applicationUrl: "https://cyberrunway.org/",
+    applicationUrl: "https://www.plexal.com/our-work/cyber-runway/",
     description:
       "The UK government's flagship cyber accelerator, delivered by Plexal. Three tracks from idea-stage (Launch) to scaling (Scale). Government-funded — no equity.",
     cyberRelevant: true,
@@ -124,7 +124,7 @@ export const PROGRAMMES: Programme[] = [
     location: "London / Europe",
     cadence: "Rolling — apply any time",
     offer: "Pre-seed/seed investment + lifelong platform support",
-    applicationUrl: "https://seedcamp.com/apply/",
+    applicationUrl: "https://seedcamp.com/",
     description:
       "Europe's leading seed fund. Rolling applications, fast process, and an unusually strong post-investment platform and expert network.",
   },

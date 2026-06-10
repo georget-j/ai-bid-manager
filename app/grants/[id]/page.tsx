@@ -74,6 +74,13 @@ export default async function GrantDetailPage({ params }: PageProps) {
 
   const s = STATUS_STYLES[grant.status] ?? STATUS_STYLES.unknown;
   const amount = fmtAmount(grant.amount_min, grant.amount_max);
+  // Only open calls are applyable; closed grants are often delisted at source, so we
+  // hide their (likely dead) external links and show a note instead.
+  const applyable =
+    grant.status === "open" ||
+    grant.status === "forthcoming" ||
+    grant.status === "rolling";
+  const isClosed = grant.status === "closed";
 
   const profile = orgId ? await getOrgProfile(orgId) : null;
   const fit = profile ? scoreGrant(grant, profile) : null;
@@ -181,8 +188,8 @@ export default async function GrantDetailPage({ params }: PageProps) {
             alignItems: "center",
           }}
         >
-          <DraftApplicationButton grantId={grant.id} />
-          {grant.application_url && (
+          {applyable && <DraftApplicationButton grantId={grant.id} />}
+          {grant.application_url && applyable && (
             <a
               href={grant.application_url}
               target="_blank"
@@ -193,7 +200,7 @@ export default async function GrantDetailPage({ params }: PageProps) {
               Apply ↗
             </a>
           )}
-          {grant.source_url && (
+          {grant.source_url && !isClosed && (
             <a
               href={grant.source_url}
               target="_blank"
@@ -203,6 +210,11 @@ export default async function GrantDetailPage({ params }: PageProps) {
             >
               View source ↗
             </a>
+          )}
+          {isClosed && (
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              This call has closed and is no longer listed at the source.
+            </span>
           )}
         </div>
       </div>
