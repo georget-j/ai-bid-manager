@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:eval": "vitest run --config vitest.eval.config.ts",
-    "test:isolation": "vitest run tests/tenant-isolation.test.ts"
+    "test:isolation": "vitest run tests/tenant-isolation.test.ts",
+    "qa:grants": "vitest run --config vitest.qa.config.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.63",
