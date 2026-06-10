@@ -64,8 +64,11 @@ export function scoreGrant(
       reasons.push("Your organisation type is eligible.");
       score += 10;
     }
-    // Charity-specific hard stop
+    // Charity-specific hard stop — only when the org did not already qualify via
+    // another allowed type (a grant open to "company OR charity" must not exclude a
+    // company just because charity is one of the options).
     if (
+      !ok &&
       want.some((w) => w.includes("charit")) &&
       profile.is_registered_charity === false
     ) {
