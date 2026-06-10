@@ -31,6 +31,17 @@ function formatAmount(min: number | null, max: number | null) {
   return one != null ? fmt(one) : null;
 }
 
+function deadlineBadge(
+  iso: string | null,
+): { label: string; color: string } | null {
+  if (!iso) return null;
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return null;
+  if (days === 0) return { label: "Due today", color: "#dc2626" };
+  if (days <= 14) return { label: `${days} days left`, color: "#b45309" };
+  return { label: `${days} days left`, color: "#059669" };
+}
+
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
@@ -71,9 +82,20 @@ export default async function GrantsPage({ searchParams }: PageProps) {
           Grant <em>opportunities</em>
         </h1>
         <p className="subtitle">
-          UK grant funding. Open calls can be scored and applied to from your
-          knowledge base; awarded grants are shown for funder research.
+          UK grant funding. Open calls can be scored against your organisation
+          and applied to step by step; awarded grants are shown for funder
+          research.
         </p>
+        <Link
+          href="/my-grants"
+          style={{
+            fontSize: 13,
+            color: "var(--accent)",
+            textDecoration: "none",
+          }}
+        >
+          See grants matched to you →
+        </Link>
       </div>
 
       {/* Filters */}
@@ -130,6 +152,15 @@ export default async function GrantsPage({ searchParams }: PageProps) {
         </div>
       )}
 
+      {!error && grants.length === 0 && (
+        <div className="card card-pad">
+          <p style={{ fontSize: 13, color: "var(--muted)" }}>
+            No grants match these filters. Try clearing the search box or
+            choosing a different status.
+          </p>
+        </div>
+      )}
+
       {grants.map((g) => {
         const s = STATUS_STYLES[g.status] ?? STATUS_STYLES.unknown;
         const amount = formatAmount(g.amount_min, g.amount_max);
@@ -167,6 +198,18 @@ export default async function GrantsPage({ searchParams }: PageProps) {
                   {g.funder_name ?? "Unknown funder"}
                   {g.regions?.length ? ` · ${g.regions[0]}` : ""}
                 </p>
+                {deadlineBadge(g.deadline_at) && (
+                  <p
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      marginTop: 4,
+                      color: deadlineBadge(g.deadline_at)!.color,
+                    }}
+                  >
+                    {deadlineBadge(g.deadline_at)!.label}
+                  </p>
+                )}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <span

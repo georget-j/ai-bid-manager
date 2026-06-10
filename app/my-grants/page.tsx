@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { matchColor } from "@/lib/grants/copy";
 
 interface Rec {
   id: string;
@@ -19,10 +20,15 @@ interface Rec {
   missing: string[];
 }
 
-function scoreColor(n: number) {
-  if (n >= 70) return "#059669";
-  if (n >= 40) return "#d97706";
-  return "#dc2626";
+function deadlineBadge(
+  iso: string | null,
+): { label: string; color: string } | null {
+  if (!iso) return null;
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return null;
+  if (days === 0) return { label: "Due today", color: "#dc2626" };
+  if (days <= 14) return { label: `${days} days left`, color: "#b45309" };
+  return { label: `${days} days left`, color: "#059669" };
 }
 
 export default function MyGrantsPage() {
@@ -50,9 +56,19 @@ export default function MyGrantsPage() {
           My <em>grants</em>
         </h1>
         <p className="subtitle">
-          Open grant calls scored against your organisation profile —
-          eligibility + a confidence score for how close you are.
+          Open grant calls matched to your organisation — whether you&apos;re
+          eligible, and how well each one fits.
         </p>
+        <Link
+          href="/grants"
+          style={{
+            fontSize: 13,
+            color: "var(--accent)",
+            textDecoration: "none",
+          }}
+        >
+          Browse all grants →
+        </Link>
       </div>
 
       {recs === null ? (
@@ -70,9 +86,19 @@ export default function MyGrantsPage() {
       ) : recs.length === 0 ? (
         <div className="card card-pad">
           <p style={{ fontSize: 13, color: "var(--muted)" }}>
-            No open grant calls match yet. The catalogue currently holds awarded
-            grants (browse + funder research); open-call sources (UKRI funding
-            finder, GOV.UK Find a Grant) are being added.
+            No open grant calls match your profile right now. Try broadening
+            your themes, sectors or regions in your{" "}
+            <Link
+              href="/profile#grant-eligibility"
+              style={{ color: "var(--accent)" }}
+            >
+              profile
+            </Link>
+            , or{" "}
+            <Link href="/grants" style={{ color: "var(--accent)" }}>
+              browse all grants
+            </Link>
+            .
           </p>
         </div>
       ) : (
@@ -114,14 +140,39 @@ export default function MyGrantsPage() {
                 >
                   {r.funder_name ?? "Unknown funder"}
                 </p>
-                {r.reasons[0] && (
-                  <p style={{ fontSize: 12.5, color: "#059669" }}>
-                    ✓ {r.reasons[0]}
+                {r.reasons.slice(0, 2).map((reason, i) => (
+                  <p
+                    key={i}
+                    style={{
+                      fontSize: 12.5,
+                      color: "#059669",
+                      margin: "1px 0",
+                    }}
+                  >
+                    ✓ {reason}
+                  </p>
+                ))}
+                {r.risks[0] && (
+                  <p
+                    style={{
+                      fontSize: 12.5,
+                      color: "#b45309",
+                      margin: "1px 0",
+                    }}
+                  >
+                    ! {r.risks[0]}
                   </p>
                 )}
-                {r.risks[0] && (
-                  <p style={{ fontSize: 12.5, color: "#b45309" }}>
-                    ! {r.risks[0]}
+                {deadlineBadge(r.deadline_at) && (
+                  <p
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      marginTop: 4,
+                      color: deadlineBadge(r.deadline_at)!.color,
+                    }}
+                  >
+                    {deadlineBadge(r.deadline_at)!.label}
                   </p>
                 )}
               </div>
@@ -130,19 +181,19 @@ export default function MyGrantsPage() {
                   style={{
                     fontSize: 22,
                     fontWeight: 700,
-                    color: scoreColor(r.fit_score),
+                    color: matchColor(r.fit_score, r.eligible),
                   }}
                 >
                   {r.fit_score}
                 </div>
                 <div style={{ fontSize: 10.5, color: "var(--muted)" }}>
-                  confidence
+                  / 100 match
                 </div>
                 {!r.eligible && (
                   <div
                     style={{ fontSize: 10.5, color: "#dc2626", marginTop: 3 }}
                   >
-                    ineligible
+                    Not eligible
                   </div>
                 )}
               </div>
