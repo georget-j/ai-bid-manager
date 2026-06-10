@@ -1,5 +1,6 @@
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { hashPayload } from "@/lib/procurement/hash";
+import { matchAlertsForGrants } from "./alerts";
 import type {
   GrantSourceConnector,
   NormalizedGrant,
@@ -47,6 +48,7 @@ export async function syncGrantSource(
   let normalizeErrors = 0;
   let totalFetched = 0;
   let totalPages = 0;
+  const upsertedIds: string[] = [];
 
   const { data: sourceRow } = await supabase
     .from("grant_sources")
@@ -177,18 +179,21 @@ export async function syncGrantSource(
       const grantRows = [...grantByKey.values()];
 
       if (grantRows.length > 0) {
-        const { error: gErr } = await supabase
+        const { data: upserted, error: gErr } = await supabase
           .from("grants")
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .upsert(grantRows as any, {
             onConflict: "source_name,source_notice_id",
             ignoreDuplicates: false,
-          });
+          })
+          .select("id");
         if (gErr) {
           errors.push(`grants: ${gErr.message}`);
           grantsErrored += grantRows.length;
         } else {
           grantsUpserted += grantRows.length;
+          for (const row of upserted ?? [])
+            if (row?.id) upsertedIds.push(row.id as string);
         }
       }
     }
@@ -222,6 +227,17 @@ export async function syncGrantSource(
         updated_at: now.toISOString(),
       })
       .eq("name", connector.sourceName);
+  }
+
+  // Fire grant alerts for newly upserted grants (best-effort; never fail the sync).
+  if (upsertedIds.length > 0) {
+    try {
+      await matchAlertsForGrants(upsertedIds);
+    } catch (err) {
+      errors.push(
+        `alerts: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   return {

@@ -36,6 +36,22 @@ interface AlertMatch {
   } | null;
 }
 
+interface GrantMatch {
+  id: string;
+  seen: boolean;
+  matched_at: string;
+  alert_rule: { id: string; name: string } | null;
+  grant: {
+    id: string;
+    title: string;
+    funder_name: string | null;
+    deadline_at: string | null;
+    amount_min: number | null;
+    amount_max: number | null;
+    status: string;
+  } | null;
+}
+
 const UK_REGIONS = [
   "England",
   "North East England",
@@ -84,6 +100,7 @@ const EMPTY_FORM = {
 export default function AlertsPage() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [matches, setMatches] = useState<AlertMatch[]>([]);
+  const [grantMatches, setGrantMatches] = useState<GrantMatch[]>([]);
   const [unseenTotal, setUnseenTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -104,12 +121,14 @@ export default function AlertsPage() {
         }>,
         fetch("/api/alerts/matches").then((r) => r.json()) as Promise<{
           matches?: AlertMatch[];
+          grant_matches?: GrantMatch[];
           unseen_total?: number;
         }>,
       ]);
       if (cancelled) return;
       setRules(rulesRes.rules ?? []);
       setMatches(matchesRes.matches ?? []);
+      setGrantMatches(matchesRes.grant_matches ?? []);
       setUnseenTotal(matchesRes.unseen_total ?? 0);
       setLoading(false);
     }
@@ -126,6 +145,7 @@ export default function AlertsPage() {
       body: JSON.stringify({ all: true }),
     });
     setMatches((prev) => prev.map((m) => ({ ...m, seen: true })));
+    setGrantMatches((prev) => prev.map((m) => ({ ...m, seen: true })));
     setUnseenTotal(0);
   }
 
@@ -262,7 +282,7 @@ export default function AlertsPage() {
       {/* Matches tab */}
       {!loading && tab === "matches" && (
         <>
-          {matches.length === 0 ? (
+          {matches.length === 0 && grantMatches.length === 0 ? (
             <div
               className="card card-pad"
               style={{ textAlign: "center", padding: "48px 40px" }}
@@ -285,8 +305,8 @@ export default function AlertsPage() {
                   margin: "0 auto 20px",
                 }}
               >
-                Create an alert rule, then sync a source to see matched
-                opportunities here.
+                Create an alert rule, then sync a source to see matched tenders
+                and grants here.
               </p>
               <button
                 className="btn primary"
@@ -309,7 +329,8 @@ export default function AlertsPage() {
                 }}
               >
                 <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                  {matches.length} match{matches.length !== 1 ? "es" : ""}
+                  {matches.length + grantMatches.length} match
+                  {matches.length + grantMatches.length !== 1 ? "es" : ""}
                   {unseenTotal > 0 ? ` · ${unseenTotal} new` : ""}
                 </span>
                 {unseenTotal > 0 && (
@@ -322,124 +343,271 @@ export default function AlertsPage() {
                   </button>
                 )}
               </div>
-              <div className="card" style={{ overflow: "hidden" }}>
-                {matches.map((match, i) => {
-                  const opp = match.opportunity;
-                  return (
-                    <div
-                      key={match.id}
-                      style={{
-                        padding: "14px 20px",
-                        borderBottom:
-                          i < matches.length - 1
-                            ? "1px solid var(--border)"
-                            : "none",
-                        display: "flex",
-                        gap: 12,
-                        alignItems: "flex-start",
-                        background: match.seen
-                          ? "transparent"
-                          : "var(--accent-tint)",
-                        opacity: match.seen ? 0.85 : 1,
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {opp ? (
-                          <>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                marginBottom: 3,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              {!match.seen && (
-                                <span
-                                  style={{
-                                    width: 7,
-                                    height: 7,
-                                    borderRadius: "50%",
-                                    background: "var(--accent)",
-                                    flexShrink: 0,
-                                  }}
-                                />
-                              )}
-                              <Link
-                                href={`/opportunities/${opp.id}`}
-                                style={{
-                                  fontWeight: 500,
-                                  fontSize: 14,
-                                  color: "var(--ink)",
-                                  textDecoration: "none",
-                                }}
-                              >
-                                {opp.title}
-                              </Link>
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 10,
-                                fontSize: 12,
-                                color: "var(--muted)",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              {opp.buyer_name && <span>{opp.buyer_name}</span>}
-                              {opp.region && (
-                                <>
-                                  <span>·</span>
-                                  <span>{opp.region}</span>
-                                </>
-                              )}
-                              {opp.value_amount && (
-                                <>
-                                  <span>·</span>
-                                  <span
-                                    style={{ fontFamily: "var(--font-mono)" }}
-                                  >
-                                    {formatValue(opp.value_amount)}
-                                  </span>
-                                </>
-                              )}
-                              {opp.deadline_at && (
-                                <>
-                                  <span>·</span>
-                                  <span>Due {formatDate(opp.deadline_at)}</span>
-                                </>
-                              )}
-                              {match.alert_rule && (
-                                <>
-                                  <span>·</span>
-                                  <span style={{ color: "var(--accent)" }}>
-                                    Rule: {match.alert_rule.name}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                            Opportunity no longer available
-                          </span>
-                        )}
-                      </div>
-                      <span
+              {grantMatches.length > 0 && (
+                <div className="eyebrow" style={{ marginBottom: 8 }}>
+                  Tenders
+                </div>
+              )}
+              {matches.length > 0 && (
+                <div className="card" style={{ overflow: "hidden" }}>
+                  {matches.map((match, i) => {
+                    const opp = match.opportunity;
+                    return (
+                      <div
+                        key={match.id}
                         style={{
-                          fontSize: 11,
-                          color: "var(--muted)",
-                          flexShrink: 0,
-                          whiteSpace: "nowrap",
+                          padding: "14px 20px",
+                          borderBottom:
+                            i < matches.length - 1
+                              ? "1px solid var(--border)"
+                              : "none",
+                          display: "flex",
+                          gap: 12,
+                          alignItems: "flex-start",
+                          background: match.seen
+                            ? "transparent"
+                            : "var(--accent-tint)",
+                          opacity: match.seen ? 0.85 : 1,
                         }}
                       >
-                        {formatDate(match.matched_at)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {opp ? (
+                            <>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  marginBottom: 3,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                {!match.seen && (
+                                  <span
+                                    style={{
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      background: "var(--accent)",
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                )}
+                                <Link
+                                  href={`/opportunities/${opp.id}`}
+                                  style={{
+                                    fontWeight: 500,
+                                    fontSize: 14,
+                                    color: "var(--ink)",
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  {opp.title}
+                                </Link>
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 10,
+                                  fontSize: 12,
+                                  color: "var(--muted)",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                {opp.buyer_name && (
+                                  <span>{opp.buyer_name}</span>
+                                )}
+                                {opp.region && (
+                                  <>
+                                    <span>·</span>
+                                    <span>{opp.region}</span>
+                                  </>
+                                )}
+                                {opp.value_amount && (
+                                  <>
+                                    <span>·</span>
+                                    <span
+                                      style={{ fontFamily: "var(--font-mono)" }}
+                                    >
+                                      {formatValue(opp.value_amount)}
+                                    </span>
+                                  </>
+                                )}
+                                {opp.deadline_at && (
+                                  <>
+                                    <span>·</span>
+                                    <span>
+                                      Due {formatDate(opp.deadline_at)}
+                                    </span>
+                                  </>
+                                )}
+                                {match.alert_rule && (
+                                  <>
+                                    <span>·</span>
+                                    <span style={{ color: "var(--accent)" }}>
+                                      Rule: {match.alert_rule.name}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <span
+                              style={{ fontSize: 13, color: "var(--muted)" }}
+                            >
+                              Opportunity no longer available
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "var(--muted)",
+                            flexShrink: 0,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatDate(match.matched_at)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {grantMatches.length > 0 && (
+                <>
+                  <div
+                    className="eyebrow"
+                    style={{
+                      marginBottom: 8,
+                      marginTop: matches.length > 0 ? 16 : 0,
+                    }}
+                  >
+                    Grants
+                  </div>
+                  <div className="card" style={{ overflow: "hidden" }}>
+                    {grantMatches.map((match, i) => {
+                      const g = match.grant;
+                      const amount = g?.amount_max ?? g?.amount_min ?? null;
+                      return (
+                        <div
+                          key={match.id}
+                          style={{
+                            padding: "14px 20px",
+                            borderBottom:
+                              i < grantMatches.length - 1
+                                ? "1px solid var(--border)"
+                                : "none",
+                            display: "flex",
+                            gap: 12,
+                            alignItems: "flex-start",
+                            background: match.seen
+                              ? "transparent"
+                              : "var(--accent-tint)",
+                            opacity: match.seen ? 0.85 : 1,
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {g ? (
+                              <>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    marginBottom: 3,
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  {!match.seen && (
+                                    <span
+                                      style={{
+                                        width: 7,
+                                        height: 7,
+                                        borderRadius: "50%",
+                                        background: "var(--accent)",
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                  )}
+                                  <Link
+                                    href={`/grants/${g.id}`}
+                                    style={{
+                                      fontWeight: 500,
+                                      fontSize: 14,
+                                      color: "var(--ink)",
+                                      textDecoration: "none",
+                                    }}
+                                  >
+                                    {g.title}
+                                  </Link>
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: 10,
+                                    fontSize: 12,
+                                    color: "var(--muted)",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  {g.funder_name && (
+                                    <span>{g.funder_name}</span>
+                                  )}
+                                  {amount != null && (
+                                    <>
+                                      <span>·</span>
+                                      <span
+                                        style={{
+                                          fontFamily: "var(--font-mono)",
+                                        }}
+                                      >
+                                        {formatValue(amount)}
+                                      </span>
+                                    </>
+                                  )}
+                                  {g.deadline_at && (
+                                    <>
+                                      <span>·</span>
+                                      <span>
+                                        Due {formatDate(g.deadline_at)}
+                                      </span>
+                                    </>
+                                  )}
+                                  {match.alert_rule && (
+                                    <>
+                                      <span>·</span>
+                                      <span style={{ color: "var(--accent)" }}>
+                                        Rule: {match.alert_rule.name}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <span
+                                style={{ fontSize: 13, color: "var(--muted)" }}
+                              >
+                                Grant no longer available
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "var(--muted)",
+                              flexShrink: 0,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {formatDate(match.matched_at)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
         </>
