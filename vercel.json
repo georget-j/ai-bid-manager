@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/sync-sources",
       "schedule": "59 22 * * *"
+    },
+    {
+      "path": "/api/cron/sync-grants",
+      "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/grant-deadline-digest",
+      "schedule": "0 8 * * *"
     }
   ]
 }

@@ -42,6 +42,28 @@ function deadlineBadge(
   return { text: `${days}d left`, color: "#059669", bg: "#ecfdf5" };
 }
 
+// Date math is kept in module-level helpers so the component render stays pure.
+function computeDueSoon(apps: Application[]): Application[] {
+  const now = Date.now();
+  return apps.filter((a) => {
+    if (!["drafting", "submitted"].includes(a.stage || "drafting"))
+      return false;
+    const iso = a.grant?.deadline_at;
+    if (!iso) return false;
+    const days = Math.ceil((new Date(iso).getTime() - now) / 86_400_000);
+    return days >= 0 && days <= 14;
+  });
+}
+
+function hasUrgentDeadline(apps: Application[]): boolean {
+  const now = Date.now();
+  return apps.some((a) => {
+    const iso = a.grant?.deadline_at;
+    if (!iso) return false;
+    return Math.ceil((new Date(iso).getTime() - now) / 86_400_000) <= 3;
+  });
+}
+
 export default function MyApplicationsPage() {
   const [apps, setApps] = useState<Application[] | null>(null);
 
@@ -53,6 +75,8 @@ export default function MyApplicationsPage() {
       )
       .catch(() => setApps([]));
   }, []);
+
+  const dueSoon = computeDueSoon(apps ?? []);
 
   async function move(id: string, stage: string) {
     setApps(
@@ -80,6 +104,28 @@ export default function MyApplicationsPage() {
           outcome, with deadlines and answer progress.
         </p>
       </div>
+
+      {dueSoon.length > 0 && (
+        <div
+          className="card card-pad"
+          style={{
+            marginBottom: 16,
+            borderLeft: "3px solid #d97706",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span aria-hidden style={{ fontSize: 16 }}>
+            ⏱
+          </span>
+          <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
+            <strong>{dueSoon.length}</strong> application
+            {dueSoon.length === 1 ? "" : "s"} due in the next 14 days
+            {hasUrgentDeadline(dueSoon) && " — some within 3 days"}.
+          </span>
+        </div>
+      )}
 
       {apps === null ? (
         <p style={{ fontSize: 13, color: "var(--muted)" }}>Loading…</p>
