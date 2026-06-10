@@ -37,6 +37,8 @@ export function assessGrantReadiness(input: {
   fit: GrantScoringResult | null;
   kbDocCount: number;
   pendingReview?: number;
+  /** null = no budget started (check omitted); true/false = budget present + balanced? */
+  budgetBalanced?: boolean | null;
 }): ReadinessResult {
   const {
     extractedQuestions,
@@ -46,6 +48,7 @@ export function assessGrantReadiness(input: {
     fit,
     kbDocCount,
     pendingReview = 0,
+    budgetBalanced = null,
   } = input;
   const checks: ReadinessCheck[] = [];
 
@@ -104,6 +107,14 @@ export function assessGrantReadiness(input: {
     detail:
       pendingReview > 0 ? `${pendingReview} awaiting review` : "none pending",
   });
+
+  if (budgetBalanced !== null) {
+    checks.push({
+      label: "Project budget balanced",
+      ok: budgetBalanced,
+      detail: budgetBalanced ? undefined : "costs and funding don't reconcile",
+    });
+  }
 
   const passed = checks.filter((c) => c.ok).length;
   return {

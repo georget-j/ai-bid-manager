@@ -21,6 +21,8 @@ export interface ResponseDraft extends ResponseDraftSummary {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   answers: Record<string, any>;
   latest_rfp_run_id: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  budget: any | null;
 }
 
 export interface DraftInput {
@@ -36,11 +38,13 @@ export interface DraftInput {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   answers?: Record<string, any>;
   latest_rfp_run_id?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  budget?: any | null;
 }
 
 const SUMMARY_COLS =
   "id, rfp_title, status, stage, submitted_at, question_count, answered_count, opportunity_id, grant_id, created_at, updated_at";
-const FULL_COLS = `${SUMMARY_COLS}, extracted_questions, selected_question_ids, answers, latest_rfp_run_id`;
+const FULL_COLS = `${SUMMARY_COLS}, extracted_questions, selected_question_ids, answers, latest_rfp_run_id, budget`;
 
 function counts(input: DraftInput): {
   question_count?: number;
@@ -126,6 +130,7 @@ export async function patchResponseDraft(
     "selected_question_ids",
     "answers",
     "latest_rfp_run_id",
+    "budget",
   ] as const) {
     if (patch[k] !== undefined) update[k] = patch[k];
   }

@@ -11,6 +11,8 @@ import { grantCollection } from "@/lib/grants/ingest-docs";
 import { assessGrantReadiness } from "@/lib/grants/readiness";
 import { getRunReviewStatus } from "@/lib/grants/review-status";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { BudgetBuilder } from "./BudgetBuilder";
+import { hasBudget, isBudgetBalanced } from "@/lib/grants/budget";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,9 @@ async function grantReadiness(draft: ResponseDraft, orgId: string) {
     fit,
     kbDocCount: count ?? 0,
     pendingReview: review.pending,
+    budgetBalanced: hasBudget(draft.budget)
+      ? isBudgetBalanced(draft.budget)
+      : null,
   });
 }
 
@@ -155,6 +160,10 @@ export default async function DraftResumePage({ params }: PageProps) {
             applied.
           </p>
         </div>
+      )}
+
+      {draft.grant_id && (
+        <BudgetBuilder draftId={draft.id} initialBudget={draft.budget} />
       )}
 
       <RFPProcessor
