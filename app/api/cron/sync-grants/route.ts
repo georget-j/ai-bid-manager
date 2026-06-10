@@ -4,6 +4,7 @@ import { allGrantConnectors } from "@/lib/grants/connectors";
 import { syncGrantSource, seedGrantSources } from "@/lib/grants/sync";
 import { enrichPendingGrants } from "@/lib/grants/enrich";
 import { generatePendingGuides } from "@/lib/grants/guide";
+import { embedPendingGrants } from "@/lib/grants/embed";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -56,6 +57,14 @@ export async function GET(req: NextRequest) {
     /* best-effort */
   }
 
+  // Embed a capped batch of applyable grants for semantic matching.
+  let embedded = { embedded: 0, attempted: 0 };
+  try {
+    embedded = await embedPendingGrants(40);
+  } catch {
+    /* best-effort */
+  }
+
   return NextResponse.json({
     ran: connectors.map((c) => c.sourceName),
     results: results.map((r) =>
@@ -63,5 +72,6 @@ export async function GET(req: NextRequest) {
     ),
     enriched,
     guides,
+    embedded,
   });
 }
