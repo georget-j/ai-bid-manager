@@ -1,5 +1,26 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants follow-ups: smarter scoring, pipeline, readiness, funder intel
+
+Four enhancements:
+
+1. **Eligibility-aware scoring** (`86c72ae`): `scoreGrant` now folds the enriched detail sections
+   (eligibility/objectives/how-to-apply/supporting info) into its matching corpus, so fit reflects
+   the grant's actual criteria, not just the listing summary.
+2. **My Applications pipeline + deadlines** (`e528088`, mig **064**): `response_drafts.stage`
+   (drafting→submitted→awarded/unsuccessful) + `submitted_at`. `/my-applications` kanban with grant
+   title/funder, a colour-coded deadline countdown, answer progress, and stage moves (reusing the
+   draft PATCH). In the Funding nav.
+3. **Submission-readiness gate** (`02f6718`): grant-linked drafts show a readiness panel on the
+   responses workspace — eligibility confirmed, mandatory requirements answered, all questions
+   answered, within deadline, grant evidence in the (grant-scoped) KB — with a readiness % and
+   ready-to-submit badge. `lib/grants/readiness.ts` (pure, tested).
+4. **Funder intelligence** (`fdf9af7`): `/funders/[name]` profiles mined from the catalogue (grant
+   count, open-now, total funded, median/largest grant, top themes, grant list) + "Research this
+   funder" grounded web research (reuses `lib/research/web-search.ts`). Directory links to profiles.
+
+Migrations applied through **064** (next free: 065). 24 grants unit tests green.
+
 ## 2026-06-10 — Per-grant "how to apply" navigator (`b31e428`)
 
 Application processes differ per grant, so this reads each grant's how-to-apply / eligibility /
