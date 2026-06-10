@@ -325,6 +325,55 @@ describe("buildGrantRequirementText", () => {
   });
 });
 
+describe("assessGrantReadiness", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const q = (id: number, mandatory: boolean): any => ({
+    id,
+    section: "S",
+    text: "Q",
+    topic: "general",
+    risk_level: "low",
+    question_class: "question",
+    word_limit: null,
+    mandatory,
+    priority: mandatory ? "high" : "medium",
+  });
+
+  it("is ready when eligible, all answered, in deadline, and evidence present", async () => {
+    const { assessGrantReadiness } = await import("@/lib/grants/readiness");
+    const { scoreGrant } = await import("@/lib/grants/scoring");
+    const grant = makeGrant({ deadline_at: future(30) });
+    const r = assessGrantReadiness({
+      extractedQuestions: [q(1, true), q(2, false)],
+      answers: { "1": { text: "a" }, "2": { text: "b" } },
+      selectedIds: [1, 2],
+      grant,
+      fit: scoreGrant(grant, makeProfile()),
+      kbDocCount: 3,
+    });
+    expect(r.ready).toBe(true);
+    expect(r.score).toBe(100);
+  });
+
+  it("flags unanswered mandatory, overdue deadline, and missing evidence", async () => {
+    const { assessGrantReadiness } = await import("@/lib/grants/readiness");
+    const grant = makeGrant({ deadline_at: past(2), status: "closed" });
+    const r = assessGrantReadiness({
+      extractedQuestions: [q(1, true), q(2, false)],
+      answers: { "2": { text: "b" } }, // mandatory #1 unanswered
+      selectedIds: [1, 2],
+      grant,
+      fit: null,
+      kbDocCount: 0,
+    });
+    expect(r.ready).toBe(false);
+    const byLabel = Object.fromEntries(r.checks.map((c) => [c.label, c.ok]));
+    expect(byLabel["Mandatory requirements answered"]).toBe(false);
+    expect(byLabel["Within the deadline"]).toBe(false);
+    expect(byLabel["Grant evidence in knowledge base"]).toBe(false);
+  });
+});
+
 describe("rich text walker (GOV.UK detail)", () => {
   // A trimmed Contentful Rich Text doc like GOV.UK's grantEligibilityTab.
   const doc = {
