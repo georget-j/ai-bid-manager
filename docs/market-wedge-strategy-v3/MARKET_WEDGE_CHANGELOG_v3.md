@@ -1,5 +1,25 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants feature (core complete: Phases 0–5)
+
+- **Phase 4 — Eligibility + scoring** (`d40e066`, mig **059**): org grant-eligibility fields
+  (legal form, charity/company number, match-funding capacity, beneficiaries, grant themes);
+  `scoreGrant()` (hard eligibility + weighted soft fit → 0–100 confidence + eligible verdict);
+  `/api/profile/enrich` (free Companies House + Charity Commission auto-fill — needs the two API
+  keys); `/api/grants/recommendations` + `/my-grants`; an eligibility/confidence card on grant detail.
+- **Phase 5 — Applications + funders** (`003d5c4`, mig **060**): `response_drafts.grant_id` so grant
+  applications reuse the responses workspace (upload form → extract → KB-grounded AI answers with
+  citations — all reused); grant detail "Draft an application"; `funder_aggregates()` RPC + `/funders`
+  directory. Funding nav now: Grants · My Grants · Funders · Grant Sources (operator).
+
+**Remaining (Phase 6 + follow-ups):** open-call connectors (UKRI funding finder / Innovate UK +
+GOV.UK Find a Grant scrape) — these are HTML, no clean API, so they need careful per-site
+robots/ToS + markup verification (govuk source seeded disabled); grant alerts; investor
+open-days/accelerators vision (Eventbrite + curated). The catalogue currently holds awarded grants
+(browse + funder intel) — open-call connectors are what populate `/my-grants` with applyable calls.
+
+---
+
 ## 2026-06-10 — Grants feature (Phases 0–3 of 6 shipped)
 
 New Grants domain beside Tenders (parallel domain, reuses the tenders engine + surfaces).

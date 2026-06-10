@@ -9,30 +9,32 @@
 
 ## Current objective
 
-**ACTIVE: Grants feature** — Phases 0–3 of 6 shipped (2026-06-10): strategy doc, data spine
-(mig 058), 360Giving connector + admin/cron, and grants list/detail/Funding nav. 100 real grants
-ingested; pipeline verified live. Strategy: `MARKET_WEDGE_GRANTS_STRATEGY_v3.md`.
+**Grants feature — core COMPLETE (Phases 0–5, 2026-06-10).** Shipped: strategy doc; data spine
+(mig 058); 360Giving connector + admin/cron; list/detail/Funding nav; eligibility profile +
+`scoreGrant` + register auto-enrich + `/my-grants` (mig 059); KB-grounded applications (reuse
+responses workspace) + `/funders` directory (mig 060). 100 real grants ingested; pipeline verified.
 
-**Next (Phase 4):** grant-eligibility profile fields + Companies House/Charity Commission
-auto-enrich + `scoreGrant` + recommendations + `/my-grants` (mig 059). **Blocked on the user
-adding free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY`** for the enrich step (scoring
-itself works without them). Then Phase 5 (KB-grounded applications + funder intel + grant alerts,
-mig 060) and Phase 6 (investor events vision, deferred).
+**Remaining for full "do all":**
 
-**Key data nuance:** 360Giving + UKRI GtR = historical/awarded (funder intel + browse, `status:
-"awarded"`); open applyable calls need UKRI funding-finder / Innovate UK + GOV.UK Find a Grant
-connectors (next ingestion work).
+- **Open-call connectors** (UKRI funding finder / Innovate UK competition search + GOV.UK Find a
+  Grant) — HTML, no clean API → need per-site robots/ToS + markup verification before writing the
+  guardrailed scrapers (govuk grant source seeded **disabled**). These are what populate `/my-grants`
+  with applyable open calls (the catalogue is currently awarded grants only).
+- **Grant alerts** (grant-aware matcher + wire into the grant sync).
+- **Phase 6 vision:** investor open-days / demo days / accelerators (Eventbrite API + curated).
+- **Config:** add free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY` to enable profile
+  register auto-enrich (scoring works without them).
 
 Prior (all COMPLETE): DB query perf review (mig 056/057); org roles & teams · responses workspace ·
 review concurrency (mig 054/055); opportunity docs · buyer web research · profile buildout · UX review.
 
 Last commits (2026-06-10):
 
+- `003d5c4` — feat(grants): KB-grounded applications + funder directory (mig 060)
+- `d40e066` — feat(grants): eligibility profile + register auto-enrich + grant fit scoring (mig 059)
 - `203b232` — feat(grants): grants list + detail + Funding nav
 - `45cbbb1` — feat(grants): 360Giving connector + sync cron + admin sources
-- `1ea1b9c` — feat(grants): data spine — grants/grant_sources/raw/matches + sync engine (mig 058)
-- `1247be4` — docs: UK grants market analysis + strategy (360Giving-led)
-- `32d4c71` — docs: update trackers for DB query performance review
+- `1ea1b9c` — feat(grants): data spine + sync engine (mig 058); `1247be4` — grants strategy doc
 
 ---
 
