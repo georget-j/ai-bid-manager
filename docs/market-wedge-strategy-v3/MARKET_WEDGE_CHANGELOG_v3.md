@@ -1,5 +1,19 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grant-scoped KB (docs + links) + isolated retrieval + collapsible UI (`3c84334`, mig 063)
+
+Three things on top of grant applications: (1) import **links** too, not just files —
+`ingestGrantDocuments` now pulls a grant's web links (eligibility/how-to-apply/guidance pages)
+as well as its documents. (2) **Isolation** — grant resources are imported into a per-grant
+collection `grant:<id>` (not the shared KB). mig 063 redefines `hybrid_search_chunks` with an
+optional `p_collection`: general retrieval EXCLUDES all `grant:%` collections, and a grant draft
+includes the main KB + only its own grant collection — so a grant's context never affects other
+responses. `grant_id` threaded draft → `RFPProcessor` → `answer-batch` → `retrieveChunks`. Verified
+at SQL level (rolled back): general_sees_grant=false, general_sees_main=true, grant_sees_grant=true.
+(Caught: imported docs must use `source_type 'upload'` — DB check allows only upload|sample.) (3)
+**Navigable detail UI** — each detail section is now a collapsible `<details>` dropdown with a sticky
+right-hand "hot bar" jump nav (scroll-spy + click-to-open + smooth scroll), hidden on narrow screens.
+
 ## 2026-06-10 — Grant applications from requirements + docs to KB (`8aad61e`)
 
 "Draft an application" now does real work instead of a blank draft: it ensures the grant
