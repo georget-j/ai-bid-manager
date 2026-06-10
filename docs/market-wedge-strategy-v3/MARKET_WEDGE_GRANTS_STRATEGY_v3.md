@@ -104,19 +104,24 @@ from Companies House + Charity Commission.
 
 Fragmented ecosystem; realistic strategy = **official APIs first, curated scrape second, paid third**.
 
-| Source                                                     | Data                             | Access                                    | Risk                               |
-| ---------------------------------------------------------- | -------------------------------- | ----------------------------------------- | ---------------------------------- |
-| **Eventbrite API**                                         | funding/pitch/demo-day events    | official API (free tier)                  | 🟢 green                           |
-| **Companies House / Charity Commission**                   | org verification                 | official APIs                             | 🟢 green                           |
-| **Crunchbase / Dealroom**                                  | investors, rounds, accelerators  | official APIs, **paid** (~$250–2k/mo)     | 🟢 green (paid)                    |
-| **Curated accelerators** (YC/Techstars/EF/Seedcamp/Antler) | programmes, demo days, deadlines | public program pages (guardrailed scrape) | 🟡 amber                           |
-| **F6S / Gust**                                             | accelerators, angel networks     | partnership / B2B API                     | 🟡 amber / 🔴 red (scrape)         |
-| **UKBAA**                                                  | UK angel networks                | directory / contact for data              | 🟡 amber                           |
-| **LinkedIn / contact directories**                         | named people, emails             | —                                         | 🔴 red (PII / ToS) — do not scrape |
+| Source                                                     | Data                             | Access                                                                | Risk                               |
+| ---------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------- | ---------------------------------- |
+| **Eventbrite API**                                         | funding/pitch/demo-day events    | ⚠️ public event-SEARCH API removed Feb 2020 — no platform-wide search | 🔴 red (not viable)                |
+| **Companies House / Charity Commission**                   | org verification                 | official APIs                                                         | 🟢 green                           |
+| **Crunchbase / Dealroom**                                  | investors, rounds, accelerators  | official APIs, **paid** (~$250–2k/mo)                                 | 🟢 green (paid)                    |
+| **Curated accelerators** (YC/Techstars/EF/Seedcamp/Antler) | programmes, demo days, deadlines | public program pages (guardrailed scrape)                             | 🟡 amber                           |
+| **F6S / Gust**                                             | accelerators, angel networks     | partnership / B2B API                                                 | 🟡 amber / 🔴 red (scrape)         |
+| **UKBAA**                                                  | UK angel networks                | directory / contact for data                                          | 🟡 amber                           |
+| **LinkedIn / contact directories**                         | named people, emails             | —                                                                     | 🔴 red (PII / ToS) — do not scrape |
 
-**Realistic v-phase slice:** Eventbrite API + a curated accelerator list → an "Events/Programmes"
-feed surfaced alongside grants, matched against the org profile. Investor databases are a paid
-follow-on requiring a data agreement.
+**Realistic v-phase slice — SHIPPED as `/programmes`:** a **curated** investor-programmes /
+accelerator feed (hand-maintained, public info only, cyber/UK-leaning to match the ICP — NCSC For
+Startups, Cyber Runway, CyLon, Techstars, YC, EF, Seedcamp, Antler, etc.), surfaced under the Funding
+nav alongside grants. **Eventbrite was the planned live source but is not viable** — its public
+event-search API (`GET /v3/events/search/`) was removed Feb 2020, and there is no free platform-wide
+event-search API. Live programme/event data at scale therefore needs a **paid** provider
+(Dealroom / Crunchbase) or per-organiser integrations — a follow-on requiring a data agreement.
+The curated feed is the honest, low-risk first slice (no scraping, no broken API, no PII).
 
 ---
 

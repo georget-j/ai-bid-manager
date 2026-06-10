@@ -387,6 +387,24 @@ const NAV_FUNDING = [
     ),
   },
   {
+    href: "/programmes",
+    label: "Programmes",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 1.5l2 4.3 4.5.5-3.4 3 1 4.7L8 11.7 3.9 14l1-4.7-3.4-3L6 5.8z" />
+      </svg>
+    ),
+  },
+  {
     href: "/grant-sources",
     label: "Grant Sources",
     operatorOnly: true,
