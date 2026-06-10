@@ -329,6 +329,50 @@ const NAV_RESPOND = [
   },
 ];
 
+const NAV_FUNDING = [
+  {
+    href: "/grants",
+    label: "Grants",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="8" cy="8" r="6.5" />
+        <path d="M8 4.5v7M6 6.5h3a1.3 1.3 0 0 1 0 2.6H7a1.3 1.3 0 0 0 0 2.6h3" />
+      </svg>
+    ),
+  },
+  {
+    href: "/grant-sources",
+    label: "Grant Sources",
+    operatorOnly: true,
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="3" cy="8" r="1.5" />
+        <circle cx="13" cy="4" r="1.5" />
+        <circle cx="13" cy="12" r="1.5" />
+        <path d="M4.5 8h4M7 4.5l2.5-1M7 11.5l2.5 1" strokeWidth="1.2" />
+      </svg>
+    ),
+  },
+];
+
 const NAV_BOTTOM = [
   {
     href: "/admin",
@@ -442,6 +486,28 @@ export function AppSidebar({
               return mounted && canManageTeam;
             return true;
           }).map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`nav-item ${isActive(item.href) ? "active" : ""}`}
+              onClick={() => setOpen(false)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <nav className="nav-section" style={{ marginTop: 8 }}>
+          <div className="nav-group-label">Funding</div>
+          {NAV_FUNDING.filter(
+            (item) =>
+              !(
+                "operatorOnly" in item &&
+                item.operatorOnly &&
+                !(mounted && isOperator)
+              ),
+          ).map((item) => (
             <Link
               key={item.href}
               href={item.href}
