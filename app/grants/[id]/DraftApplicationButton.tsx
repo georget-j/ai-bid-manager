@@ -35,9 +35,9 @@ export function DraftApplicationButton({ grantId }: { grantId: string }) {
         onClick={start}
         disabled={busy}
         style={{ fontSize: 13 }}
-        title="Analyse the grant's requirements and start a KB-grounded application draft"
+        title="We'll pull in the funder's requirements and set up a step-by-step workspace for you"
       >
-        {busy ? "Analysing requirements…" : "Draft an application →"}
+        {busy ? "Setting up your workspace…" : "Start your application →"}
       </button>
       {error && <span style={{ fontSize: 12, color: "#dc2626" }}>{error}</span>}
     </>

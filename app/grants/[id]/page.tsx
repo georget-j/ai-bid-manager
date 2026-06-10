@@ -5,18 +5,13 @@ import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile } from "@/lib/procurement/data";
 import { scoreGrant } from "@/lib/grants/scoring";
 import { enrichGrant } from "@/lib/grants/enrich";
+import { ensureApplicationGuide } from "@/lib/grants/guide";
+import { matchColor, matchVerdict } from "@/lib/grants/copy";
 import { DraftApplicationButton } from "./DraftApplicationButton";
-import { IngestDocumentsButton } from "./IngestDocumentsButton";
 import { GrantSectionNav, type NavSection } from "./GrantSectionNav";
 import { ApplicationGuide } from "./ApplicationGuide";
 
 export const dynamic = "force-dynamic";
-
-function scoreColor(n: number) {
-  if (n >= 70) return "#059669";
-  if (n >= 40) return "#d97706";
-  return "#dc2626";
-}
 
 function slug(s: string): string {
   return s
@@ -102,6 +97,14 @@ export default async function GrantDetailPage({ params }: PageProps) {
 
   const profile = orgId ? await getOrgProfile(orgId) : null;
   const fit = profile ? scoreGrant(grant, profile) : null;
+
+  // Auto-surface the how-to-apply guide: serve the cached one, or generate + cache it on
+  // first view (a capped cron pre-generates most open grants, so this is usually instant).
+  const guide =
+    details?.guide ??
+    (applyable
+      ? await ensureApplicationGuide({ ...grant, details }).catch(() => null)
+      : null);
 
   // Right-hand jump-nav ("hot bar") entries, in render order.
   const navSections: NavSection[] = [];
@@ -220,32 +223,40 @@ export default async function GrantDetailPage({ params }: PageProps) {
             </div>
           )}
 
+          {applyable && (
+            <div style={{ marginBottom: 8 }}>
+              <DraftApplicationButton grantId={grant.id} />
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--muted)",
+                  margin: "8px 0 0",
+                }}
+              >
+                We&apos;ll pull in the funder&apos;s requirements, gather their
+                documents, and walk you through it step by step.
+              </p>
+            </div>
+          )}
+
+          {/* Secondary links — going to the funder's own site. */}
           <div
             style={{
               display: "flex",
-              gap: 10,
+              gap: 14,
               flexWrap: "wrap",
               alignItems: "center",
+              fontSize: 13,
             }}
           >
-            {applyable && <DraftApplicationButton grantId={grant.id} />}
-            {applyable &&
-              details &&
-              details.documents.length + details.links.length > 0 && (
-                <IngestDocumentsButton
-                  grantId={grant.id}
-                  count={details.documents.length + details.links.length}
-                />
-              )}
             {applyUrl && applyable && (
               <a
                 href={applyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn ghost sm"
-                style={{ fontSize: 13 }}
+                style={{ color: "var(--accent)", textDecoration: "none" }}
               >
-                Apply ↗
+                Apply on the funder&apos;s site ↗
               </a>
             )}
             {grant.source_url && !isClosed && (
@@ -253,10 +264,9 @@ export default async function GrantDetailPage({ params }: PageProps) {
                 href={grant.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn ghost sm"
-                style={{ fontSize: 13 }}
+                style={{ color: "var(--muted)", textDecoration: "none" }}
               >
-                View source ↗
+                View original listing ↗
               </a>
             )}
             {isClosed && (
@@ -293,18 +303,18 @@ export default async function GrantDetailPage({ params }: PageProps) {
                     fontSize: 30,
                     fontWeight: 700,
                     lineHeight: 1,
-                    color: scoreColor(fit.fitScore),
+                    color: matchColor(fit.fitScore, fit.eligible),
                   }}
                 >
                   {fit.fitScore}
                 </div>
                 <div style={{ fontSize: 10.5, color: "var(--muted)" }}>
-                  confidence
+                  / 100 match
                 </div>
               </div>
               <div>
                 <div className="eyebrow" style={{ marginBottom: 2 }}>
-                  Eligibility &amp; fit
+                  How well this fits you
                 </div>
                 <div
                   style={{
@@ -313,9 +323,7 @@ export default async function GrantDetailPage({ params }: PageProps) {
                     color: fit.eligible ? "var(--ink)" : "#dc2626",
                   }}
                 >
-                  {fit.eligible
-                    ? `Recommended action: ${fit.recommendedAction.replace(/-/g, " ")}`
-                    : "Likely ineligible"}
+                  {matchVerdict(fit.fitScore, fit.eligible)}
                 </div>
               </div>
             </div>
@@ -339,10 +347,7 @@ export default async function GrantDetailPage({ params }: PageProps) {
         )}
 
         {applyable && (
-          <ApplicationGuide
-            grantId={grant.id}
-            initialGuide={details?.guide ?? null}
-          />
+          <ApplicationGuide grantId={grant.id} initialGuide={guide} />
         )}
 
         {grant.description && (
