@@ -17,10 +17,20 @@ const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
   "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
 
-// Curated major UK funders (360Giving org ids). National Lottery is verified live;
-// extend this list with other publishers' org ids as needed.
+// Curated major UK funders (360Giving org ids, verified live). We ingest one recent
+// page per funder — a representative sample for funder intelligence (these are awarded
+// grants for browse + stats, not open calls), not the funder's entire history.
 const FUNDERS: Array<{ id: string; name: string }> = [
   { id: "GB-GOR-PB188", name: "The National Lottery Community Fund" },
+  { id: "GB-CHC-200051", name: "Esmée Fairbairn Foundation" },
+  { id: "GB-CHC-1102927", name: "Paul Hamlyn Foundation" },
+  { id: "GB-CHC-205629", name: "Trust for London" },
+  { id: "GB-CHC-802052", name: "BBC Children in Need" },
+  { id: "GB-CHC-326568", name: "Comic Relief" },
+  { id: "GB-CHC-1035628", name: "City Bridge Trust" },
+  { id: "GB-CHC-1156077", name: "Power to Change" },
+  { id: "GB-CHC-1144091", name: "Nesta" },
+  { id: "GB-COH-RC000766", name: "Wellcome Trust" },
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,15 +82,10 @@ export const threeSixtyGivingConnector: GrantSourceConnector = {
     const data = await getJson(url);
     const rawItems = Array.isArray(data.results) ? data.results : [];
 
-    // Advance: follow `next` within this funder; else move to the next funder.
-    let next: Cursor | null;
-    if (typeof data.next === "string" && data.next) {
-      next = { fi: cursor.fi, url: data.next };
-    } else if (cursor.fi + 1 < FUNDERS.length) {
-      next = { fi: cursor.fi + 1, url: null };
-    } else {
-      next = null;
-    }
+    // One page per funder (a recent sample): always advance to the next funder rather
+    // than following `next` through the funder's full grant history.
+    const next: Cursor | null =
+      cursor.fi + 1 < FUNDERS.length ? { fi: cursor.fi + 1, url: null } : null;
 
     return {
       sourceName: "360giving",
