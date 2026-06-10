@@ -42,8 +42,8 @@ export function IngestDocumentsButton({
     return (
       <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
         {added > 0
-          ? `✓ ${added} of ${result.total} document${result.total === 1 ? "" : "s"} in your knowledge base`
-          : "No documents could be imported (they may require sign-in)."}
+          ? `✓ ${added} of ${result.total} resource${result.total === 1 ? "" : "s"} in this grant's knowledge base`
+          : "No resources could be imported (they may require sign-in)."}
       </span>
     );
   }
@@ -55,11 +55,11 @@ export function IngestDocumentsButton({
         onClick={run}
         disabled={busy}
         style={{ fontSize: 13 }}
-        title="Download these documents into your knowledge base so AI answers are grounded in them"
+        title="Import this grant's documents and links into a knowledge base scoped to this grant only — it won't affect your other responses"
       >
         {busy
           ? "Importing…"
-          : `Add ${count} document${count === 1 ? "" : "s"} to knowledge base`}
+          : `Add ${count} resource${count === 1 ? "" : "s"} to knowledge base`}
       </button>
       {error && <span style={{ fontSize: 12, color: "#dc2626" }}>{error}</span>}
     </>

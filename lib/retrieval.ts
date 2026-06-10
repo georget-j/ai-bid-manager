@@ -13,6 +13,10 @@ export async function retrieveChunks(
   queryText: string,
   orgId?: string | null,
   clientId?: string | null,
+  // When set (e.g. "grant:<id>"), the search additionally includes that grant's scoped
+  // collection. When null, grant-scoped collections are excluded from results so a
+  // grant's imported context never affects other responses.
+  collection?: string | null,
 ): Promise<RetrievedChunk[]> {
   const queryEmbedding = await generateEmbedding(queryText);
   const supabase = getServiceSupabase();
@@ -23,6 +27,7 @@ export async function retrieveChunks(
     match_count: CANDIDATE_COUNT,
     p_org_id: orgId ?? null,
     p_client_id: clientId ?? null,
+    p_collection: collection ?? null,
   });
 
   if (error) throw new Error(`Hybrid search failed: ${error.message}`);

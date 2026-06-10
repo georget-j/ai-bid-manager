@@ -55,6 +55,7 @@ export default async function DraftResumePage({ params }: PageProps) {
         draftId={draft.id}
         initialTitle={draft.rfp_title}
         initialOpportunityId={draft.opportunity_id ?? undefined}
+        initialGrantId={draft.grant_id ?? undefined}
         initialQuestions={draft.extracted_questions as ExtractedQuestion[]}
         initialSelected={draft.selected_question_ids}
         initialAnswers={draft.answers}

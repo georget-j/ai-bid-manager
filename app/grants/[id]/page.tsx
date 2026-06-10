@@ -7,6 +7,7 @@ import { scoreGrant } from "@/lib/grants/scoring";
 import { enrichGrant } from "@/lib/grants/enrich";
 import { DraftApplicationButton } from "./DraftApplicationButton";
 import { IngestDocumentsButton } from "./IngestDocumentsButton";
+import { GrantSectionNav, type NavSection } from "./GrantSectionNav";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,13 @@ function scoreColor(n: number) {
   if (n >= 70) return "#059669";
   if (n >= 40) return "#d97706";
   return "#dc2626";
+}
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 interface PageProps {
@@ -94,328 +102,393 @@ export default async function GrantDetailPage({ params }: PageProps) {
   const profile = orgId ? await getOrgProfile(orgId) : null;
   const fit = profile ? scoreGrant(grant, profile) : null;
 
-  return (
-    <div style={{ maxWidth: 840 }}>
-      <Link
-        href="/grants"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 13,
-          color: "var(--muted)",
-          textDecoration: "none",
-          marginBottom: 20,
-        }}
-      >
-        ← Back to grants
-      </Link>
+  // Right-hand jump-nav ("hot bar") entries, in render order.
+  const navSections: NavSection[] = [];
+  if (grant.description) navSections.push({ id: "about", label: "About" });
+  for (const s of details?.sections ?? [])
+    navSections.push({ id: `sec-${slug(s.heading)}`, label: s.heading });
+  if (details && details.documents.length + details.links.length > 0)
+    navSections.push({ id: "resources", label: "Documents & links" });
+  if (fit)
+    navSections.push({ id: "eligibility-fit", label: "Eligibility & fit" });
+  navSections.push({ id: "key-details", label: "Key details" });
 
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <div
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 28,
+        alignItems: "flex-start",
+        maxWidth: 1120,
+        margin: "0 auto",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0, maxWidth: 840 }}>
+        <Link
+          href="/grants"
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-            marginBottom: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            color: "var(--muted)",
+            textDecoration: "none",
+            marginBottom: 20,
           }}
         >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="eyebrow" style={{ marginBottom: 6 }}>
-              {grant.funder_name ?? "Grant"}
-            </div>
-            <h1
-              style={{
-                fontSize: 23,
-                fontFamily: "var(--font-serif)",
-                lineHeight: 1.25,
-                marginBottom: 8,
-              }}
-            >
-              {grant.title}
-            </h1>
-          </div>
+          ← Back to grants
+        </Link>
+
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 8,
-              flexShrink: 0,
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 16,
+              flexWrap: "wrap",
+              marginBottom: 12,
             }}
           >
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                padding: "4px 12px",
-                borderRadius: 999,
-                background: s.bg,
-                color: s.color,
-              }}
-            >
-              {s.label}
-            </span>
-            {amount && (
-              <span
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>
+                {grant.funder_name ?? "Grant"}
+              </div>
+              <h1
                 style={{
-                  fontSize: 20,
-                  fontWeight: 600,
-                  fontFamily: "var(--font-mono)",
+                  fontSize: 23,
+                  fontFamily: "var(--font-serif)",
+                  lineHeight: 1.25,
+                  marginBottom: 8,
                 }}
               >
-                {amount}
+                {grant.title}
+              </h1>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: 8,
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "4px 12px",
+                  borderRadius: 999,
+                  background: s.bg,
+                  color: s.color,
+                }}
+              >
+                {s.label}
+              </span>
+              {amount && (
+                <span
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 600,
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
+                  {amount}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {grant.status === "awarded" && (
+            <div
+              style={{
+                fontSize: 12.5,
+                color: "var(--muted)",
+                background: "var(--bg-tint)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-sm)",
+                padding: "8px 12px",
+                marginBottom: 12,
+              }}
+            >
+              Historical award (360Giving) — shown for funder research, not an
+              open application.
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            {applyable && <DraftApplicationButton grantId={grant.id} />}
+            {applyable &&
+              details &&
+              details.documents.length + details.links.length > 0 && (
+                <IngestDocumentsButton
+                  grantId={grant.id}
+                  count={details.documents.length + details.links.length}
+                />
+              )}
+            {applyUrl && applyable && (
+              <a
+                href={applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn ghost sm"
+                style={{ fontSize: 13 }}
+              >
+                Apply ↗
+              </a>
+            )}
+            {grant.source_url && !isClosed && (
+              <a
+                href={grant.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn ghost sm"
+                style={{ fontSize: 13 }}
+              >
+                View source ↗
+              </a>
+            )}
+            {isClosed && (
+              <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                This call has closed and is no longer listed at the source.
               </span>
             )}
           </div>
         </div>
 
-        {grant.status === "awarded" && (
+        {/* Eligibility & confidence */}
+        {fit && (
           <div
-            style={{
-              fontSize: 12.5,
-              color: "var(--muted)",
-              background: "var(--bg-tint)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-sm)",
-              padding: "8px 12px",
-              marginBottom: 12,
-            }}
+            id="eligibility-fit"
+            className="card card-pad"
+            style={{ marginBottom: 16, scrollMarginTop: 16 }}
           >
-            Historical award (360Giving) — shown for funder research, not an
-            open application.
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                marginBottom:
+                  fit.reasons.length ||
+                  fit.risks.length ||
+                  fit.missingRequirements.length
+                    ? 12
+                    : 0,
+              }}
+            >
+              <div style={{ textAlign: "center", flexShrink: 0 }}>
+                <div
+                  style={{
+                    fontSize: 30,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    color: scoreColor(fit.fitScore),
+                  }}
+                >
+                  {fit.fitScore}
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--muted)" }}>
+                  confidence
+                </div>
+              </div>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 2 }}>
+                  Eligibility &amp; fit
+                </div>
+                <div
+                  style={{
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    color: fit.eligible ? "var(--ink)" : "#dc2626",
+                  }}
+                >
+                  {fit.eligible
+                    ? `Recommended action: ${fit.recommendedAction.replace(/-/g, " ")}`
+                    : "Likely ineligible"}
+                </div>
+              </div>
+            </div>
+            {[
+              ...fit.reasons.map((r) => ({ t: r, c: "#059669", p: "✓" })),
+              ...fit.risks.map((r) => ({ t: r, c: "#b45309", p: "!" })),
+              ...fit.missingRequirements.map((r) => ({
+                t: r,
+                c: "var(--muted)",
+                p: "→",
+              })),
+            ].map((row, i) => (
+              <p
+                key={i}
+                style={{ fontSize: 12.5, color: row.c, margin: "3px 0" }}
+              >
+                {row.p} {row.t}
+              </p>
+            ))}
           </div>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          {applyable && <DraftApplicationButton grantId={grant.id} />}
-          {applyable && details && details.documents.length > 0 && (
-            <IngestDocumentsButton
-              grantId={grant.id}
-              count={details.documents.length}
-            />
-          )}
-          {applyUrl && applyable && (
-            <a
-              href={applyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn ghost sm"
-              style={{ fontSize: 13 }}
-            >
-              Apply ↗
-            </a>
-          )}
-          {grant.source_url && !isClosed && (
-            <a
-              href={grant.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn ghost sm"
-              style={{ fontSize: 13 }}
-            >
-              View source ↗
-            </a>
-          )}
-          {isClosed && (
-            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
-              This call has closed and is no longer listed at the source.
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Eligibility & confidence */}
-      {fit && (
-        <div className="card card-pad" style={{ marginBottom: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              marginBottom:
-                fit.reasons.length ||
-                fit.risks.length ||
-                fit.missingRequirements.length
-                  ? 12
-                  : 0,
-            }}
+        {grant.description && (
+          <details
+            id="about"
+            open
+            className="card"
+            style={{ marginBottom: 16, scrollMarginTop: 16 }}
           >
-            <div style={{ textAlign: "center", flexShrink: 0 }}>
-              <div
-                style={{
-                  fontSize: 30,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  color: scoreColor(fit.fitScore),
-                }}
-              >
-                {fit.fitScore}
-              </div>
-              <div style={{ fontSize: 10.5, color: "var(--muted)" }}>
-                confidence
-              </div>
-            </div>
-            <div>
-              <div className="eyebrow" style={{ marginBottom: 2 }}>
-                Eligibility &amp; fit
-              </div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  color: fit.eligible ? "var(--ink)" : "#dc2626",
-                }}
-              >
-                {fit.eligible
-                  ? `Recommended action: ${fit.recommendedAction.replace(/-/g, " ")}`
-                  : "Likely ineligible"}
-              </div>
-            </div>
-          </div>
-          {[
-            ...fit.reasons.map((r) => ({ t: r, c: "#059669", p: "✓" })),
-            ...fit.risks.map((r) => ({ t: r, c: "#b45309", p: "!" })),
-            ...fit.missingRequirements.map((r) => ({
-              t: r,
-              c: "var(--muted)",
-              p: "→",
-            })),
-          ].map((row, i) => (
+            <summary
+              className="card-pad"
+              style={{
+                cursor: "pointer",
+                listStyle: "none",
+                fontWeight: 600,
+                fontSize: 13,
+              }}
+            >
+              <span className="eyebrow">About</span>
+            </summary>
             <p
-              key={i}
-              style={{ fontSize: 12.5, color: row.c, margin: "3px 0" }}
+              className="card-pad"
+              style={{
+                fontSize: 14,
+                lineHeight: 1.7,
+                color: "var(--ink-2)",
+                whiteSpace: "pre-wrap",
+                paddingTop: 0,
+              }}
             >
-              {row.p} {row.t}
+              {grant.description}
             </p>
-          ))}
-        </div>
-      )}
-
-      {grant.description && (
-        <div className="card card-pad" style={{ marginBottom: 16 }}>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
-            About
-          </div>
-          <p
-            style={{
-              fontSize: 14,
-              lineHeight: 1.7,
-              color: "var(--ink-2)",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {grant.description}
-          </p>
-        </div>
-      )}
-
-      {/* Deep detail pulled from the source: eligibility, how to apply, key dates */}
-      {details?.sections.map((section) => (
-        <div
-          key={section.heading}
-          className="card card-pad"
-          style={{ marginBottom: 16 }}
-        >
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
-            {section.heading}
-          </div>
-          <p
-            style={{
-              fontSize: 14,
-              lineHeight: 1.7,
-              color: "var(--ink-2)",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {section.text}
-          </p>
-        </div>
-      ))}
-
-      {details &&
-        (details.documents.length > 0 || details.links.length > 0) && (
-          <div className="card card-pad" style={{ marginBottom: 16 }}>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>
-              Documents &amp; links
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {details.documents.map((d) => (
-                <a
-                  key={d.url}
-                  href={d.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    fontSize: 13.5,
-                    color: "var(--accent)",
-                    textDecoration: "none",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 7,
-                  }}
-                >
-                  <span aria-hidden>📄</span>
-                  {d.title} ↗
-                </a>
-              ))}
-              {details.links.map((l) => (
-                <a
-                  key={l.url}
-                  href={l.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    fontSize: 13.5,
-                    color: "var(--accent)",
-                    textDecoration: "none",
-                  }}
-                >
-                  {l.title} ↗
-                </a>
-              ))}
-            </div>
-          </div>
+          </details>
         )}
 
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <div className="eyebrow" style={{ marginBottom: 12 }}>
-          Details
+        {/* Deep detail pulled from the source: eligibility, how to apply, key dates.
+          Each is a collapsible dropdown header with the content underneath. */}
+        {details?.sections.map((section) => (
+          <details
+            key={section.heading}
+            id={`sec-${slug(section.heading)}`}
+            open
+            className="card"
+            style={{ marginBottom: 16, scrollMarginTop: 16 }}
+          >
+            <summary
+              className="card-pad"
+              style={{
+                cursor: "pointer",
+                listStyle: "none",
+                fontWeight: 600,
+                fontSize: 13,
+              }}
+            >
+              <span className="eyebrow">{section.heading}</span>
+            </summary>
+            <p
+              className="card-pad"
+              style={{
+                fontSize: 14,
+                lineHeight: 1.7,
+                color: "var(--ink-2)",
+                whiteSpace: "pre-wrap",
+                paddingTop: 0,
+              }}
+            >
+              {section.text}
+            </p>
+          </details>
+        ))}
+
+        {details &&
+          (details.documents.length > 0 || details.links.length > 0) && (
+            <div
+              id="resources"
+              className="card card-pad"
+              style={{ marginBottom: 16, scrollMarginTop: 16 }}
+            >
+              <div className="eyebrow" style={{ marginBottom: 10 }}>
+                Documents &amp; links
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {details.documents.map((d) => (
+                  <a
+                    key={d.url}
+                    href={d.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: 13.5,
+                      color: "var(--accent)",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                    }}
+                  >
+                    <span aria-hidden>📄</span>
+                    {d.title} ↗
+                  </a>
+                ))}
+                {details.links.map((l) => (
+                  <a
+                    key={l.url}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: 13.5,
+                      color: "var(--accent)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {l.title} ↗
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+        <div
+          id="key-details"
+          className="card card-pad"
+          style={{ marginBottom: 16, scrollMarginTop: 16 }}
+        >
+          <div className="eyebrow" style={{ marginBottom: 12 }}>
+            Details
+          </div>
+          <Row label="Funder" value={grant.funder_name} />
+          <Row label="Funding type" value={grant.funding_type} />
+          <Row label="Amount" value={amount} />
+          <Row label="Opens" value={fmtDate(grant.open_at)} />
+          <Row label="Deadline" value={fmtDate(grant.deadline_at)} />
+          <Row label="Awarded" value={fmtDate(grant.published_at)} />
+          <Row
+            label="Themes"
+            value={grant.themes?.length ? grant.themes.join(", ") : null}
+          />
+          <Row
+            label="Geography"
+            value={grant.regions?.length ? grant.regions.join(", ") : null}
+          />
+          <Row
+            label="Eligible orgs"
+            value={
+              grant.eligible_org_types?.length
+                ? grant.eligible_org_types.join(", ")
+                : null
+            }
+          />
+          <Row label="Eligibility" value={grant.eligibility_text} />
+          <Row label="Source" value={grant.source_name} />
         </div>
-        <Row label="Funder" value={grant.funder_name} />
-        <Row label="Funding type" value={grant.funding_type} />
-        <Row label="Amount" value={amount} />
-        <Row label="Opens" value={fmtDate(grant.open_at)} />
-        <Row label="Deadline" value={fmtDate(grant.deadline_at)} />
-        <Row label="Awarded" value={fmtDate(grant.published_at)} />
-        <Row
-          label="Themes"
-          value={grant.themes?.length ? grant.themes.join(", ") : null}
-        />
-        <Row
-          label="Geography"
-          value={grant.regions?.length ? grant.regions.join(", ") : null}
-        />
-        <Row
-          label="Eligible orgs"
-          value={
-            grant.eligible_org_types?.length
-              ? grant.eligible_org_types.join(", ")
-              : null
-          }
-        />
-        <Row label="Eligibility" value={grant.eligibility_text} />
-        <Row label="Source" value={grant.source_name} />
       </div>
+
+      <GrantSectionNav sections={navSections} />
     </div>
   );
 }

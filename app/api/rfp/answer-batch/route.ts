@@ -16,6 +16,8 @@ const BatchRequestSchema = z.object({
   rfp_title: z.string().optional(),
   rfp_run_id: z.string().uuid().optional(), // supply to resume an interrupted batch
   opportunity_id: z.string().uuid().optional(), // link run to a procurement opportunity
+  grant_id: z.string().uuid().optional(), // grant draft -> include the grant's scoped KB collection
+
   questions: z
     .array(
       z.object({
@@ -59,6 +61,7 @@ async function processQuestion(
   rfpTitle: string | undefined,
   completed: CompletedAnswer[],
   orgId: string | null,
+  collection: string | null,
 ) {
   controller.enqueue(sseEvent("start", { question_id: question.id }));
   try {
@@ -78,7 +81,7 @@ async function processQuestion(
         })
         .select("id")
         .single(),
-      retrieveChunks(question.text, orgId),
+      retrieveChunks(question.text, orgId, null, collection),
     ]);
 
     const rawResponse = await generateRFPResponse(
@@ -149,6 +152,7 @@ export async function POST(request: NextRequest) {
   let rfpTitle: string | undefined;
   let clientRunId: string | undefined;
   let opportunityId: string | null = null;
+  let collection: string | null = null;
   try {
     const body = await request.json();
     const parsed = BatchRequestSchema.safeParse(body);
@@ -160,6 +164,7 @@ export async function POST(request: NextRequest) {
     rfpTitle = parsed.data.rfp_title;
     clientRunId = parsed.data.rfp_run_id;
     opportunityId = parsed.data.opportunity_id ?? null;
+    collection = parsed.data.grant_id ? `grant:${parsed.data.grant_id}` : null;
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,
@@ -258,6 +263,7 @@ export async function POST(request: NextRequest) {
                 rfpTitle,
                 completed,
                 orgId,
+                collection,
               );
             }),
           );

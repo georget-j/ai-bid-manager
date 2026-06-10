@@ -64,7 +64,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   let documents = { ingested: 0, total: 0 };
   try {
     const r = await ingestGrantDocuments(orgId, grant, {
-      maxDocs: 5,
+      maxSources: 6,
       deadlineMs: 30_000,
     });
     documents = { ingested: r.ingested, total: r.total };

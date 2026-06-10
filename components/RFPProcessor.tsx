@@ -21,6 +21,8 @@ type Step = "upload" | "reviewing" | "answering" | "done";
 interface RFPProcessorProps {
   initialTitle?: string;
   initialOpportunityId?: string;
+  /** When set, answers retrieve this grant's scoped KB collection (imported grant docs/links). */
+  initialGrantId?: string;
   initialQuestions?: ExtractedQuestion[];
   /** When set, the processor loads/saves this persisted draft. */
   draftId?: string;
@@ -34,6 +36,7 @@ interface RFPProcessorProps {
 export function RFPProcessor({
   initialTitle = "",
   initialOpportunityId,
+  initialGrantId,
   initialQuestions,
   draftId,
   initialStep,
@@ -239,6 +242,7 @@ export function RFPProcessor({
           questions: toAnswer,
           rfp_run_id: rfpRunId ?? undefined,
           opportunity_id: initialOpportunityId ?? undefined,
+          grant_id: initialGrantId ?? undefined,
         }),
       });
 

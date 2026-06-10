@@ -3,14 +3,16 @@ import { extractText, ALLOWED_EXTENSIONS } from "@/lib/extractors";
 import { ingestDocument } from "@/lib/documents";
 import type { GrantRow } from "./types";
 
-// Download a grant's documents (from deep enrichment) into the org knowledge base so the
-// RAG retrieval can ground application answers in them. Guardrails: identifying UA, a
-// per-file size cap + timeout, capped document count, public files only, org-scoped dedup.
+// Import a grant's resources — its documents (PDF/DOCX/…) AND the web links found in its
+// detail — into a PER-GRANT knowledge-base collection ("grant:<id>"). That collection is
+// excluded from general retrieval (see migration 063), so this context informs only this
+// grant's application and never affects other responses. Guardrails: identifying UA, size
+// cap + timeout, capped count, public resources only, org+collection-scoped dedup.
 
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
   "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
-const MAX_DOCS = 8;
+const MAX_SOURCES = 12;
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -22,94 +24,130 @@ export interface GrantDocIngestResult {
   errors: string[];
 }
 
-function fileNameFromUrl(url: string, fallbackTitle: string): string {
+export function grantCollection(grantId: string): string {
+  return `grant:${grantId}`;
+}
+
+interface SourceItem {
+  url: string;
+  title: string;
+  kind: "document" | "link";
+}
+
+/** Documents + web links from a grant's enriched detail, deduped by URL. */
+function collectSources(grant: GrantRow): SourceItem[] {
+  const d = grant.details;
+  if (!d) return [];
+  const items: SourceItem[] = [];
+  for (const doc of d.documents ?? [])
+    items.push({ url: doc.url, title: doc.title, kind: "document" });
+  for (const link of d.links ?? []) {
+    if (!/^https?:\/\//i.test(link.url)) continue; // skip mailto:, tel:, anchors
+    items.push({ url: link.url, title: link.title, kind: "link" });
+  }
+  const seen = new Set<string>();
+  return items.filter((s) =>
+    seen.has(s.url) ? false : (seen.add(s.url), true),
+  );
+}
+
+function fileNameFor(item: SourceItem): string {
+  if (item.kind === "link") {
+    // Web pages -> .html so the HTML extractor runs.
+    const stem = item.title.slice(0, 60).replace(/[^a-z0-9]+/gi, "-") || "page";
+    return `${stem}.html`;
+  }
   try {
-    const last = new URL(url).pathname.split("/").filter(Boolean).pop() ?? "";
+    const last =
+      new URL(item.url).pathname.split("/").filter(Boolean).pop() ?? "";
     if (last.includes(".")) return decodeURIComponent(last);
   } catch {
     /* fall through */
   }
   const ext =
-    url.match(/\.(pdf|docx?|xlsx?|pptx?|odt|ods|csv)(\?|$)/i)?.[1] ?? "pdf";
+    item.url.match(/\.(pdf|docx?|xlsx?|pptx?|odt|ods|csv)(\?|$)/i)?.[1] ??
+    "pdf";
   const stem =
-    fallbackTitle.slice(0, 60).replace(/[^a-z0-9]+/gi, "-") || "document";
+    item.title.slice(0, 60).replace(/[^a-z0-9]+/gi, "-") || "document";
   return `${stem}.${ext.toLowerCase()}`;
 }
 
-/** Ingest a grant's enriched documents into the org KB. Best-effort per document. */
+/** Import a grant's documents + links into its scoped KB collection. Best-effort each. */
 export async function ingestGrantDocuments(
   orgId: string,
   grant: GrantRow,
-  opts: { maxDocs?: number; deadlineMs?: number } = {},
+  opts: { maxSources?: number; deadlineMs?: number } = {},
 ): Promise<GrantDocIngestResult> {
-  const cap = opts.maxDocs ?? MAX_DOCS;
+  const cap = opts.maxSources ?? MAX_SOURCES;
   const deadline = opts.deadlineMs ? Date.now() + opts.deadlineMs : null;
-  const docs = (grant.details?.documents ?? []).slice(0, cap);
+  const sources = collectSources(grant).slice(0, cap);
+  const collection = grantCollection(grant.id);
   const res: GrantDocIngestResult = {
-    total: docs.length,
+    total: sources.length,
     ingested: 0,
     alreadyPresent: 0,
     skipped: 0,
     errors: [],
   };
-  if (docs.length === 0) return res;
+  if (sources.length === 0) return res;
 
   const supabase = getServiceSupabase();
 
-  for (const doc of docs) {
+  for (const item of sources) {
     if (deadline && Date.now() > deadline) {
       res.skipped++;
       continue;
     }
     try {
-      const fileName = fileNameFromUrl(doc.url, doc.title);
+      const fileName = fileNameFor(item);
       const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
         res.skipped++;
         continue;
       }
 
-      // Org-scoped dedup: skip documents already imported (keyed on the source URL).
+      // Org + collection-scoped dedup (keyed on the source URL).
       const { data: existing } = await supabase
         .from("documents")
         .select("id")
         .eq("org_id", orgId)
-        .eq("file_name", doc.url)
+        .eq("collection", collection)
+        .eq("file_name", item.url)
         .limit(1);
       if (existing && existing.length > 0) {
         res.alreadyPresent++;
         continue;
       }
 
-      const r = await fetch(doc.url, {
+      const r = await fetch(item.url, {
         headers: { "User-Agent": USER_AGENT },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!r.ok) {
         res.skipped++;
-        res.errors.push(`${doc.title}: HTTP ${r.status}`);
+        res.errors.push(`${item.title}: HTTP ${r.status}`);
         continue;
       }
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.byteLength > MAX_BYTES) {
         res.skipped++;
-        res.errors.push(`${doc.title}: too large`);
+        res.errors.push(`${item.title}: too large`);
         continue;
       }
 
       const extraction = await extractText(buf, fileName);
-      if (!extraction.text.trim()) {
+      if (extraction.text.trim().length < 80) {
         res.skipped++;
-        res.errors.push(`${doc.title}: no readable text`);
+        res.errors.push(`${item.title}: no readable text`);
         continue;
       }
 
       await ingestDocument({
         text: extraction.text,
-        title: `${grant.title} — ${doc.title}`.slice(0, 240),
-        fileName: doc.url, // store the source URL for org-scoped dedup
-        sourceType: "procurement",
-        collection: "main",
+        title: `${grant.title} — ${item.title}`.slice(0, 240),
+        fileName: item.url, // store the source URL for collection-scoped dedup
+        sourceType: "upload", // DB allows upload|sample; isolation is via `collection`
+        collection,
         orgId,
         pageCount: extraction.pageCount,
         wordCount: extraction.wordCount,
@@ -120,7 +158,7 @@ export async function ingestGrantDocuments(
     } catch (err) {
       res.skipped++;
       res.errors.push(
-        `${doc.title}: ${err instanceof Error ? err.message : String(err)}`,
+        `${item.title}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

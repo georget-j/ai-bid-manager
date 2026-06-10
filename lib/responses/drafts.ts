@@ -7,6 +7,7 @@ export interface ResponseDraftSummary {
   question_count: number;
   answered_count: number;
   opportunity_id: string | null;
+  grant_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,7 +35,7 @@ export interface DraftInput {
 }
 
 const SUMMARY_COLS =
-  "id, rfp_title, status, question_count, answered_count, opportunity_id, created_at, updated_at";
+  "id, rfp_title, status, question_count, answered_count, opportunity_id, grant_id, created_at, updated_at";
 const FULL_COLS = `${SUMMARY_COLS}, extracted_questions, selected_question_ids, answers, latest_rfp_run_id`;
 
 function counts(input: DraftInput): {
