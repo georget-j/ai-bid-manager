@@ -1,11 +1,12 @@
 # Market Wedge Execution Tracker v3
 
-> **GRANTS FEATURE — core COMPLETE (2026-06-10): Phases 0–5** (`1247be4`, `1ea1b9c`, `45cbbb1`,
-> `203b232`, `d40e066`, `203b232`, `003d5c4`; migs 058/059/060). Discovery (list/detail) + confidence
-> scoring (eligibility card + `/my-grants`) + KB-grounded applications (reuse responses workspace) +
-> funder directory; 100 real grants ingested. **Remaining:** open-call connectors (UKRI funding
-> finder / GOV.UK — HTML scrape, verify per-site), grant alerts, investor-events vision (Phase 6).
-> Config to add: Companies House + Charity Commission API keys (register auto-enrich).
+> **GRANTS FEATURE — COMPLETE (2026-06-10)** (migs 058–061). Discovery (list/detail) + confidence
+> scoring (eligibility card + `/my-grants`) + KB-grounded applications + funder directory +
+> **GOV.UK Find a Grant open-call connector** (112 real open grants) + **grant alerts** (reuse
+> alert_rules, mig 061) + **investor programmes feed** (`/programmes`, curated). Catalogue: 112 open +
+> 100 awarded. **Optional follow-ons only:** UKRI funding-finder open-call connector; Companies House +
+> Charity Commission API keys (register auto-enrich); paid investor-event data (Eventbrite search API
+> dead since Feb 2020 → needs Dealroom/Crunchbase + data agreement).
 > See `MARKET_WEDGE_GRANTS_STRATEGY_v3.md` + `MARKET_WEDGE_NEXT_ACTIONS_v3.md`.
 >
 > **PRIOR (2026-06-09): Database query performance review** — 4 phases COMPLETE & pushed

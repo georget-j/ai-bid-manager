@@ -1,5 +1,33 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants feature (COMPLETE: open calls + alerts + programmes)
+
+Remaining "do all" work finished, all pushed:
+
+- **Open-call connector — GOV.UK Find a Grant** (`ec392ee`): the catalogue was awarded-only;
+  this adds the first OPEN, applyable source. No public API, but the service is a Next.js app that
+  embeds its own structured data in `__NEXT_DATA__` (`pageProps.searchResult`) — so we read the
+  service's own JSON, not fragile HTML. Guardrails: public-sector open data, identifying UA, 400ms
+  pacing, structured fields only, no PII. Maps GOV.UK applicant types to the scoring org-type tokens
+  so eligibility hard-stops are correct. **112 real open grants ingested** (catalogue now 112 open +
+  100 awarded); `/my-grants` now scores applyable calls.
+- **Grant alerts** (`d1da157`, mig **061**): one alerting system across tenders + grants. Existing
+  `alert_rules` now also match grants (keywords/regions/funder/value); tender-only criteria (CPV,
+  stages) ignored and a no-grant-criteria rule never matches (CPV-only rule → 0/112). `matchAlertsForGrants`
+  wired into the grant sync (best-effort). New `grant_alert_matches` table (mirrors `alert_matches`
+  RLS). Alerts "Matches" tab shows Grants alongside Tenders.
+- **Investor programmes feed** (`d3bf50b`): the Phase 6 vision's first safe slice, done honestly.
+  Eventbrite's public event-search API was removed Feb 2020 (not viable → would be a broken
+  integration), so instead a **curated** accelerator/investor-programme feed (`/programmes`, public
+  info only, cyber/UK-leaning: NCSC For Startups, Cyber Runway, CyLon, Techstars, YC, EF, Seedcamp,
+  Antler…). No migration/scrape/token. Live event data at scale = paid (Dealroom/Crunchbase) follow-on.
+
+**Grants feature is now functionally complete.** Optional follow-ons only: a UKRI funding-finder /
+Innovate UK open-call connector (more open calls), Companies House + Charity Commission API keys
+(profile register auto-enrich), and paid investor-event data (needs a data agreement).
+
+---
+
 ## 2026-06-10 — Grants feature (core complete: Phases 0–5)
 
 - **Phase 4 — Eligibility + scoring** (`d40e066`, mig **059**): org grant-eligibility fields

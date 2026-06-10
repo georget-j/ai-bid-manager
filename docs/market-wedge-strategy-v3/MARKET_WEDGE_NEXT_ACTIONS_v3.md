@@ -9,64 +9,50 @@
 
 ## Current objective
 
-**Grants feature — core COMPLETE (Phases 0–5, 2026-06-10).** Shipped: strategy doc; data spine
+**Grants feature — COMPLETE (2026-06-10).** All "do all" work shipped: strategy doc; data spine
 (mig 058); 360Giving connector + admin/cron; list/detail/Funding nav; eligibility profile +
-`scoreGrant` + register auto-enrich + `/my-grants` (mig 059); KB-grounded applications (reuse
-responses workspace) + `/funders` directory (mig 060). 100 real grants ingested; pipeline verified.
+`scoreGrant` + register auto-enrich + `/my-grants` (mig 059); KB-grounded applications + `/funders`
+(mig 060); **GOV.UK Find a Grant open-call connector** (112 real open grants ingested);
+**grant alerts** (mig 061, reuse alert_rules); **investor programmes feed** (`/programmes`, curated).
+Catalogue: 112 open (GOV.UK) + 100 awarded (360Giving). Pipelines verified live.
 
-### GRANTS — RESUME GUIDE (remaining work, in priority order)
+### GRANTS — how it's built (orientation for future work)
 
-**How the grants domain is built (orient here first):** parallel to tenders, under `lib/grants/`.
-Tables: `grants` / `grant_sources` / `raw_grant_notices` / `grant_matches` (mig 058). Engine:
-`lib/grants/sync.ts` (`syncGrantSource` + `seedGrantSources`) — adapted from `lib/procurement/sync.ts`.
-Connectors implement `GrantSourceConnector` (`lib/grants/types.ts`) and register in
-`lib/grants/connectors/index.ts`. **Reference connector: `lib/grants/connectors/threesixtygiving.ts`**
-(verified live). Scoring `lib/grants/scoring.ts`; data `lib/grants/data.ts`. UI: `app/grants`,
-`app/my-grants`, `app/funders`, `app/grant-sources`. Migrations 058/059/060 **applied**; next free
-number is **061**. Verify connectors live with a throwaway `.mjs` against the real API (delete after);
-DB insert-shape via a `begin; insert …; rollback;` (guard-bash blocks `DELETE`).
+Parallel to tenders, under `lib/grants/`. Tables: `grants` / `grant_sources` / `raw_grant_notices` /
+`grant_matches` (mig 058) / `grant_alert_matches` (mig 061). Engine: `lib/grants/sync.ts`
+(`syncGrantSource` + `seedGrantSources`). Connectors implement `GrantSourceConnector`
+(`lib/grants/types.ts`), registered in `lib/grants/connectors/index.ts`:
 
-**1. Open-call connectors (HIGH — populates `/my-grants` with applyable calls).** The catalogue is
-currently awarded grants only (`status:'awarded'`). Add connectors that ingest OPEN calls
-(`status:'open'|'forthcoming'|'rolling'`, set `deadline_at`, `application_url`):
+- `threesixtygiving.ts` — awarded grants (funder intel + browse).
+- `govuk-find-a-grant.ts` — OPEN calls; reads the service's own `__NEXT_DATA__` JSON (no public API),
+  maps applicant types → scoring org-type tokens, derives status from open/close dates.
+  Scoring `lib/grants/scoring.ts`; alerts `lib/grants/alerts.ts`; data `lib/grants/data.ts`.
+  UI: `app/grants`, `app/my-grants`, `app/funders`, `app/programmes`, `app/grant-sources`.
+  Migrations 058–061 **applied**; next free number is **062**. Verify connectors live with a throwaway
+  `.mjs` in the repo root (resolves node_modules; delete after).
 
-- **GOV.UK Find a Grant** — `find-government-grants.service.gov.uk`. No API. First **fetch
-  `/robots.txt`** + check ToS; then a guardrailed scraper (identifying User-Agent via
-  `GRANTS_USER_AGENT`, ≥0.5s/req, structured fields only, **no personal data**). New file
-  `lib/grants/connectors/govuk-find-a-grant.ts`; register it; then flip the seeded `govuk-find-a-grant`
-  source to `enabled:true`.
-- **UKRI funding finder / Innovate UK** — check `apply-for-innovation-funding.service.gov.uk/competition/search`
-  and `ukri.org/opportunity/` for a JSON endpoint (try `?format=json` / network XHR) BEFORE
-  scraping. Add a NEW source (e.g. `ukri-funding-finder`) — note the seeded `ukri-gtr` is Gateway
-  to Research = **awarded/historical**, not open calls (no connector built for it yet).
-- For each: implement `fetchSince` + `normalize`, register in `connectors/index.ts`; the admin
-  "Sync now" (`/grant-sources`) + cron (`/api/cron/sync-grants`) pick it up automatically.
+### Optional grants follow-ons (not required — feature is functionally complete)
 
-**2. Grant alerts.** New `lib/grants/alerts.ts`: `matchAlertsForGrants(grantIds)` + a grant-aware
-matcher (mirror `lib/procurement/alerts.ts` `matchesRule` but read grant fields: themes/sectors/
-regions/amount_min/max). Add a `grant_alert_matches` table (or `grant_id` on `alert_matches`) =
-**migration 061**. Wire into `syncGrantSource` (collect upserted grant ids via `.select("id")` on the
-grants upsert — currently not collected — then call the matcher). Surface in the alerts UI.
-
-**3. Phase 6 vision — investor events.** `lib/grants/connectors/eventbrite.ts` (Eventbrite API,
-`EVENTBRITE_API_TOKEN`) for funding/pitch/demo-day events + a curated accelerator list
-(YC/Techstars/EF/Seedcamp/Antler — guardrailed public-page scrape, no PII). Surface as an
-Events/Programmes feed. Dealroom/Crunchbase/F6S/Gust = paid/partnership, not without a data agreement.
-
-**Config to add (user):** free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY` enable the
-profile "Auto-fill from registers" (`/api/profile/enrich`); `EVENTBRITE_API_TOKEN` for Phase 6.
-Scoring + the rest work without them.
+- **UKRI funding finder / Innovate UK open-call connector** — more open calls. Check
+  `apply-for-innovation-funding.service.gov.uk/competition/search` + `ukri.org/opportunity/` for a JSON
+  endpoint before scraping. (Seeded `ukri-gtr` = Gateway to Research = awarded/historical; no connector.)
+- **Config keys (user):** free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY` enable the
+  profile "Auto-fill from registers" (`/api/profile/enrich`). Scoring + everything else work without them.
+- **Live investor-event data at scale** — Eventbrite's public event-search API was removed Feb 2020
+  (not viable); needs a **paid** provider (Dealroom / Crunchbase) + a data agreement. `/programmes` is
+  curated in `lib/programmes/data.ts` (edit there to add/maintain entries).
 
 Prior (all COMPLETE): DB query perf review (mig 056/057); org roles & teams · responses workspace ·
 review concurrency (mig 054/055); opportunity docs · buyer web research · profile buildout · UX review.
 
 Last commits (2026-06-10):
 
+- `d3bf50b` — feat(grants): investor programmes feed — curated accelerators (Phase 6)
+- `d1da157` — feat(grants): grant alerts — reuse alert rules, match on sync (mig 061)
+- `ec392ee` — feat(grants): GOV.UK Find a Grant open-call connector (112 live grants)
 - `003d5c4` — feat(grants): KB-grounded applications + funder directory (mig 060)
 - `d40e066` — feat(grants): eligibility profile + register auto-enrich + grant fit scoring (mig 059)
-- `203b232` — feat(grants): grants list + detail + Funding nav
-- `45cbbb1` — feat(grants): 360Giving connector + sync cron + admin sources
-- `1ea1b9c` — feat(grants): data spine + sync engine (mig 058); `1247be4` — grants strategy doc
+- earlier: `203b232` list/detail/nav · `45cbbb1` 360Giving connector · `1ea1b9c` data spine (mig 058) · `1247be4` strategy
 
 ---
 
