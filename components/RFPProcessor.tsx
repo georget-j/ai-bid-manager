@@ -8,7 +8,7 @@ import type { ExtractedQuestion } from "@/lib/rfp-extract";
 import type { RFPResponse, RetrievedChunk } from "@/lib/schema";
 import type { BatchItem } from "@/lib/export-docx";
 
-type AnsweredQuestion = {
+export type AnsweredQuestion = {
   question_id: number;
   question_text: string;
   section: string;
@@ -31,6 +31,8 @@ interface RFPProcessorProps {
   initialAnswers?: Record<string, AnsweredQuestion>;
   /** Called once when a brand-new draft is auto-created (so the parent can track it). */
   onDraftCreated?: (id: string) => void;
+  /** Called after each successful autosave — lets a parent refresh derived state (e.g. the step spine). */
+  onSaved?: () => void;
 }
 
 export function RFPProcessor({
@@ -43,6 +45,7 @@ export function RFPProcessor({
   initialSelected,
   initialAnswers,
   onDraftCreated,
+  onSaved,
 }: RFPProcessorProps = {}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>(
@@ -118,6 +121,7 @@ export function RFPProcessor({
           });
         }
         setSavedAt(Date.now());
+        onSaved?.();
       } catch {
         /* autosave is best-effort — ignore transient failures */
       }
@@ -131,6 +135,7 @@ export function RFPProcessor({
     step,
     initialOpportunityId,
     onDraftCreated,
+    onSaved,
   ]);
   const [answering, setAnswering] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState({ done: 0, total: 0 });

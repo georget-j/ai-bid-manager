@@ -102,9 +102,11 @@ function BudgetSection({
 export function BudgetBuilder({
   draftId,
   initialBudget,
+  onSaved,
 }: {
   draftId: string;
   initialBudget: GrantBudget | null;
+  onSaved?: () => void;
 }) {
   const [costs, setCosts] = useState<BudgetLine[]>(initialBudget?.costs ?? []);
   const [funding, setFunding] = useState<BudgetLine[]>(
@@ -125,6 +127,7 @@ export function BudgetBuilder({
         }),
       }).catch(() => {});
       setSaved(true);
+      onSaved?.();
     }, 700);
   }
 
