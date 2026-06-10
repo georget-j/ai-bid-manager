@@ -1,5 +1,34 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants feature (Phases 0–3 of 6 shipped)
+
+New Grants domain beside Tenders (parallel domain, reuses the tenders engine + surfaces).
+Strategy: `MARKET_WEDGE_GRANTS_STRATEGY_v3.md`. Plan: `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`.
+
+- **Phase 0 — Strategy** (`1247be4`): market analysis — 360Giving = the grants OCDS; ranked
+  sources; competitor must-haves + gaps; eligibility scoring model; investor-vision feasibility +
+  scraping guardrails.
+- **Phase 1 — Data spine** (`1ea1b9c`, mig **058**): `grant_sources`/`raw_grant_notices`/`grants`
+  (grant-shaped: funder, amount range, themes/sectors/regions, eligibility, org types, match
+  funding, beneficiaries)/`grant_matches` (org-scoped) + `lib/grants` types/sync/data (the sync
+  engine adapted from the proven procurement engine; reuses `hashPayload`).
+- **Phase 2 — Connector + admin** (`45cbbb1`): 360Giving API connector (awarded grants → walks a
+  curated funder list's grants_made via full-URL cursor; Data-Standard grant nested under `data`),
+  connector registry, `/api/cron/sync-grants` (CRON_SECRET), `/api/grant-sources` + `/[name]/sync`
+  - PATCH (operator) + `/grant-sources` admin page. **Verified live** vs the National Lottery feed.
+- **Phase 3 — List/detail/nav** (`203b232`): `/grants` list (filters, status badges, pagination)
+  - `/grants/[id]` detail + a **Funding** sidebar group. **100 real grants ingested** for verification.
+
+**Key correction (during build):** 360Giving + UKRI Gateway to Research are **historical/awarded**
+data (great for funder intelligence + browse), **not open calls**. Open applyable calls come from
+the UKRI funding finder / Innovate UK competition search + GOV.UK Find a Grant — those connectors
+are the next ingestion work. Awarded grants carry `status:"awarded"` (browse-only).
+
+**Remaining:** Phase 4 (grant-eligibility profile fields + Companies House/Charity Commission
+auto-enrich + `scoreGrant` + recommendations; **needs free `COMPANIES_HOUSE_API_KEY` +
+`CHARITY_COMMISSION_API_KEY`**; mig 059), Phase 5 (KB-grounded applications + funder intel + grant
+alerts; mig 060), Phase 6 (investor events vision; deferred). tsc + lint + build clean throughout.
+
 ## 2026-06-09 — Database query performance review
 
 Audit-driven, right-sized to the live data (opportunities ≈8k rows/32MB; RAG only 436 chunks),

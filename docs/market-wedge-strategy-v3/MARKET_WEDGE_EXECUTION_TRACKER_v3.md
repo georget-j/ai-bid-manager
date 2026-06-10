@@ -1,6 +1,13 @@
 # Market Wedge Execution Tracker v3
 
-> **LATEST (2026-06-09): Database query performance review** — 4 phases COMPLETE & pushed
+> **ACTIVE (2026-06-10): Grants feature** — Phases 0–3 of 6 shipped (`1247be4`, `1ea1b9c`,
+> `45cbbb1`, `203b232`; mig 058). Strategy/data-spine/360Giving connector/list+detail+nav done;
+> 100 real grants ingested. Next: Phase 4 grant scoring + eligibility profile + register enrich
+> (mig 059; needs Companies House + Charity Commission API keys). 360Giving/GtR are awarded
+> (browse + funder intel); open calls need UKRI funding-finder/Innovate UK + GOV.UK connectors.
+> See `MARKET_WEDGE_GRANTS_STRATEGY_v3.md` + `MARKET_WEDGE_NEXT_ACTIONS_v3.md`.
+>
+> **PRIOR (2026-06-09): Database query performance review** — 4 phases COMPLETE & pushed
 > (`43cac95` indexes mig 056, `78f701b` narrow selects, `b448922` bulk-action N+1, `c637ab0` RLS
 > consistency mig 057). Right-sized to live data (8k opportunities); headline list `title ILIKE`
 > 419ms→0.3ms. Perf follow-ups only past ~100k rows (estimated counts, materialized KPIs).

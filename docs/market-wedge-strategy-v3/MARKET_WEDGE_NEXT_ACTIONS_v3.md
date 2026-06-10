@@ -9,31 +9,30 @@
 
 ## Current objective
 
-All core product phases shipped. Latest initiative (**database query performance review**)
-**COMPLETE (2026-06-09)** — 4 phases pushed (`43cac95`, `78f701b`, `b448922`, `c637ab0`),
-migrations 056 + 057 applied. Headline: list `title ILIKE` 419ms→0.3ms via trigram index;
-`listOpportunities` stops shipping raw_json (~682KB saved on recommendations). Prior same day:
-org roles & teams · responses workspace · review concurrency (mig 054 + 055).
+**ACTIVE: Grants feature** — Phases 0–3 of 6 shipped (2026-06-10): strategy doc, data spine
+(mig 058), 360Giving connector + admin/cron, and grants list/detail/Funding nav. 100 real grants
+ingested; pipeline verified live. Strategy: `MARKET_WEDGE_GRANTS_STRATEGY_v3.md`.
 
-**Perf follow-ups (only past ~100k opportunities; not needed now):** estimated counts on the
-dashboard/list; materialized KPI table; buyer-detail SQL-aggregate RPC. RAG (436 chunks) needs
-nothing yet.
+**Next (Phase 4):** grant-eligibility profile fields + Companies House/Charity Commission
+auto-enrich + `scoreGrant` + recommendations + `/my-grants` (mig 059). **Blocked on the user
+adding free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY`** for the enrich step (scoring
+itself works without them). Then Phase 5 (KB-grounded applications + funder intel + grant alerts,
+mig 060) and Phase 6 (investor events vision, deferred).
 
-**Follow-ups available (not yet requested):**
+**Key data nuance:** 360Giving + UKRI GtR = historical/awarded (funder intel + browse, `status:
+"awarded"`); open applyable calls need UKRI funding-finder / Innovate UK + GOV.UK Find a Grant
+connectors (next ingestion work).
 
-- Multi-user orgs now exist — but invites are delivered as a **shareable link** (no email
-  dispatch). Wire invite emails if a transactional-email integration is added.
-- Responses workspace shipped tabbed + autosave; **real-time co-editing/presence** was explicitly
-  deferred. Review concurrency uses optimistic guards (no locking/assignment UI yet).
-- `ADMIN_EMAILS` must be set in prod to scope platform-operator (sources/admin); empty = dev-only.
+Prior (all COMPLETE): DB query perf review (mig 056/057); org roles & teams · responses workspace ·
+review concurrency (mig 054/055); opportunity docs · buyer web research · profile buildout · UX review.
 
-Last commits (2026-06-09):
+Last commits (2026-06-10):
 
-- `c637ab0` — perf(db): opportunity_questions RLS consistency (mig 057)
-- `b448922` — perf(db): batch review bulk-action (N+1 → ~4 queries)
-- `78f701b` — perf(db): narrow opportunity list/recommendations selects (drop raw_json)
-- `43cac95` — perf(db): add missing FK + filter + trigram indexes (mig 056)
-- `106001e` — review: optimistic-concurrency guard on approve/reject (mig 054/055 initiative)
+- `203b232` — feat(grants): grants list + detail + Funding nav
+- `45cbbb1` — feat(grants): 360Giving connector + sync cron + admin sources
+- `1ea1b9c` — feat(grants): data spine — grants/grant_sources/raw/matches + sync engine (mig 058)
+- `1247be4` — docs: UK grants market analysis + strategy (360Giving-led)
+- `32d4c71` — docs: update trackers for DB query performance review
 
 ---
 
