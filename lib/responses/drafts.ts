@@ -23,6 +23,7 @@ export interface ResponseDraft extends ResponseDraftSummary {
 export interface DraftInput {
   rfp_title?: string;
   opportunity_id?: string | null;
+  grant_id?: string | null;
   status?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extracted_questions?: any[];
@@ -85,6 +86,7 @@ export async function createResponseDraft(
       org_id: orgId,
       rfp_title: input.rfp_title?.trim() || "Untitled response",
       opportunity_id: input.opportunity_id ?? null,
+      grant_id: input.grant_id ?? null,
       status: input.status ?? "draft",
       extracted_questions: input.extracted_questions ?? [],
       selected_question_ids: input.selected_question_ids ?? [],
@@ -111,6 +113,7 @@ export async function patchResponseDraft(
   for (const k of [
     "rfp_title",
     "opportunity_id",
+    "grant_id",
     "status",
     "extracted_questions",
     "selected_question_ids",

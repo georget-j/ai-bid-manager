@@ -368,6 +368,25 @@ const NAV_FUNDING = [
     ),
   },
   {
+    href: "/funders",
+    label: "Funders",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2 14V7l6-5 6 5v7H2z" />
+        <path d="M6 14v-4h4v4" />
+      </svg>
+    ),
+  },
+  {
     href: "/grant-sources",
     label: "Grant Sources",
     operatorOnly: true,

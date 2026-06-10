@@ -4,6 +4,7 @@ import { getGrant } from "@/lib/grants/data";
 import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile } from "@/lib/procurement/data";
 import { scoreGrant } from "@/lib/grants/scoring";
+import { DraftApplicationButton } from "./DraftApplicationButton";
 
 export const dynamic = "force-dynamic";
 
@@ -172,13 +173,21 @@ export default async function GrantDetailPage({ params }: PageProps) {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <DraftApplicationButton grantId={grant.id} />
           {grant.application_url && (
             <a
               href={grant.application_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn primary"
+              className="btn ghost sm"
               style={{ fontSize: 13 }}
             >
               Apply ↗
