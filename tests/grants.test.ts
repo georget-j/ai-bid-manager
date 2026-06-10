@@ -164,6 +164,37 @@ describe("scoreGrant", () => {
     const r = scoreGrant(grant, makeProfile({ match_funding_capacity: null }));
     expect(r.missingRequirements.join(" ")).toMatch(/match.?funding/i);
   });
+
+  it("reasons over enriched detail sections, not just the listing summary", async () => {
+    const { scoreGrant } = await import("@/lib/grants/scoring");
+    const base = makeGrant({
+      title: "Innovation Fund",
+      description: "A general fund for organisations.", // no theme terms here
+      eligibility_text: null,
+      themes: [],
+      sectors: [],
+    });
+    const withDetail = scoreGrant(
+      {
+        ...base,
+        details: {
+          sections: [
+            {
+              heading: "Eligibility",
+              text: "Open to managed detection and cyber security providers.",
+            },
+          ],
+          links: [],
+          documents: [],
+          webpageUrl: null,
+        },
+      },
+      makeProfile(),
+    );
+    const withoutDetail = scoreGrant({ ...base, details: null }, makeProfile());
+    expect(withDetail.fitScore).toBeGreaterThan(withoutDetail.fitScore);
+    expect(withDetail.reasons.join(" ")).toMatch(/cyber|managed detection/i);
+  });
 });
 
 describe("matchesGrantRule", () => {

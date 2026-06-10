@@ -47,8 +47,15 @@ export function scoreGrant(
   let eligible = true;
   let score = 0;
 
+  // Reason over the full enriched detail (eligibility, objectives, how to apply,
+  // supporting info) when present, not just the listing summary — so the score reflects
+  // the grant's actual criteria.
+  const detailText = (grant.details?.sections ?? [])
+    .map((s) => s.text)
+    .join(" ");
+
   const text =
-    `${grant.title} ${grant.description ?? ""} ${grant.eligibility_text ?? ""} ${(grant.themes ?? []).join(" ")} ${(grant.sectors ?? []).join(" ")}`.toLowerCase();
+    `${grant.title} ${grant.description ?? ""} ${grant.eligibility_text ?? ""} ${detailText} ${(grant.themes ?? []).join(" ")} ${(grant.sectors ?? []).join(" ")}`.toLowerCase();
 
   // ── Hard eligibility — org type ────────────────────────────────────────────
   if ((grant.eligible_org_types ?? []).length > 0) {
