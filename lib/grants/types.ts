@@ -4,6 +4,7 @@ export type GrantSourceName =
   | "360giving"
   | "ukri-gtr"
   | "govuk-find-a-grant"
+  | "innovate-uk"
   | "manual-upload";
 
 export type GrantStatus =

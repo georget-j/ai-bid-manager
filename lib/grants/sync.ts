@@ -354,6 +354,16 @@ export async function seedGrantSources(): Promise<void> {
         last_error: null,
       },
       {
+        name: "innovate-uk",
+        display_name: "Innovate UK (Innovation Funding Service)",
+        type: "Web (guardrailed)",
+        base_url: "https://apply-for-innovation-funding.service.gov.uk",
+        enabled: true, // open innovation competitions (grants)
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
         name: "manual-upload",
         display_name: "Manual Upload",
         type: "File upload",
