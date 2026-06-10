@@ -88,6 +88,96 @@ export async function getGrant(id: string): Promise<GrantRow | null> {
   return data as GrantRow;
 }
 
+export interface FunderGrantRef {
+  id: string;
+  title: string;
+  amount_min: number | null;
+  amount_max: number | null;
+  status: string;
+  deadline_at: string | null;
+  published_at: string | null;
+}
+
+export interface FunderProfile {
+  name: string;
+  region: string | null;
+  grantCount: number;
+  totalAmount: number;
+  avgAmount: number;
+  medianAmount: number;
+  maxAmount: number;
+  statusBreakdown: Record<string, number>;
+  topThemes: Array<{ theme: string; count: number }>;
+  regions: string[];
+  openCount: number;
+  grants: FunderGrantRef[];
+}
+
+/** Aggregate everything we hold about a funder (from the grants catalogue). */
+export async function getFunderProfile(
+  name: string,
+): Promise<FunderProfile | null> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("grants")
+    .select(
+      "id, title, amount_min, amount_max, status, deadline_at, published_at, funder_region, themes, regions",
+    )
+    .eq("funder_name", name)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(500);
+  if (error || !data || data.length === 0) return null;
+
+  const amounts = data
+    .map((g) => g.amount_max ?? g.amount_min)
+    .filter((a): a is number => typeof a === "number" && a > 0)
+    .sort((a, b) => a - b);
+  const total = amounts.reduce((s, a) => s + a, 0);
+  const median = amounts.length
+    ? amounts[Math.floor((amounts.length - 1) / 2)]
+    : 0;
+
+  const statusBreakdown: Record<string, number> = {};
+  const themeCounts = new Map<string, number>();
+  const regionSet = new Set<string>();
+  let region: string | null = null;
+  let openCount = 0;
+  for (const g of data) {
+    statusBreakdown[g.status] = (statusBreakdown[g.status] ?? 0) + 1;
+    if (["open", "forthcoming", "rolling"].includes(g.status)) openCount++;
+    if (!region && g.funder_region) region = g.funder_region;
+    for (const t of (g.themes ?? []) as string[])
+      themeCounts.set(t, (themeCounts.get(t) ?? 0) + 1);
+    for (const r of (g.regions ?? []) as string[]) regionSet.add(r);
+  }
+
+  return {
+    name,
+    region,
+    grantCount: data.length,
+    totalAmount: total,
+    avgAmount: amounts.length ? Math.round(total / amounts.length) : 0,
+    medianAmount: median,
+    maxAmount: amounts.length ? amounts[amounts.length - 1] : 0,
+    statusBreakdown,
+    topThemes: [...themeCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([theme, count]) => ({ theme, count })),
+    regions: [...regionSet].slice(0, 12),
+    openCount,
+    grants: data.slice(0, 60).map((g) => ({
+      id: g.id,
+      title: g.title,
+      amount_min: g.amount_min,
+      amount_max: g.amount_max,
+      status: g.status,
+      deadline_at: g.deadline_at,
+      published_at: g.published_at,
+    })),
+  };
+}
+
 export async function getGrantMatchesForOrg(
   orgId: string,
   grantIds?: string[],

@@ -59,7 +59,7 @@ export default function FundersPage() {
         funders.map((f) => (
           <Link
             key={f.funder_name}
-            href={`/grants?funder=${encodeURIComponent(f.funder_name)}`}
+            href={`/funders/${encodeURIComponent(f.funder_name)}`}
             className="card card-pad"
             style={{
               display: "flex",
