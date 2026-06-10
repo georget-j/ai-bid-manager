@@ -42,6 +42,8 @@ function makeGrant(overrides: Partial<GrantRow> = {}): GrantRow {
     documents: [],
     raw_json: null,
     published_at: null,
+    details: null,
+    enriched_at: null,
     created_at: past(10),
     updated_at: past(1),
     ...overrides,
@@ -250,6 +252,100 @@ describe("govukFindAGrantConnector.normalize", () => {
       grantApplicationCloseDate: "2020-01-01T00:00",
     });
     expect(g.status).toBe("closed");
+  });
+});
+
+describe("rich text walker (GOV.UK detail)", () => {
+  // A trimmed Contentful Rich Text doc like GOV.UK's grantEligibilityTab.
+  const doc = {
+    nodeType: "document",
+    content: [
+      {
+        nodeType: "paragraph",
+        content: [
+          { nodeType: "text", value: "Eligible bodies must read the " },
+          {
+            nodeType: "hyperlink",
+            data: { uri: "https://example.gov.uk/terms.pdf" },
+            content: [{ nodeType: "text", value: "terms and conditions" }],
+          },
+          { nodeType: "text", value: " first." },
+        ],
+      },
+      {
+        nodeType: "unordered-list",
+        content: [
+          {
+            nodeType: "list-item",
+            content: [
+              {
+                nodeType: "paragraph",
+                content: [{ nodeType: "text", value: "located in England" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("extracts readable text with the link label inline and bullets", async () => {
+    const { richTextToText } = await import("@/lib/grants/richtext");
+    const text = richTextToText(doc);
+    expect(text).toContain(
+      "Eligible bodies must read the terms and conditions first.",
+    );
+    expect(text).toContain("• located in England");
+  });
+
+  it("collects embedded hyperlinks with title + url", async () => {
+    const { richTextLinks } = await import("@/lib/grants/richtext");
+    const links = richTextLinks(doc);
+    expect(links).toEqual([
+      {
+        title: "terms and conditions",
+        url: "https://example.gov.uk/terms.pdf",
+      },
+    ]);
+  });
+
+  it("buildGovukDetails splits documents from links and keeps the apply url", async () => {
+    const { buildGovukDetails } =
+      await import("@/lib/grants/connectors/govuk-find-a-grant");
+    const d = buildGovukDetails({
+      grantEligibilityTab: doc,
+      grantApplyTab: {
+        nodeType: "document",
+        content: [
+          {
+            nodeType: "paragraph",
+            content: [
+              { nodeType: "text", value: "Apply on " },
+              {
+                nodeType: "hyperlink",
+                data: { uri: "https://www.gov.uk/apply-here" },
+                content: [{ nodeType: "text", value: "GOV.UK" }],
+              },
+            ],
+          },
+        ],
+      },
+      grantWebpageUrl: "https://www.gov.uk/apply-here",
+    });
+    expect(d.sections.map((s) => s.heading)).toEqual([
+      "Eligibility",
+      "How to apply",
+    ]);
+    expect(d.documents).toEqual([
+      {
+        title: "terms and conditions",
+        url: "https://example.gov.uk/terms.pdf",
+      },
+    ]);
+    expect(d.links).toEqual([
+      { title: "GOV.UK", url: "https://www.gov.uk/apply-here" },
+    ]);
+    expect(d.webpageUrl).toBe("https://www.gov.uk/apply-here");
   });
 });
 

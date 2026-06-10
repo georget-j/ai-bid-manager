@@ -4,7 +4,11 @@ import type {
   GrantFetchResult,
   NormalizedGrant,
   GrantStatus,
+  GrantRow,
+  GrantDetails,
+  GrantLink,
 } from "../types";
+import { dedupeLinks } from "../richtext";
 
 // Innovate UK / UKRI Innovation Funding Service — OPEN innovation competitions
 // (grants), the direct apply route, at apply-for-innovation-funding.service.gov.uk.
@@ -59,6 +63,43 @@ function stripTags(html: string): string {
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const DOC_EXT = /\.(pdf|docx?|xlsx?|pptx?|odt|ods|csv)(\?|$)/i;
+
+// Useful overview sections to surface, mapped from their GDS H2 heading.
+const DETAIL_SECTIONS: Array<[RegExp, string]> = [
+  [/^description$/i, "Summary"],
+  [/^who can apply$/i, "Eligibility"],
+  [/^your proposal$/i, "Scope"],
+  [/^specific themes$/i, "Themes"],
+  [/^projects we will not fund$/i, "Out of scope"],
+  [/^before you start$/i, "How to apply"],
+];
+
+/** Return the HTML between a given H2 heading and the next H2 (or end). */
+function sectionHtml(html: string, headingText: string): string | null {
+  const re = new RegExp(
+    `<h2[^>]*>\\s*${headingText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*</h2>`,
+    "i",
+  );
+  const m = re.exec(html);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  const next = html.slice(start).search(/<h2[^>]*>/i);
+  return next === -1 ? html.slice(start) : html.slice(start, start + next);
+}
+
+/** Extract absolute-URL links from an HTML chunk. */
+function linksFrom(htmlChunk: string): GrantLink[] {
+  const out: GrantLink[] = [];
+  const re = /<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(htmlChunk)) !== null) {
+    const title = stripTags(m[2]);
+    if (title) out.push({ title, url: m[1] });
+  }
+  return out;
 }
 
 /** Extract "dd Month yyyy" from a human date string and return ISO (or null). */
@@ -164,6 +205,36 @@ export const innovateUkConnector: GrantSourceConnector = {
   displayName: "Innovate UK (Innovation Funding Service)",
   baseUrl: BASE_URL,
   listsAllOpenCalls: true,
+
+  async fetchDetail(grant: GrantRow): Promise<GrantDetails | null> {
+    if (!grant.source_url) return null;
+    const html = await getHtml(grant.source_url);
+    const sections: GrantDetails["sections"] = [];
+    let links: GrantLink[] = [];
+    for (const [match, heading] of DETAIL_SECTIONS) {
+      // Find the raw heading text that matches, then slice its section.
+      const hMatch = [
+        ...html.matchAll(
+          /<h2[^>]*class="govuk-heading-[ml][^"]*"[^>]*>([\s\S]*?)<\/h2>/g,
+        ),
+      ]
+        .map((m) => stripTags(m[1]))
+        .find((h) => match.test(h));
+      if (!hMatch) continue;
+      const chunk = sectionHtml(html, hMatch);
+      if (!chunk) continue;
+      const text = stripTags(chunk);
+      if (text && text.length > 2) sections.push({ heading, text });
+      links = links.concat(linksFrom(chunk));
+    }
+    links = dedupeLinks(links);
+    return {
+      sections,
+      links: links.filter((l) => !DOC_EXT.test(l.url)),
+      documents: links.filter((l) => DOC_EXT.test(l.url)),
+      webpageUrl: grant.source_url,
+    };
+  },
 
   async fetchSince(params: GrantFetchSinceParams): Promise<GrantFetchResult> {
     const page = params.cursor ? Number(params.cursor) || 0 : 0;

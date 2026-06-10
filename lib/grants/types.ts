@@ -28,6 +28,24 @@ export interface NormalizedGrantDocument {
   format?: string | null;
 }
 
+// Deep detail (migration 062) — pulled from a source's grant detail page.
+export interface GrantLink {
+  title: string;
+  url: string;
+}
+
+export interface GrantDetailSection {
+  heading: string;
+  text: string;
+}
+
+export interface GrantDetails {
+  sections: GrantDetailSection[]; // eligibility, objectives, how to apply, dates, ...
+  links: GrantLink[]; // links embedded in the detail content (e.g. eligibility criteria)
+  documents: GrantLink[]; // downloadable documents (PDF / DOCX / ...)
+  webpageUrl?: string | null; // canonical apply / info page on the source
+}
+
 export interface NormalizedGrant {
   sourceName: GrantSourceName;
   sourceNoticeId: string;
@@ -92,6 +110,8 @@ export interface GrantRow {
   documents: NormalizedGrantDocument[] | null;
   raw_json: unknown | null;
   published_at: string | null;
+  details: GrantDetails | null;
+  enriched_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -159,4 +179,10 @@ export interface GrantSourceConnector {
   listsAllOpenCalls?: boolean;
   fetchSince(params: GrantFetchSinceParams): Promise<GrantFetchResult>;
   normalize(raw: unknown): Promise<NormalizedGrant[]>;
+  /**
+   * Optional deep enrichment: fetch a grant's source detail page and return its rich
+   * content (eligibility, how to apply, key dates, documents, links). Called lazily
+   * when a grant is first viewed and by a capped cron pass.
+   */
+  fetchDetail?(grant: GrantRow): Promise<GrantDetails | null>;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { allGrantConnectors } from "@/lib/grants/connectors";
 import { syncGrantSource, seedGrantSources } from "@/lib/grants/sync";
+import { enrichPendingGrants } from "@/lib/grants/enrich";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -37,10 +38,20 @@ export async function GET(req: NextRequest) {
     ),
   );
 
+  // Top up deep details for a capped batch of open grants (lazy enrichment also runs
+  // on first view; this fills the rest in over a few daily runs without hammering).
+  let enriched = { enriched: 0, attempted: 0 };
+  try {
+    enriched = await enrichPendingGrants(25);
+  } catch {
+    /* best-effort */
+  }
+
   return NextResponse.json({
     ran: connectors.map((c) => c.sourceName),
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { error: String(r.reason) },
     ),
+    enriched,
   });
 }

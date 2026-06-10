@@ -4,6 +4,7 @@ import { getGrant } from "@/lib/grants/data";
 import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile } from "@/lib/procurement/data";
 import { scoreGrant } from "@/lib/grants/scoring";
+import { enrichGrant } from "@/lib/grants/enrich";
 import { DraftApplicationButton } from "./DraftApplicationButton";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,13 @@ export default async function GrantDetailPage({ params }: PageProps) {
     grant.status === "forthcoming" ||
     grant.status === "rolling";
   const isClosed = grant.status === "closed";
+
+  // Deep details: lazily pull the source detail page (eligibility, how to apply, key
+  // dates, documents, links) on first view of an open grant, then cache on the row.
+  const details =
+    grant.details ?? (applyable ? await enrichGrant(grant) : null);
+  // Prefer the source's canonical apply/info page when enrichment found one.
+  const applyUrl = details?.webpageUrl || grant.application_url;
 
   const profile = orgId ? await getOrgProfile(orgId) : null;
   const fit = profile ? scoreGrant(grant, profile) : null;
@@ -189,9 +197,9 @@ export default async function GrantDetailPage({ params }: PageProps) {
           }}
         >
           {applyable && <DraftApplicationButton grantId={grant.id} />}
-          {grant.application_url && applyable && (
+          {applyUrl && applyable && (
             <a
-              href={grant.application_url}
+              href={applyUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="btn ghost sm"
@@ -303,6 +311,74 @@ export default async function GrantDetailPage({ params }: PageProps) {
           </p>
         </div>
       )}
+
+      {/* Deep detail pulled from the source: eligibility, how to apply, key dates */}
+      {details?.sections.map((section) => (
+        <div
+          key={section.heading}
+          className="card card-pad"
+          style={{ marginBottom: 16 }}
+        >
+          <div className="eyebrow" style={{ marginBottom: 10 }}>
+            {section.heading}
+          </div>
+          <p
+            style={{
+              fontSize: 14,
+              lineHeight: 1.7,
+              color: "var(--ink-2)",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {section.text}
+          </p>
+        </div>
+      ))}
+
+      {details &&
+        (details.documents.length > 0 || details.links.length > 0) && (
+          <div className="card card-pad" style={{ marginBottom: 16 }}>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>
+              Documents &amp; links
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {details.documents.map((d) => (
+                <a
+                  key={d.url}
+                  href={d.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: 13.5,
+                    color: "var(--accent)",
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                  }}
+                >
+                  <span aria-hidden>📄</span>
+                  {d.title} ↗
+                </a>
+              ))}
+              {details.links.map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: 13.5,
+                    color: "var(--accent)",
+                    textDecoration: "none",
+                  }}
+                >
+                  {l.title} ↗
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
       <div className="card card-pad" style={{ marginBottom: 16 }}>
         <div className="eyebrow" style={{ marginBottom: 12 }}>

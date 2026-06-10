@@ -4,7 +4,10 @@ import type {
   GrantFetchResult,
   NormalizedGrant,
   GrantStatus,
+  GrantRow,
+  GrantDetails,
 } from "../types";
+import { richTextToText, richTextLinks, dedupeLinks } from "../richtext";
 
 // GOV.UK "Find a grant" — OPEN UK government grant opportunities (live, applyable),
 // Cabinet Office Government Grants Management Function. There is no public API, but the
@@ -43,13 +46,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchPageProps(page: number): Promise<AnyRecord> {
-  const res = await fetch(`${BASE_URL}/grants?page=${page}`, {
+const DOC_EXT = /\.(pdf|docx?|xlsx?|pptx?|odt|ods|csv)(\?|$)/i;
+
+async function fetchNextProps(url: string): Promise<AnyRecord> {
+  const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
-    throw new Error(`Find a Grant ${res.status}: ${await res.text()}`);
+    throw new Error(`Find a Grant ${res.status} for ${url}`);
   }
   const html = await res.text();
   const m = html.match(
@@ -58,6 +63,40 @@ async function fetchPageProps(page: number): Promise<AnyRecord> {
   if (!m) throw new Error("Find a Grant: __NEXT_DATA__ not found");
   const data = JSON.parse(m[1]) as AnyRecord;
   return data?.props?.pageProps ?? {};
+}
+
+function fetchPageProps(page: number): Promise<AnyRecord> {
+  return fetchNextProps(`${BASE_URL}/grants?page=${page}`);
+}
+
+const DETAIL_TABS: Array<[string, string]> = [
+  ["grantSummaryTab", "Summary"],
+  ["grantEligibilityTab", "Eligibility"],
+  ["grantObjectivesTab", "Objectives"],
+  ["grantDatesTab", "Key dates"],
+  ["grantApplyTab", "How to apply"],
+  ["grantSupportingInfoTab", "Supporting information"],
+];
+
+/** Build deep details from a GOV.UK grant detail page's Contentful fields. */
+export function buildGovukDetails(f: AnyRecord): GrantDetails {
+  const sections: GrantDetails["sections"] = [];
+  let allLinks: GrantDetails["links"] = [];
+  for (const [key, heading] of DETAIL_TABS) {
+    const doc = f[key];
+    if (!doc) continue;
+    const text = richTextToText(doc);
+    if (text) sections.push({ heading, text });
+    allLinks = allLinks.concat(richTextLinks(doc));
+  }
+  allLinks = dedupeLinks(allLinks);
+  return {
+    sections,
+    links: allLinks.filter((l) => !DOC_EXT.test(l.url)),
+    documents: allLinks.filter((l) => DOC_EXT.test(l.url)),
+    webpageUrl:
+      typeof f.grantWebpageUrl === "string" ? f.grantWebpageUrl : null,
+  };
 }
 
 /** Map a GOV.UK applicant type to the scoring org-type token vocabulary. */
@@ -94,6 +133,14 @@ export const govukFindAGrantConnector: GrantSourceConnector = {
   displayName: "GOV.UK Find a Grant",
   baseUrl: BASE_URL,
   listsAllOpenCalls: true,
+
+  async fetchDetail(grant: GrantRow): Promise<GrantDetails | null> {
+    if (!grant.source_url) return null;
+    const pp = await fetchNextProps(grant.source_url);
+    const f = pp.grantDetail?.fields;
+    if (!f) return null;
+    return buildGovukDetails(f);
+  },
 
   async fetchSince(params: GrantFetchSinceParams): Promise<GrantFetchResult> {
     const page = params.cursor ? Number(params.cursor) || 1 : 1;
