@@ -9,46 +9,35 @@
 
 ## Current objective
 
-### GRANTS — APPROVED NEXT BUILD QUEUE (not yet started; build in this order)
+### GRANTS — advanced batch DONE (2026-06-10); migrations applied through 067 (next free 068)
 
-User approved all four (2026-06-10), then compacted before the build. Migrations applied through
-**064**; next free is **065**. Standing rule: **ask before each migration**. Reference connectors:
-`lib/grants/connectors/{govuk-find-a-grant,innovate-uk,threesixtygiving}.ts`. Verify live with a
-throwaway `.mjs` in the repo root (resolves node_modules; delete after). Conventions: tsc + lint +
-`npm run build`; commit + push per slice; update this file + CHANGELOG + memory at the end.
+The approved 4-item queue is resolved — 3 built + shipped, the 4th investigated + deferred:
 
-1. **Semantic matching** (highest impact — improves discovery for everyone). Add embedding-based fit
-   as an ADDITIVE boost so it can't regress the tuned keyword `scoreGrant`. Plan: **mig 065** adds
-   `grants.embedding vector(1536)` (+ ivfflat index); embed each grant (title + description +
-   `details.sections` + themes) during `enrichGrant`/`enrichPendingGrants` using `generateEmbedding`
-   (`lib/embeddings.ts`, text-embedding-3-small, 1536). In `/api/grants/recommendations`: embed the
-   org profile (sectors/services/keywords/grant_themes/social_value) once, cosine-compare to candidate
-   grant embeddings, add a bounded semantic bonus (e.g. +0–20) on top of `scoreGrant`. Keep keyword
-   score as the floor. Surface a "strong semantic match" reason. Backfill embeddings for existing
-   grants via a one-off `.mjs` or the cron.
+1. ✅ **Semantic matching** (`389e687`, mig 065): `grants.embedding vector(1536)`; `lib/grants/embed.ts`
+   embeds grants + the org profile; `/api/grants/recommendations` adds a bounded, min-max-normalised,
+   ADDITIVE semantic boost (never lowers the keyword `scoreGrant`); `embedPendingGrants` cron pass.
+2. ✅ **Post-award reporting** (`56e95a3`, mig 066): `grant_reports` (org RLS); `ReportsPanel` on My
+   Applications "Awarded" cards; `/api/grants/reports` + `/[id]`.
+3. ✅ **Budget builder** (`4102911`, mig 067): `response_drafts.budget jsonb`; `lib/grants/budget.ts` +
+   `BudgetBuilder` on grant drafts; "Project budget balanced" readiness check.
+4. ⏸️ **More open-call sources** — investigated, NOT shipped (no clean source): Funding Scotland is
+   login-gated, TNL Community Fund has no clean programme listing, no public APIs found. Clean UK
+   sources (GOV.UK Find a Grant, Innovate UK) already connected. A new robust source needs dedicated
+   per-site work — candidates: EU Funding & Tenders SEDIA API (public JSON, UK Horizon caveats) or a
+   data partnership. Don't ship a brittle scraper.
 
-2. **Post-award reporting**. When an application stage = `awarded`, a reporting workflow. **mig 066**:
-   `grant_reports` (id, org_id, draft_id→response_drafts, grant_id, title, due_at, status
-   [not-started|in-progress|submitted], notes/sections jsonb, created_at) + org-scoped RLS (mirror
-   `grant_matches`). CRUD route `/api/grants/reports`; surface on My Applications "Awarded" column +
-   a reporting panel (create interim/final milestones with due dates; the deadline-digest can include
-   report due dates too).
+### Remaining grants follow-ups (small / optional)
 
-3. **Budget builder**. Structured project budget on an application. **mig 067**: `response_drafts.budget
-jsonb` (line items [{category, description, amount, type:cost|income}] + match-funding). Add `budget`
-   to `DraftInput` + `patchResponseDraft` cols (lib/responses/drafts.ts). A budget UI on the grant
-   draft (client component, line items + computed totals + requested/match split), persisted via the
-   draft PATCH; show total in readiness + the DOCX export.
+- **Render the project budget into the DOCX export** (`app/api/grants/applications/[id]/export`) —
+  deferred because it needs a synthetic `RFPResponse`; instead extend `generateBatchDocx` (lib/export-docx.ts)
+  with an optional budget table.
+- **Blocked on user (config, not buildable by me):** register auto-enrich needs `COMPANIES_HOUSE_API_KEY`
+  - `CHARITY_COMMISSION_API_KEY`; the email deadline digest needs `RESEND_API_KEY` (cron already wired).
 
-4. **More open-call sources** (larger per-source effort). Add another applyable source — candidates:
-   National Lottery OPEN funding (separate from the awarded 360Giving data), a foundation feed, or
-   devolved (Funding Scotland / Wales / NI). Verify robots.txt + markup/API FIRST (mirror the GOV.UK
-   `__NEXT_DATA__` or Innovate UK GDS approach); new file in `lib/grants/connectors/`, register in
-   `connectors/index.ts`, seed in `lib/grants/sync.ts` (+ add the source name to `GrantSourceName`).
-
-**Blocked on user (not buildable by me):** register auto-enrich needs `COMPANIES_HOUSE_API_KEY` +
-`CHARITY_COMMISSION_API_KEY`; email deadline digest needs `RESEND_API_KEY` (cron is wired). Crons in
-`vercel.json`: escalate, sync-sources 22:59, sync-grants 23:30, grant-deadline-digest 08:00.
+**Conventions for any grants work:** tsc + lint + `npm run build`; ask before each migration (next free
+**068**); commit + push per slice; verify connectors live with a throwaway `.mjs` in the repo root
+(delete after); update this file + CHANGELOG + memory at the end. Crons in `vercel.json`: escalate,
+sync-sources 22:59, sync-grants 23:30, grant-deadline-digest 08:00.
 
 ---
 
