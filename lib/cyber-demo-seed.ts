@@ -147,6 +147,13 @@ const EMPTY_PROFILE_INPUT: ProfileInput = {
   year_established: null,
   delivery_models: [],
   social_value: [],
+  legal_form: null,
+  is_registered_charity: null,
+  charity_number: null,
+  company_number: null,
+  match_funding_capacity: null,
+  beneficiaries: [],
+  grant_themes: [],
 };
 
 function strArray(v: unknown): string[] {

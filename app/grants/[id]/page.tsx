@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGrant } from "@/lib/grants/data";
+import { getRequestOrgId } from "@/lib/org";
+import { getOrgProfile } from "@/lib/procurement/data";
+import { scoreGrant } from "@/lib/grants/scoring";
 
 export const dynamic = "force-dynamic";
+
+function scoreColor(n: number) {
+  if (n >= 70) return "#059669";
+  if (n >= 40) return "#d97706";
+  return "#dc2626";
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -58,11 +67,15 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function GrantDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const orgId = await getRequestOrgId();
   const grant = await getGrant(id);
   if (!grant) notFound();
 
   const s = STATUS_STYLES[grant.status] ?? STATUS_STYLES.unknown;
   const amount = fmtAmount(grant.amount_min, grant.amount_max);
+
+  const profile = orgId ? await getOrgProfile(orgId) : null;
+  const fit = profile ? scoreGrant(grant, profile) : null;
 
   return (
     <div style={{ maxWidth: 840 }}>
@@ -184,6 +197,73 @@ export default async function GrantDetailPage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {/* Eligibility & confidence */}
+      {fit && (
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              marginBottom:
+                fit.reasons.length ||
+                fit.risks.length ||
+                fit.missingRequirements.length
+                  ? 12
+                  : 0,
+            }}
+          >
+            <div style={{ textAlign: "center", flexShrink: 0 }}>
+              <div
+                style={{
+                  fontSize: 30,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  color: scoreColor(fit.fitScore),
+                }}
+              >
+                {fit.fitScore}
+              </div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)" }}>
+                confidence
+              </div>
+            </div>
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 2 }}>
+                Eligibility &amp; fit
+              </div>
+              <div
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: fit.eligible ? "var(--ink)" : "#dc2626",
+                }}
+              >
+                {fit.eligible
+                  ? `Recommended action: ${fit.recommendedAction.replace(/-/g, " ")}`
+                  : "Likely ineligible"}
+              </div>
+            </div>
+          </div>
+          {[
+            ...fit.reasons.map((r) => ({ t: r, c: "#059669", p: "✓" })),
+            ...fit.risks.map((r) => ({ t: r, c: "#b45309", p: "!" })),
+            ...fit.missingRequirements.map((r) => ({
+              t: r,
+              c: "var(--muted)",
+              p: "→",
+            })),
+          ].map((row, i) => (
+            <p
+              key={i}
+              style={{ fontSize: 12.5, color: row.c, margin: "3px 0" }}
+            >
+              {row.p} {row.t}
+            </p>
+          ))}
+        </div>
+      )}
 
       {grant.description && (
         <div className="card card-pad" style={{ marginBottom: 16 }}>

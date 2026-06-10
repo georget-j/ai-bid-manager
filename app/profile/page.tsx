@@ -25,6 +25,13 @@ interface Profile {
   preferred_buyers: string;
   excluded_buyers: string;
   excluded_keywords: string;
+  // Grant eligibility
+  legal_form: string;
+  charity_number: string;
+  company_number: string;
+  match_funding_capacity: string;
+  beneficiaries: string;
+  grant_themes: string;
 }
 
 const EMPTY: Profile = {
@@ -50,7 +57,25 @@ const EMPTY: Profile = {
   preferred_buyers: "",
   excluded_buyers: "",
   excluded_keywords: "",
+  legal_form: "",
+  charity_number: "",
+  company_number: "",
+  match_funding_capacity: "",
+  beneficiaries: "",
+  grant_themes: "",
 };
+
+const LEGAL_FORMS = [
+  "company",
+  "charity",
+  "cic",
+  "registered-society",
+  "partnership",
+  "sole-trader",
+  "university",
+  "public-body",
+  "other",
+];
 
 const COMPANY_SIZE_BANDS = [
   "Micro (0-9)",
@@ -245,6 +270,12 @@ export default function ProfilePage() {
             preferred_buyers: arr(p.preferred_buyers),
             excluded_buyers: arr(p.excluded_buyers),
             excluded_keywords: arr(p.excluded_keywords),
+            legal_form: String(p.legal_form ?? ""),
+            charity_number: String(p.charity_number ?? ""),
+            company_number: String(p.company_number ?? ""),
+            match_funding_capacity: num(p.match_funding_capacity),
+            beneficiaries: arr(p.beneficiaries),
+            grant_themes: arr(p.grant_themes),
           });
         }
         setLoading(false);
@@ -265,6 +296,58 @@ export default function ProfilePage() {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+  }
+
+  const [enriching, setEnriching] = useState(false);
+  const [enrichNote, setEnrichNote] = useState<string | null>(null);
+
+  async function enrichFromRegisters() {
+    if (!form.company_number && !form.charity_number) {
+      setEnrichNote("Enter a company or charity number first.");
+      return;
+    }
+    setEnriching(true);
+    setEnrichNote(null);
+    try {
+      const res = await fetch("/api/profile/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyNumber: form.company_number || undefined,
+          charityNumber: form.charity_number || undefined,
+        }),
+      });
+      const body = (await res.json()) as {
+        enrichment?: {
+          legal_form?: string;
+          year_established?: number;
+          charity_number?: string;
+          company_number?: string;
+          notes?: string[];
+        };
+        error?: string;
+      };
+      const e = body.enrichment;
+      if (!res.ok || !e) {
+        setEnrichNote(body.error ?? "Lookup failed.");
+      } else {
+        setForm((f) => ({
+          ...f,
+          legal_form: e.legal_form ?? f.legal_form,
+          year_established: e.year_established
+            ? String(e.year_established)
+            : f.year_established,
+          charity_number: e.charity_number ?? f.charity_number,
+          company_number: e.company_number ?? f.company_number,
+        }));
+        setEnrichNote((e.notes ?? []).join(" ") || "Updated from registers.");
+        setSaved(false);
+      }
+    } catch {
+      setEnrichNote("Network error.");
+    } finally {
+      setEnriching(false);
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -309,6 +392,17 @@ export default function ProfilePage() {
           preferred_buyers: splitTags(form.preferred_buyers),
           excluded_buyers: splitTags(form.excluded_buyers),
           excluded_keywords: splitTags(form.excluded_keywords),
+          legal_form: form.legal_form || null,
+          is_registered_charity: form.legal_form
+            ? form.legal_form === "charity" || !!form.charity_number
+            : null,
+          charity_number: form.charity_number || null,
+          company_number: form.company_number || null,
+          match_funding_capacity: form.match_funding_capacity
+            ? Number(form.match_funding_capacity)
+            : null,
+          beneficiaries: splitTags(form.beneficiaries),
+          grant_themes: splitTags(form.grant_themes),
         }),
       });
 
@@ -822,6 +916,165 @@ export default function ProfilePage() {
             value={form.social_value}
             onChange={set("social_value")}
             placeholder="e.g. Net Zero by 2030, local employment, SME supply chain"
+          />
+        </div>
+
+        {/* Grant eligibility */}
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <div className="eyebrow" style={{ marginBottom: 4 }}>
+            Grant eligibility
+          </div>
+          <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>
+            Drives grant eligibility + confidence scoring. Auto-fill legal form
+            &amp; registration from the free Companies House / Charity
+            Commission registers.
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                  color: "var(--ink)",
+                }}
+              >
+                Company number
+              </label>
+              <input
+                className="input"
+                value={form.company_number}
+                onChange={(e) => set("company_number")(e.target.value)}
+                placeholder="e.g. 09876543"
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                  color: "var(--ink)",
+                }}
+              >
+                Charity number
+              </label>
+              <input
+                className="input"
+                value={form.charity_number}
+                onChange={(e) => set("charity_number")(e.target.value)}
+                placeholder="e.g. 1234567"
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 20,
+            }}
+          >
+            <button
+              type="button"
+              className="btn ghost sm"
+              onClick={enrichFromRegisters}
+              disabled={enriching}
+              style={{ fontSize: 12 }}
+            >
+              {enriching ? "Looking up…" : "Auto-fill from registers"}
+            </button>
+            {enrichNote && (
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                {enrichNote}
+              </span>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+              marginBottom: 20,
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                  color: "var(--ink)",
+                }}
+              >
+                Legal form
+              </label>
+              <select
+                className="input"
+                value={form.legal_form}
+                onChange={(e) => set("legal_form")(e.target.value)}
+                style={{ width: "100%" }}
+              >
+                <option value="">Select…</option>
+                {LEGAL_FORMS.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                  color: "var(--ink)",
+                }}
+              >
+                Match-funding capacity (£)
+              </label>
+              <input
+                className="input"
+                type="number"
+                value={form.match_funding_capacity}
+                onChange={(e) => set("match_funding_capacity")(e.target.value)}
+                placeholder="e.g. 25000"
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+
+          <TagInput
+            label="Grant themes"
+            hint="Funding themes you target. Matched against grant calls."
+            value={form.grant_themes}
+            onChange={set("grant_themes")}
+            placeholder="e.g. green energy, digital inclusion, youth skills"
+          />
+
+          <TagInput
+            label="Beneficiaries"
+            hint="Who your work benefits — many grants score on this."
+            value={form.beneficiaries}
+            onChange={set("beneficiaries")}
+            placeholder="e.g. young people, rural communities, SMEs"
           />
         </div>
 

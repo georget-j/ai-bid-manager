@@ -181,6 +181,14 @@ export interface OrganisationProfileRow {
   year_established: number | null;
   delivery_models: string[];
   social_value: string[];
+  // Grant eligibility (migration 059).
+  legal_form: string | null;
+  is_registered_charity: boolean | null;
+  charity_number: string | null;
+  company_number: string | null;
+  match_funding_capacity: number | null;
+  beneficiaries: string[];
+  grant_themes: string[];
   created_at: string;
   updated_at: string;
 }

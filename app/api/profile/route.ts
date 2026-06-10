@@ -34,6 +34,14 @@ const ProfileSchema = z.object({
   year_established: z.number().int().nullable().optional(),
   delivery_models: z.array(z.string()).default([]),
   social_value: z.array(z.string()).default([]),
+  // Grant eligibility (migration 059)
+  legal_form: z.string().nullable().optional(),
+  is_registered_charity: z.boolean().nullable().optional(),
+  charity_number: z.string().nullable().optional(),
+  company_number: z.string().nullable().optional(),
+  match_funding_capacity: z.number().nullable().optional(),
+  beneficiaries: z.array(z.string()).default([]),
+  grant_themes: z.array(z.string()).default([]),
 });
 
 export async function GET() {
@@ -74,6 +82,11 @@ export async function POST(request: NextRequest) {
       company_size_band: parsed.data.company_size_band ?? null,
       annual_turnover: parsed.data.annual_turnover ?? null,
       year_established: parsed.data.year_established ?? null,
+      legal_form: parsed.data.legal_form ?? null,
+      is_registered_charity: parsed.data.is_registered_charity ?? null,
+      charity_number: parsed.data.charity_number ?? null,
+      company_number: parsed.data.company_number ?? null,
+      match_funding_capacity: parsed.data.match_funding_capacity ?? null,
     });
 
     return NextResponse.json({ profile });
