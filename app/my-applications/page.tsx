@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { ReportsPanel } from "./ReportsPanel";
 
 interface GrantRef {
   id: string;
@@ -315,6 +316,9 @@ export default function MyApplicationsPage() {
                             </option>
                           ))}
                         </select>
+                        {stage.key === "awarded" && (
+                          <ReportsPanel draftId={a.id} grantId={a.grant_id} />
+                        )}
                       </div>
                     );
                   })}
