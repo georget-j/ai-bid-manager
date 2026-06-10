@@ -135,8 +135,8 @@ export default function MyApplicationsPage() {
         <div className="card card-pad">
           <p style={{ fontSize: 13, color: "var(--muted)" }}>
             No grant applications yet. Open a grant and choose{" "}
-            <strong>Draft an application</strong> to start one — it&apos;ll
-            appear here.
+            <strong>Start your application</strong> to begin — it&apos;ll appear
+            here.
           </p>
         </div>
       ) : (
@@ -215,6 +215,20 @@ export default function MyApplicationsPage() {
                           >
                             {a.grant.funder_name}
                           </p>
+                        )}
+                        {a.grant_id && (
+                          <Link
+                            href={`/grants/${a.grant_id}`}
+                            style={{
+                              fontSize: 11,
+                              color: "var(--accent)",
+                              textDecoration: "none",
+                              display: "inline-block",
+                              marginTop: 2,
+                            }}
+                          >
+                            View grant →
+                          </Link>
                         )}
                         <div
                           style={{
@@ -322,6 +336,18 @@ export default function MyApplicationsPage() {
                       </div>
                     );
                   })}
+                  {stage.key === "awarded" && items.length === 0 && (
+                    <p
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--muted)",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      Won an application? Move it here to track the
+                      funder&apos;s reports and reporting deadlines.
+                    </p>
+                  )}
                 </div>
               </div>
             );

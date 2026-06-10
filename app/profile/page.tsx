@@ -223,6 +223,9 @@ function computeCompleteness(form: Profile): {
       label: "Insurance cover",
       filled: !!(form.insurance_pi || form.insurance_pl || form.insurance_el),
     },
+    // Grant-eligibility fields — needed for grant matching, not just tenders.
+    { label: "Legal form", filled: !!form.legal_form },
+    { label: "Grant themes", filled: !!form.grant_themes.trim() },
   ];
   const filled = checks.filter((c) => c.filled).length;
   const pct = Math.round((filled / checks.length) * 100);
@@ -920,14 +923,18 @@ export default function ProfilePage() {
         </div>
 
         {/* Grant eligibility */}
-        <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div
+          id="grant-eligibility"
+          className="card card-pad"
+          style={{ marginBottom: 16, scrollMarginTop: 16 }}
+        >
           <div className="eyebrow" style={{ marginBottom: 4 }}>
             Grant eligibility
           </div>
           <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>
-            Drives grant eligibility + confidence scoring. Auto-fill legal form
-            &amp; registration from the free Companies House / Charity
-            Commission registers.
+            We use this to check which grants you can apply for and how well
+            each one matches you. Auto-fill your legal form &amp; registration
+            from the free Companies House / Charity Commission registers.
           </p>
 
           <div

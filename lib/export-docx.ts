@@ -7,8 +7,15 @@ import {
   BorderStyle,
   PageBreak,
   ShadingType,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  AlignmentType,
 } from "docx";
 import type { RFPResponse } from "./schema";
+import type { GrantBudget } from "./grants/budget";
+import { budgetTotals, hasBudget } from "./grants/budget";
 
 export type BatchItem = {
   section: string;
@@ -215,11 +222,85 @@ export async function generateDocx(
   return Packer.toBuffer(doc);
 }
 
+// ── Project budget table ────────────────────────────────────────────────────
+
+function money(n: number) {
+  return `£${Math.round(n).toLocaleString()}`;
+}
+
+function budgetRow(
+  labelText: string,
+  amount: string,
+  opts: { bold?: boolean; shade?: string } = {},
+) {
+  const cell = (children: Paragraph[]) =>
+    new TableCell({
+      shading: opts.shade
+        ? { type: ShadingType.SOLID, color: opts.shade, fill: opts.shade }
+        : undefined,
+      children,
+    });
+  return new TableRow({
+    children: [
+      cell([
+        new Paragraph({
+          children: [
+            t(labelText, { bold: opts.bold, size: 20, color: "374151" }),
+          ],
+        }),
+      ]),
+      cell([
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          children: [t(amount, { bold: opts.bold, size: 20, color: "111827" })],
+        }),
+      ]),
+    ],
+  });
+}
+
+/** A "Project budget" heading + costs/funding table + balance line. */
+function budgetSection(budget: GrantBudget): (Paragraph | Table)[] {
+  const totals = budgetTotals(budget);
+  const rows: TableRow[] = [];
+  rows.push(budgetRow("Project costs", "", { bold: true, shade: "F3F4F6" }));
+  for (const l of budget.costs ?? [])
+    rows.push(budgetRow(l.label || "—", money(l.amount)));
+  rows.push(
+    budgetRow("Total project cost", money(totals.cost), { bold: true }),
+  );
+  rows.push(budgetRow("Funding sources", "", { bold: true, shade: "F3F4F6" }));
+  for (const l of budget.funding ?? [])
+    rows.push(budgetRow(l.label || "—", money(l.amount)));
+  rows.push(budgetRow("Total funding", money(totals.funding), { bold: true }));
+
+  const balance =
+    Math.abs(totals.balance) <= 1
+      ? "Costs and funding balance."
+      : totals.balance < 0
+        ? `Shortfall of ${money(-totals.balance)}.`
+        : `Surplus of ${money(totals.balance)}.`;
+
+  return [
+    heading1("Project budget"),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      columnWidths: [7000, 3000],
+      rows,
+    }),
+    new Paragraph({
+      spacing: { before: 160 },
+      children: [t(balance, { bold: true, size: 20, color: "374151" })],
+    }),
+  ];
+}
+
 // ── Batch export ──────────────────────────────────────────────────────────────
 
 export async function generateBatchDocx(
   rfpTitle: string,
   items: BatchItem[],
+  budget?: GrantBudget | null,
 ): Promise<Buffer> {
   const sectionMap = new Map<string, BatchItem[]>();
   for (const item of items) {
@@ -228,7 +309,7 @@ export async function generateBatchDocx(
     sectionMap.set(item.section, arr);
   }
 
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   // Cover block
   children.push(
@@ -260,6 +341,12 @@ export async function generateBatchDocx(
     }),
     gap(600),
   );
+
+  // Project budget (grant applications) — a costs/funding table before the answers.
+  if (hasBudget(budget)) {
+    children.push(...budgetSection(budget!));
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+  }
 
   let sectionIndex = 0;
   for (const [sectionName, sectionItems] of sectionMap) {

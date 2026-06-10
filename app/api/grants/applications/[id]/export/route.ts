@@ -53,7 +53,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     ? `${grant.title} — Application${grant.funder_name ? ` (${grant.funder_name})` : ""}`
     : draft.rfp_title;
 
-  const buffer = await generateBatchDocx(title, items);
+  const buffer = await generateBatchDocx(title, items, draft.budget ?? null);
   const safe =
     (grant?.title ?? draft.rfp_title)
       .replace(/[^a-z0-9\-_ ]/gi, "")
