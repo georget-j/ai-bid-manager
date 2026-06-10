@@ -29,8 +29,11 @@ Parallel to tenders, under `lib/grants/`. Tables: `grants` / `grant_sources` / `
 - `innovate-uk.ts` — OPEN innovation competitions; server-rendered GDS HTML, `fetchSince` enriches each
   list item with its overview page (opens/closes dates, funding type, funder).
   Scoring `lib/grants/scoring.ts`; alerts `lib/grants/alerts.ts`; data `lib/grants/data.ts`.
+  Deep enrichment: `lib/grants/enrich.ts` (`enrichGrant` lazy-on-view + `enrichPendingGrants` cron) +
+  each connector's `fetchDetail()` (GOV.UK Contentful rich-text via `lib/grants/richtext.ts`; Innovate
+  UK GDS `<h2>` sections) → `grants.details` jsonb rendered on the detail page.
   UI: `app/grants`, `app/my-grants`, `app/funders`, `app/programmes`, `app/grant-sources`.
-  Migrations 058–061 **applied**; next free number is **062**. Verify connectors live with a throwaway
+  Migrations 058–062 **applied**; next free number is **063**. Verify connectors live with a throwaway
   `.mjs` in the repo root (resolves node_modules; delete after).
 
 ### Optional grants follow-ons (not required — feature is functionally complete)

@@ -1,5 +1,19 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Deep grant detail enrichment (`3f6bc0b`, mig 062)
+
+Open grants were ingested from listing summaries only. Now each grant's full detail is
+pulled from its source page into the dashboard — **eligibility, objectives, key dates,
+how-to-apply, plus the documents and links embedded in that content** (eligibility-criteria
+PDFs, terms & conditions, the real apply URL). mig 062 adds `grants.details jsonb` +
+`enriched_at`. Connector `fetchDetail()`: GOV.UK walks the detail page's Contentful rich-text
+tabs (new `lib/grants/richtext.ts` → text + extracted hyperlinks); Innovate UK parses the
+overview page's GDS `<h2>` sections + links/documents. `enrichGrant` runs lazily on first view
+of an open grant + a capped cron top-up (25/run), and `details` survives re-syncs. The Apply
+button now uses the source's canonical webpage URL when found. Verified live: 54 grants enriched
+(GOV.UK eligibility bullets + SharePoint/gov.uk apply URLs; Innovate UK 8.7k-char eligibility).
+Tests: rich-text walker + buildGovukDetails (19 grants tests, green).
+
 ## 2026-06-10 — Fix: dead Apply / View-source links (`259f92f`)
 
 Clicking Apply / View source on some grants (and 3 Programmes) hit "not found". Causes +
