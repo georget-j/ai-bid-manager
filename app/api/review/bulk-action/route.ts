@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
 import { getServiceSupabase } from "@/lib/supabase";
+import { getRequestOrgId } from "@/lib/org";
 import { ingestDocument } from "@/lib/documents";
 import { logReviewAction } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -19,6 +20,11 @@ const BulkActionSchema = z.object({
 export async function POST(req: NextRequest) {
   const limited = await checkRateLimit(req, "review_action");
   if (limited) return limited;
+
+  const orgId = await getRequestOrgId();
+  if (!orgId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let ids: string[];
   let action: "approve" | "reject";
@@ -50,10 +56,13 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
 
   // Batch-read the requested review requests once (avoids a per-id round-trip).
+  // Org-scoped via the parent query (queries.org_id) — cross-org ids fall out
+  // here and end up in `failed`.
   const { data: rrs } = await supabase
     .from("review_requests")
-    .select("id, query_id, topic, assigned_to, status")
-    .in("id", ids);
+    .select("id, query_id, topic, assigned_to, status, queries!inner(org_id)")
+    .in("id", ids)
+    .eq("queries.org_id", orgId);
   type RR = {
     id: string;
     query_id: string;
@@ -63,14 +72,18 @@ export async function POST(req: NextRequest) {
   const rrMap = new Map<string, RR>((rrs ?? []).map((r) => [r.id, r as RR]));
 
   // Atomically claim ALL actionable items in a single guarded update — the rows
-  // returned are the ones this request won (still pending/assigned).
+  // returned are the ones this request won (still pending/assigned). Restricted
+  // to the org-verified ids above so cross-org writes are impossible.
   const targetStatus = action === "reject" ? "rejected" : "approved";
-  const { data: claimedRows } = await supabase
-    .from("review_requests")
-    .update({ status: targetStatus, updated_at: now })
-    .in("id", ids)
-    .in("status", ["pending", "assigned"])
-    .select("id");
+  const orgScopedIds = [...rrMap.keys()];
+  const { data: claimedRows } = orgScopedIds.length
+    ? await supabase
+        .from("review_requests")
+        .update({ status: targetStatus, updated_at: now })
+        .in("id", orgScopedIds)
+        .in("status", ["pending", "assigned"])
+        .select("id")
+    : { data: [] as { id: string }[] };
   const claimedIds = new Set<string>((claimedRows ?? []).map((c) => c.id));
   for (const id of ids) if (!claimedIds.has(id)) failed.push(id);
 
@@ -98,6 +111,7 @@ export async function POST(req: NextRequest) {
         .from("queries")
         .select("id, query_text, rfp_context, query_results(answer)")
         .in("id", queryIds)
+        .eq("org_id", orgId)
     : { data: [] as unknown[] };
   type Q = {
     id: string;
@@ -126,6 +140,7 @@ export async function POST(req: NextRequest) {
         text: `Q: ${q.query_text}\n\nA: ${approvedText}\n\nApproved on: ${today}`,
         title: `Approved Answer: ${q.query_text.slice(0, 80)}`,
         sourceType: "upload",
+        orgId,
       });
       ingestedDocumentId = result.document_id;
     } catch {
@@ -134,6 +149,7 @@ export async function POST(req: NextRequest) {
 
     answerRows.push({
       review_request_id: rr.id,
+      org_id: orgId,
       query_id: rr.query_id,
       original_question: q.query_text,
       approved_answer: approvedText,

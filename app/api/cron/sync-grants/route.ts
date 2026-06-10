@@ -14,11 +14,15 @@ const OVERALL_BUDGET_MS = 240_000;
 /** Scheduled grant sync — Bearer CRON_SECRET. Syncs all enabled grant sources. */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    return NextResponse.json(
+      { error: "CRON_SECRET environment variable is not configured" },
+      { status: 500 },
+    );
+  }
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   await seedGrantSources();

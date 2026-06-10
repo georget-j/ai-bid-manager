@@ -44,16 +44,14 @@ export default function ClientsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
 
-  async function load() {
-    setLoading(true);
-    const res = await fetch(`/api/clients?status=${statusFilter}`);
-    if (res.ok) setClients(await res.json());
-    setLoading(false);
-  }
-
+  // `loading` starts true and is re-armed in the filter's onChange handler,
+  // so the effect only does async work (no synchronous setState).
   useEffect(() => {
-    load();
-  }, [statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetch(`/api/clients?status=${statusFilter}`).then(async (res) => {
+      if (res.ok) setClients(await res.json());
+      setLoading(false);
+    });
+  }, [statusFilter]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -111,9 +109,10 @@ export default function ClientsPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select
             value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as "active" | "all")
-            }
+            onChange={(e) => {
+              setLoading(true);
+              setStatusFilter(e.target.value as "active" | "all");
+            }}
             style={{
               fontSize: 12,
               padding: "5px 10px",

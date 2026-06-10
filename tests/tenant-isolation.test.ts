@@ -7,297 +7,314 @@
  *
  * Usage:  npm run test:isolation
  *
- * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env.
+ * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env
+ * (loaded from .env.local by tests/eval-setup.ts when present). On a checkout
+ * without those secrets the whole suite is SKIPPED rather than crashing.
  * Cleans up all inserted rows after each test.
  */
 
 import { describe, it, expect, afterEach, beforeAll, afterAll } from "vitest";
 import { getServiceSupabase } from "../lib/supabase-service";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const hasSupabaseEnv = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
 
-const supabase = getServiceSupabase();
+describe.skipIf(!hasSupabaseEnv)("Tenant isolation", () => {
+  // Created lazily in beforeAll so importing this file never touches env vars —
+  // a clean checkout without Supabase secrets skips instead of crashing.
+  let supabase: ReturnType<typeof getServiceSupabase>;
 
-const ORG_A = "00000000-0000-0000-0000-000000000a01";
-const ORG_B = "00000000-0000-0000-0000-000000000b02";
-const TEST_OPP_ID = "00000000-0000-0000-0000-000000000f01";
+  const ORG_A = "00000000-0000-0000-0000-000000000a01";
+  const ORG_B = "00000000-0000-0000-0000-000000000b02";
+  const TEST_OPP_ID = "00000000-0000-0000-0000-000000000f01";
 
-// Seed the two test orgs + a test opportunity that the org-FK rows depend on,
-// then tear them down. Without this the suite cannot run on a fresh instance.
-beforeAll(async () => {
-  await supabase.from("orgs").upsert(
-    [
-      { id: ORG_A, name: "Isolation Test Org A", slug: "isolation-test-org-a" },
-      { id: ORG_B, name: "Isolation Test Org B", slug: "isolation-test-org-b" },
-    ],
-    { onConflict: "id" },
-  );
-  await supabase.from("opportunities").upsert(
-    {
-      id: TEST_OPP_ID,
-      source_name: "isolation-test",
-      source_notice_id: "isolation-test-notice",
-      title: "Isolation Test Opportunity",
-    },
-    { onConflict: "id" },
-  );
-});
-
-afterAll(async () => {
-  await supabase
-    .from("opportunity_questions")
-    .delete()
-    .eq("opportunity_id", TEST_OPP_ID);
-  await supabase.from("opportunities").delete().eq("id", TEST_OPP_ID);
-  await supabase.from("orgs").delete().in("id", [ORG_A, ORG_B]);
-});
-
-const insertedIds: { table: string; id: string }[] = [];
-
-async function cleanup() {
-  for (const { table, id } of insertedIds.reverse()) {
-    await supabase.from(table).delete().eq("id", id);
-  }
-  insertedIds.length = 0;
-}
-
-afterEach(cleanup);
-
-async function insertDocument(orgId: string, title: string): Promise<string> {
-  const { data, error } = await supabase
-    .from("documents")
-    .insert({
-      title,
-      org_id: orgId,
-      source_type: "upload",
-      raw_text: `Sensitive content belonging to org ${orgId}: ${title}`,
-      collection: "main",
-    })
-    .select("id")
-    .single();
-  if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
-  insertedIds.push({ table: "documents", id: data.id });
-  return data.id;
-}
-
-async function insertOpportunityQuestion(
-  orgId: string,
-  opportunityId: string,
-  questionText: string,
-): Promise<string> {
-  const { data, error } = await supabase
-    .from("opportunity_questions")
-    .insert({
-      org_id: orgId,
-      opportunity_id: opportunityId,
-      question_text: questionText,
-      question_type: "general",
-      question_class: "question",
-      answer_status: "unanswered",
-      is_mandatory: true,
-    })
-    .select("id")
-    .single();
-  if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
-  insertedIds.push({ table: "opportunity_questions", id: data.id });
-  return data.id;
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-describe("Tenant isolation — documents", () => {
-  it("documents inserted for org A are not returned when queried as org B", async () => {
-    await insertDocument(ORG_A, "Org A Confidential Policy");
-
-    const { data } = await supabase
-      .from("documents")
-      .select("id, title")
-      .eq("org_id", ORG_B);
-
-    const orgADoc = (data ?? []).find((d) =>
-      d.title.includes("Org A Confidential Policy"),
+  // Seed the two test orgs + a test opportunity that the org-FK rows depend on,
+  // then tear them down. Without this the suite cannot run on a fresh instance.
+  beforeAll(async () => {
+    supabase = getServiceSupabase();
+    await supabase.from("orgs").upsert(
+      [
+        {
+          id: ORG_A,
+          name: "Isolation Test Org A",
+          slug: "isolation-test-org-a",
+        },
+        {
+          id: ORG_B,
+          name: "Isolation Test Org B",
+          slug: "isolation-test-org-b",
+        },
+      ],
+      { onConflict: "id" },
     );
-    expect(orgADoc).toBeUndefined();
+    await supabase.from("opportunities").upsert(
+      {
+        id: TEST_OPP_ID,
+        source_name: "isolation-test",
+        source_notice_id: "isolation-test-notice",
+        title: "Isolation Test Opportunity",
+      },
+      { onConflict: "id" },
+    );
   });
 
-  it("documents inserted for org A are returned when queried as org A", async () => {
-    await insertDocument(ORG_A, "Org A Own Document");
-
-    const { data } = await supabase
-      .from("documents")
-      .select("id, title")
-      .eq("org_id", ORG_A);
-
-    const ownDoc = (data ?? []).find((d) =>
-      d.title.includes("Org A Own Document"),
-    );
-    expect(ownDoc).toBeDefined();
-  });
-});
-
-describe("Tenant isolation — opportunity_questions", () => {
-  it("questions inserted for org A are not returned when queried as org B", async () => {
-    await insertOpportunityQuestion(
-      ORG_A,
-      TEST_OPP_ID,
-      "Secret question for org A",
-    );
-
-    const { data } = await supabase
+  afterAll(async () => {
+    await supabase
       .from("opportunity_questions")
-      .select("id, question_text")
-      .eq("opportunity_id", TEST_OPP_ID)
-      .eq("org_id", ORG_B);
-
-    const leak = (data ?? []).find((q) =>
-      q.question_text.includes("Secret question for org A"),
-    );
-    expect(leak).toBeUndefined();
+      .delete()
+      .eq("opportunity_id", TEST_OPP_ID);
+    await supabase.from("opportunities").delete().eq("id", TEST_OPP_ID);
+    await supabase.from("orgs").delete().in("id", [ORG_A, ORG_B]);
   });
 
-  it("questions inserted for org A are returned when queried as org A", async () => {
-    await insertOpportunityQuestion(
-      ORG_A,
-      TEST_OPP_ID,
-      "Legitimate question for org A",
-    );
+  const insertedIds: { table: string; id: string }[] = [];
 
-    const { data } = await supabase
-      .from("opportunity_questions")
-      .select("id, question_text")
-      .eq("opportunity_id", TEST_OPP_ID)
-      .eq("org_id", ORG_A);
-
-    const own = (data ?? []).find((q) =>
-      q.question_text.includes("Legitimate question for org A"),
-    );
-    expect(own).toBeDefined();
-  });
-});
-
-describe("Tenant isolation — tender_doc_cache", () => {
-  it("cache entries for org A are not returned when queried as org B", async () => {
-    const hash = "test-hash-org-a-only-" + Date.now();
-
-    const { data: inserted } = await supabase
-      .from("tender_doc_cache")
-      .insert({
-        url_hash: hash,
-        url: "https://example.com/tender-doc",
-        org_id: ORG_A,
-        storage_path: `${ORG_A}/${hash}/document.pdf`,
-        content_type: "application/pdf",
-        byte_size: 12345,
-      })
-      .select("id")
-      .single();
-
-    if (inserted?.id)
-      insertedIds.push({ table: "tender_doc_cache", id: inserted.id });
-
-    const { data } = await supabase
-      .from("tender_doc_cache")
-      .select("id, url_hash")
-      .eq("url_hash", hash)
-      .eq("org_id", ORG_B);
-
-    expect((data ?? []).length).toBe(0);
-  });
-});
-
-describe("Tenant isolation — answer_library", () => {
-  it("answer library entries for org A are not returned when queried as org B", async () => {
-    const { data: inserted, error } = await supabase
-      .from("answer_library")
-      .insert({
-        org_id: ORG_A,
-        question_text: "Confidential answer for org A",
-        answer_text: "Sensitive answer content",
-        topic: "general",
-        confidence_level: "high",
-        source: "test",
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      // answer_library schema may differ — skip gracefully
-      console.warn("answer_library insert skipped:", error.message);
-      return;
+  async function cleanup() {
+    for (const { table, id } of insertedIds.reverse()) {
+      await supabase.from(table).delete().eq("id", id);
     }
-    if (inserted?.id)
-      insertedIds.push({ table: "answer_library", id: inserted.id });
-
-    const { data } = await supabase
-      .from("answer_library")
-      .select("id, question_text")
-      .eq("org_id", ORG_B)
-      .ilike("question_text", "%Confidential answer for org A%");
-
-    expect((data ?? []).length).toBe(0);
-  });
-});
-
-describe("Tenant isolation — clients", () => {
-  async function insertClient(orgId: string, name: string): Promise<string> {
-    const { data, error } = await supabase
-      .from("clients")
-      .insert({ org_id: orgId, name, vertical: "it_cyber", status: "active" })
-      .select("id")
-      .single();
-    if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
-    insertedIds.push({ table: "clients", id: data.id });
-    return data.id;
+    insertedIds.length = 0;
   }
 
-  it("clients inserted for org A are not returned when queried as org B", async () => {
-    await insertClient(ORG_A, "Org A Secret Client");
+  afterEach(cleanup);
 
-    const { data } = await supabase
-      .from("clients")
-      .select("id, name")
-      .eq("org_id", ORG_B);
-
-    const leak = (data ?? []).find((c) => c.name === "Org A Secret Client");
-    expect(leak).toBeUndefined();
-  });
-
-  it("clients inserted for org A are returned when queried as org A", async () => {
-    await insertClient(ORG_A, "Org A Own Client");
-
-    const { data } = await supabase
-      .from("clients")
-      .select("id, name")
-      .eq("org_id", ORG_A);
-
-    const own = (data ?? []).find((c) => c.name === "Org A Own Client");
-    expect(own).toBeDefined();
-  });
-
-  it("documents scoped to a client are not visible to a different org", async () => {
-    const clientId = await insertClient(ORG_A, "Org A Client for Doc Test");
-
-    const { data: doc } = await supabase
+  async function insertDocument(orgId: string, title: string): Promise<string> {
+    const { data, error } = await supabase
       .from("documents")
       .insert({
-        title: "Client-scoped confidential doc",
-        org_id: ORG_A,
-        client_id: clientId,
+        title,
+        org_id: orgId,
         source_type: "upload",
-        raw_text: "Sensitive client content",
+        raw_text: `Sensitive content belonging to org ${orgId}: ${title}`,
         collection: "main",
       })
       .select("id")
       .single();
+    if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
+    insertedIds.push({ table: "documents", id: data.id });
+    return data.id;
+  }
 
-    if (doc?.id) insertedIds.push({ table: "documents", id: doc.id });
+  async function insertOpportunityQuestion(
+    orgId: string,
+    opportunityId: string,
+    questionText: string,
+  ): Promise<string> {
+    const { data, error } = await supabase
+      .from("opportunity_questions")
+      .insert({
+        org_id: orgId,
+        opportunity_id: opportunityId,
+        question_text: questionText,
+        question_type: "general",
+        question_class: "question",
+        answer_status: "unanswered",
+        is_mandatory: true,
+      })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
+    insertedIds.push({ table: "opportunity_questions", id: data.id });
+    return data.id;
+  }
 
-    const { data } = await supabase
-      .from("documents")
-      .select("id, title")
-      .eq("org_id", ORG_B)
-      .eq("client_id", clientId);
+  // ── Tests ───────────────────────────────────────────────────────────────────
 
-    expect((data ?? []).length).toBe(0);
+  describe("documents", () => {
+    it("documents inserted for org A are not returned when queried as org B", async () => {
+      await insertDocument(ORG_A, "Org A Confidential Policy");
+
+      const { data } = await supabase
+        .from("documents")
+        .select("id, title")
+        .eq("org_id", ORG_B);
+
+      const orgADoc = (data ?? []).find((d) =>
+        d.title.includes("Org A Confidential Policy"),
+      );
+      expect(orgADoc).toBeUndefined();
+    });
+
+    it("documents inserted for org A are returned when queried as org A", async () => {
+      await insertDocument(ORG_A, "Org A Own Document");
+
+      const { data } = await supabase
+        .from("documents")
+        .select("id, title")
+        .eq("org_id", ORG_A);
+
+      const ownDoc = (data ?? []).find((d) =>
+        d.title.includes("Org A Own Document"),
+      );
+      expect(ownDoc).toBeDefined();
+    });
+  });
+
+  describe("opportunity_questions", () => {
+    it("questions inserted for org A are not returned when queried as org B", async () => {
+      await insertOpportunityQuestion(
+        ORG_A,
+        TEST_OPP_ID,
+        "Secret question for org A",
+      );
+
+      const { data } = await supabase
+        .from("opportunity_questions")
+        .select("id, question_text")
+        .eq("opportunity_id", TEST_OPP_ID)
+        .eq("org_id", ORG_B);
+
+      const leak = (data ?? []).find((q) =>
+        q.question_text.includes("Secret question for org A"),
+      );
+      expect(leak).toBeUndefined();
+    });
+
+    it("questions inserted for org A are returned when queried as org A", async () => {
+      await insertOpportunityQuestion(
+        ORG_A,
+        TEST_OPP_ID,
+        "Legitimate question for org A",
+      );
+
+      const { data } = await supabase
+        .from("opportunity_questions")
+        .select("id, question_text")
+        .eq("opportunity_id", TEST_OPP_ID)
+        .eq("org_id", ORG_A);
+
+      const own = (data ?? []).find((q) =>
+        q.question_text.includes("Legitimate question for org A"),
+      );
+      expect(own).toBeDefined();
+    });
+  });
+
+  describe("tender_doc_cache", () => {
+    it("cache entries for org A are not returned when queried as org B", async () => {
+      const hash = "test-hash-org-a-only-" + Date.now();
+
+      const { data: inserted } = await supabase
+        .from("tender_doc_cache")
+        .insert({
+          url_hash: hash,
+          url: "https://example.com/tender-doc",
+          org_id: ORG_A,
+          storage_path: `${ORG_A}/${hash}/document.pdf`,
+          content_type: "application/pdf",
+          byte_size: 12345,
+        })
+        .select("id")
+        .single();
+
+      if (inserted?.id)
+        insertedIds.push({ table: "tender_doc_cache", id: inserted.id });
+
+      const { data } = await supabase
+        .from("tender_doc_cache")
+        .select("id, url_hash")
+        .eq("url_hash", hash)
+        .eq("org_id", ORG_B);
+
+      expect((data ?? []).length).toBe(0);
+    });
+  });
+
+  describe("answer_library", () => {
+    it("answer library entries for org A are not returned when queried as org B", async () => {
+      const { data: inserted, error } = await supabase
+        .from("answer_library")
+        .insert({
+          org_id: ORG_A,
+          question_text: "Confidential answer for org A",
+          answer_text: "Sensitive answer content",
+          topic: "general",
+          confidence_level: "high",
+          source: "test",
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        // answer_library schema may differ — skip gracefully
+        console.warn("answer_library insert skipped:", error.message);
+        return;
+      }
+      if (inserted?.id)
+        insertedIds.push({ table: "answer_library", id: inserted.id });
+
+      const { data } = await supabase
+        .from("answer_library")
+        .select("id, question_text")
+        .eq("org_id", ORG_B)
+        .ilike("question_text", "%Confidential answer for org A%");
+
+      expect((data ?? []).length).toBe(0);
+    });
+  });
+
+  describe("clients", () => {
+    async function insertClient(orgId: string, name: string): Promise<string> {
+      const { data, error } = await supabase
+        .from("clients")
+        .insert({ org_id: orgId, name, vertical: "it_cyber", status: "active" })
+        .select("id")
+        .single();
+      if (error || !data) throw new Error(`Insert failed: ${error?.message}`);
+      insertedIds.push({ table: "clients", id: data.id });
+      return data.id;
+    }
+
+    it("clients inserted for org A are not returned when queried as org B", async () => {
+      await insertClient(ORG_A, "Org A Secret Client");
+
+      const { data } = await supabase
+        .from("clients")
+        .select("id, name")
+        .eq("org_id", ORG_B);
+
+      const leak = (data ?? []).find((c) => c.name === "Org A Secret Client");
+      expect(leak).toBeUndefined();
+    });
+
+    it("clients inserted for org A are returned when queried as org A", async () => {
+      await insertClient(ORG_A, "Org A Own Client");
+
+      const { data } = await supabase
+        .from("clients")
+        .select("id, name")
+        .eq("org_id", ORG_A);
+
+      const own = (data ?? []).find((c) => c.name === "Org A Own Client");
+      expect(own).toBeDefined();
+    });
+
+    it("documents scoped to a client are not visible to a different org", async () => {
+      const clientId = await insertClient(ORG_A, "Org A Client for Doc Test");
+
+      const { data: doc } = await supabase
+        .from("documents")
+        .insert({
+          title: "Client-scoped confidential doc",
+          org_id: ORG_A,
+          client_id: clientId,
+          source_type: "upload",
+          raw_text: "Sensitive client content",
+          collection: "main",
+        })
+        .select("id")
+        .single();
+
+      if (doc?.id) insertedIds.push({ table: "documents", id: doc.id });
+
+      const { data } = await supabase
+        .from("documents")
+        .select("id, title")
+        .eq("org_id", ORG_B)
+        .eq("client_id", clientId);
+
+      expect((data ?? []).length).toBe(0);
+    });
   });
 });

@@ -229,13 +229,21 @@ export default function EvidenceGapsPage({
       .catch(() => {});
   }, [opportunityId]);
 
-  // Fetch gap report when client changes
+  // Fetch gap report when client changes. The report/loading state is
+  // adjusted during render when the key changes (the documented "adjust
+  // state when props change" pattern) so the effect body only does async work.
+  const reportKey = selectedClientId
+    ? `${opportunityId}:${selectedClientId}`
+    : null;
+  const [prevReportKey, setPrevReportKey] = useState<string | null>(null);
+  if (prevReportKey !== reportKey) {
+    setPrevReportKey(reportKey);
+    if (reportKey) setLoading(true);
+    else setReport(null);
+  }
+
   useEffect(() => {
-    if (!selectedClientId) {
-      setReport(null);
-      return;
-    }
-    setLoading(true);
+    if (!selectedClientId) return;
     fetch(
       `/api/opportunities/${opportunityId}/evidence-gaps?clientId=${selectedClientId}`,
     )

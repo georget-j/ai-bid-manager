@@ -450,16 +450,6 @@ export default function SourcesPage() {
     await runBackfillLoop(sourceName, form.from, form.to, true);
   }
 
-  /** One-click: start from today and walk backwards, no config required. */
-  async function startAutoSync(sourceName: string) {
-    const to = isoDate(new Date());
-    // Go back up to 2 years by default
-    const twoYearsAgo = new Date();
-    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-    const from = isoDate(twoYearsAgo);
-    await runBackfillLoop(sourceName, from, to, true);
-  }
-
   function cancelBackfill() {
     cancelledRef.current = true;
     setBackfill((prev) =>
@@ -1114,8 +1104,8 @@ export default function SourcesPage() {
                         margin: 0,
                       }}
                     >
-                      Fetches newest first, back to "Go back to" date. Keep tab
-                      open.
+                      Fetches newest first, back to &ldquo;Go back to&rdquo;
+                      date. Keep tab open.
                     </p>
                   </div>
                 )}

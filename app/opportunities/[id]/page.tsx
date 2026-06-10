@@ -9,7 +9,7 @@ import { OpportunityTabs } from "./OpportunityTabs";
 import { OpportunityInsights } from "./OpportunityInsights";
 import { OpportunityKnowledgeBase } from "./OpportunityKnowledgeBase";
 import { OpportunityLifecycle } from "./OpportunityLifecycle";
-import type { OpportunityRow, NormalizedLot } from "@/lib/procurement/types";
+import type { NormalizedLot } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
 

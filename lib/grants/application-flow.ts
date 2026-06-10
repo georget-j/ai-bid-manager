@@ -11,6 +11,7 @@ import type { GrantScoringResult } from "./scoring";
 import type { ExtractedQuestion } from "@/lib/rfp-extract";
 import type { GrantBudget } from "./budget";
 import { hasBudget, isBudgetBalanced } from "./budget";
+import { daysUntil } from "@/lib/dates";
 
 export type StepKey =
   | "eligible"
@@ -69,11 +70,6 @@ function hasAnswer(answers: Record<string, unknown>, id: number): boolean {
   return v != null && v !== "";
 }
 
-function daysUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
-}
-
 export function buildApplicationFlow(input: {
   grant: GrantRow;
   fit: GrantScoringResult | null;
@@ -119,7 +115,7 @@ export function buildApplicationFlow(input: {
   const mandatoryDone =
     mandatory.length === 0 || mandatoryAnswered.length === mandatory.length;
 
-  const days = daysUntil(grant.deadline_at);
+  const days = grant.deadline_at ? daysUntil(grant.deadline_at) : null;
   const withinDeadline = days === null || days >= 0;
 
   const budgetStarted = hasBudget(budget);

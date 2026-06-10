@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { BidPipelineStatus } from "@/lib/procurement/types";
+import { daysUntil } from "@/lib/dates";
 
 interface Recommendation {
   id: string;
@@ -75,7 +76,7 @@ function formatValue(amount: string | number | null) {
 
 function formatDeadline(iso: string | null) {
   if (!iso) return null;
-  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  const days = daysUntil(iso);
   const label = new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -120,8 +121,10 @@ export default function MyOpportunitiesPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [noProfile, setNoProfile] = useState(false);
 
-  const loadRecs = useCallback(() => {
-    setLoadingRecs(true);
+  // Fetch-only loaders: `loadingRecs`/`loadingPipeline` start true, so the
+  // mount effect needs no synchronous setState. Event handlers re-arm the
+  // loading flag (see `loadPipeline`) before refetching.
+  const fetchRecs = useCallback(() => {
     fetch("/api/opportunities/recommendations")
       .then((r) => r.json())
       .then(
@@ -141,8 +144,7 @@ export default function MyOpportunitiesPage() {
       .finally(() => setLoadingRecs(false));
   }, []);
 
-  const loadPipeline = useCallback(() => {
-    setLoadingPipeline(true);
+  const fetchPipeline = useCallback(() => {
     fetch("/api/pipeline")
       .then((r) => r.json())
       .then((d: { items?: PipelineItem[] }) => setPipeline(d.items ?? []))
@@ -150,14 +152,27 @@ export default function MyOpportunitiesPage() {
       .finally(() => setLoadingPipeline(false));
   }, []);
 
+  function loadPipeline() {
+    setLoadingPipeline(true);
+    fetchPipeline();
+  }
+
   useEffect(() => {
-    loadRecs();
-    loadPipeline();
-  }, [loadRecs, loadPipeline]);
+    fetchRecs();
+    fetchPipeline();
+  }, [fetchRecs, fetchPipeline]);
+
+  // Arm the RFP loading flag during render when the tab changes (the
+  // documented "adjust state when props change" pattern) so the effect body
+  // only performs async work.
+  const [prevTab, setPrevTab] = useState<string | null>(null);
+  if (prevTab !== activeTab) {
+    setPrevTab(activeTab);
+    if (activeTab === "rfp") setLoadingRfp(true);
+  }
 
   useEffect(() => {
     if (activeTab !== "rfp") return;
-    setLoadingRfp(true);
     fetch("/api/rfp/runs")
       .then((r) => r.json())
       .then((d: unknown) => {

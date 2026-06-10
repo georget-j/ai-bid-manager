@@ -3,6 +3,7 @@ import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile } from "@/lib/procurement/data";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { scoreGrant } from "@/lib/grants/scoring";
+import type { GrantRow } from "@/lib/grants/types";
 import { generateEmbedding } from "@/lib/embeddings";
 import {
   profileEmbeddingText,
@@ -30,16 +31,29 @@ export async function GET() {
 
   // Only applyable calls (open/forthcoming/rolling) — awarded grants are historical.
   const supabase = getServiceSupabase();
-  const { data: rows } = await supabase
+  const { data: rows, error } = await supabase
     .from("grants")
     .select(
       "id, title, funder_name, amount_min, amount_max, currency, deadline_at, status, themes, regions, eligibility_text, eligible_org_types, match_funding_required, description, sectors, beneficiaries, embedding",
     )
     .in("status", ["open", "forthcoming", "rolling"])
     .limit(SAMPLE);
+  if (error) {
+    console.error(
+      "[grants/recommendations] failed to load grants:",
+      error.message,
+    );
+    return NextResponse.json(
+      { error: "Failed to load grants" },
+      { status: 500 },
+    );
+  }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const grants = (rows ?? []) as any[];
+  // The projection above is a subset of GrantRow (scoreGrant only reads these
+  // columns) plus the raw embedding, which parseEmbedding handles as unknown.
+  const grants = (rows ?? []) as unknown as Array<
+    GrantRow & { embedding: unknown }
+  >;
 
   // Embed the org profile once for the semantic boost (best-effort).
   let profileVec: number[] | null = null;
@@ -85,7 +99,7 @@ export async function GET() {
 
   // Persist matches (best-effort) — fit_score is the combined score.
   if (scored.length > 0) {
-    await supabase.from("grant_matches").upsert(
+    const { error: upsertError } = await supabase.from("grant_matches").upsert(
       scored.slice(0, 50).map(({ g, result, finalScore, reasons }) => ({
         grant_id: g.id,
         org_id: orgId,
@@ -99,6 +113,12 @@ export async function GET() {
       })),
       { onConflict: "grant_id,org_id" },
     );
+    if (upsertError) {
+      console.error(
+        "[grants/recommendations] failed to persist grant matches:",
+        upsertError.message,
+      );
+    }
   }
 
   const recommendations = scored

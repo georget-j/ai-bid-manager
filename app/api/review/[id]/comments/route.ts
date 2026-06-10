@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
 import { getServiceSupabase } from "@/lib/supabase";
+import { getRequestOrgId } from "@/lib/org";
 import { logReviewAction } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getAuthUser } from "@/lib/supabase-server";
@@ -14,6 +15,21 @@ const CommentSchema = z.object({
   body: z.string().min(1).max(2000),
 });
 
+/** review_comments has no org_id — scope via the parent review_request's query. */
+async function reviewRequestInOrg(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  id: string,
+  orgId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("review_requests")
+    .select("id, queries!inner(org_id)")
+    .eq("id", id)
+    .eq("queries.org_id", orgId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -22,7 +38,16 @@ export async function GET(
   if (limited) return limited;
 
   const { id } = await params;
+  const orgId = await getRequestOrgId();
+  if (!orgId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const supabase = getServiceSupabase();
+
+  if (!(await reviewRequestInOrg(supabase, id, orgId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const { data, error } = await supabase
     .from("review_comments")
@@ -44,6 +69,10 @@ export async function POST(
   if (limited) return limited;
 
   const { id } = await params;
+  const orgId = await getRequestOrgId();
+  if (!orgId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let author_email: string;
   let body: string;
@@ -89,6 +118,11 @@ export async function POST(
   }
 
   const supabase = getServiceSupabase();
+
+  // Cross-org review ids must 404 before any write
+  if (!(await reviewRequestInOrg(supabase, id, orgId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const { data, error } = await supabase
     .from("review_comments")

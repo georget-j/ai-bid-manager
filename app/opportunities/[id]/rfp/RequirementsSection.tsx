@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 interface OppQuestion {
   id: string;
@@ -78,10 +78,13 @@ function RequirementCard({
   const [answering, setAnswering] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
 
-  // Keep draft in sync if parent updates
-  useEffect(() => {
+  // Keep draft in sync if parent updates (render-time state adjust — the
+  // documented "adjust state when props change" pattern; skipped while editing)
+  const [prevSync, setPrevSync] = useState({ ai_draft: req.ai_draft, editing });
+  if (prevSync.ai_draft !== req.ai_draft || prevSync.editing !== editing) {
+    setPrevSync({ ai_draft: req.ai_draft, editing });
     if (!editing) setDraft(req.ai_draft ?? "");
-  }, [req.ai_draft, editing]);
+  }
 
   async function startAnswering() {
     setAnswering(true);

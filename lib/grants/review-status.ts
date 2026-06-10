@@ -16,10 +16,12 @@ export async function getRunReviewStatuses(
   const out = new Map<string, RunReviewStatus>();
   if (ids.length === 0) return out;
 
-  const { data } = await getServiceSupabase()
+  const { data, error } = await getServiceSupabase()
     .from("review_requests")
     .select("rfp_run_id, status")
     .in("rfp_run_id", ids);
+  if (error)
+    throw new Error(`Failed to load review statuses: ${error.message}`);
 
   for (const r of data ?? []) {
     const key = r.rfp_run_id as string;

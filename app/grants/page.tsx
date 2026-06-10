@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listGrants } from "@/lib/grants/data";
 import type { GrantRow } from "@/lib/grants/types";
+import { daysUntil } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ function deadlineBadge(
   iso: string | null,
 ): { label: string; color: string } | null {
   if (!iso) return null;
-  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const days = daysUntil(iso);
   if (days < 0) return null;
   if (days === 0) return { label: "Due today", color: "#dc2626" };
   if (days <= 14) return { label: `${days} days left`, color: "#b45309" };

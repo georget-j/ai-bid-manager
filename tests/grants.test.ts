@@ -368,9 +368,11 @@ describe("assessGrantReadiness", () => {
     });
     expect(r.ready).toBe(false);
     const byLabel = Object.fromEntries(r.checks.map((c) => [c.label, c.ok]));
-    expect(byLabel["Mandatory requirements answered"]).toBe(false);
-    expect(byLabel["Within the deadline"]).toBe(false);
-    expect(byLabel["Grant evidence in knowledge base"]).toBe(false);
+    // Labels are the plain-English readiness checks from application-flow.ts.
+    expect(byLabel["Required questions answered"]).toBe(false);
+    expect(byLabel["Still within the deadline"]).toBe(false);
+    expect(byLabel["The funder's documents added"]).toBe(false);
+    expect(r.score).toBeLessThan(100);
   });
 });
 

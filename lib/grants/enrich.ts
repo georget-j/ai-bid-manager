@@ -36,7 +36,7 @@ export async function enrichPendingGrants(
   limit = 15,
 ): Promise<{ enriched: number; attempted: number }> {
   const supabase = getServiceSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("grants")
     .select("*")
     .is("details", null)
@@ -44,6 +44,14 @@ export async function enrichPendingGrants(
     .in("source_name", ENRICHABLE_SOURCES)
     .order("updated_at", { ascending: false })
     .limit(limit);
+  if (error) {
+    // Best-effort cron path — log and report nothing attempted rather than fail.
+    console.error(
+      "[grants/enrich] failed to list pending grants:",
+      error.message,
+    );
+    return { enriched: 0, attempted: 0 };
+  }
 
   const grants = (data ?? []) as GrantRow[];
   let enriched = 0;

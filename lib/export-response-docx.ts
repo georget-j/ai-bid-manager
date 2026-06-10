@@ -690,7 +690,9 @@ export async function generateResponseDocx(
   orgName: string,
   questions: ResponseQuestion[],
   gapReport?: ExportGapReport | null,
-  approvedOnly?: boolean,
+  // Reserved by the export route (mode=approved); questions arrive pre-filtered,
+  // so the generator itself doesn't branch on it yet.
+  _approvedOnly?: boolean,
 ): Promise<ArrayBuffer> {
   // Sort by sort_order
   const sorted = questions.slice().sort((a, b) => {

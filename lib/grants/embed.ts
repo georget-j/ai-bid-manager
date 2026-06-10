@@ -95,7 +95,7 @@ export async function embedPendingGrants(
   limit = 40,
 ): Promise<{ embedded: number; attempted: number }> {
   const supabase = getServiceSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("grants")
     .select(
       "id, title, description, eligibility_text, themes, sectors, regions, details",
@@ -103,6 +103,14 @@ export async function embedPendingGrants(
     .is("embedding", null)
     .in("status", SEM_STATUSES)
     .limit(limit);
+  if (error) {
+    // Best-effort cron path — log and report nothing attempted rather than fail.
+    console.error(
+      "[grants/embed] failed to list pending grants:",
+      error.message,
+    );
+    return { embedded: 0, attempted: 0 };
+  }
   const grants = (data ?? []) as GrantRow[];
   let embedded = 0;
   for (const g of grants) {

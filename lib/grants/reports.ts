@@ -21,12 +21,13 @@ export async function listReportsForDraft(
   orgId: string,
   draftId: string,
 ): Promise<GrantReport[]> {
-  const { data } = await getServiceSupabase()
+  const { data, error } = await getServiceSupabase()
     .from("grant_reports")
     .select(COLS)
     .eq("org_id", orgId)
     .eq("draft_id", draftId)
     .order("due_at", { ascending: true, nullsFirst: false });
+  if (error) throw new Error(`Failed to list grant reports: ${error.message}`);
   return (data ?? []) as GrantReport[];
 }
 
@@ -38,8 +39,8 @@ export async function createReport(
     title: string;
     due_at?: string | null;
   },
-): Promise<GrantReport | null> {
-  const { data } = await getServiceSupabase()
+): Promise<GrantReport> {
+  const { data, error } = await getServiceSupabase()
     .from("grant_reports")
     .insert({
       org_id: orgId,
@@ -50,7 +51,8 @@ export async function createReport(
     })
     .select(COLS)
     .single();
-  return (data as GrantReport) ?? null;
+  if (error) throw new Error(`Failed to create grant report: ${error.message}`);
+  return data as GrantReport;
 }
 
 export async function updateReport(
@@ -69,20 +71,24 @@ export async function updateReport(
   for (const k of ["status", "due_at", "title", "notes"] as const) {
     if (patch[k] !== undefined) update[k] = patch[k];
   }
-  const { data } = await getServiceSupabase()
+  // DB failure throws (route → 500); null data means the row genuinely doesn't
+  // exist for this org (route → 404).
+  const { data, error } = await getServiceSupabase()
     .from("grant_reports")
     .update(update)
     .eq("id", id)
     .eq("org_id", orgId)
     .select(COLS)
     .maybeSingle();
+  if (error) throw new Error(`Failed to update grant report: ${error.message}`);
   return (data as GrantReport) ?? null;
 }
 
 export async function deleteReport(orgId: string, id: string): Promise<void> {
-  await getServiceSupabase()
+  const { error } = await getServiceSupabase()
     .from("grant_reports")
     .delete()
     .eq("id", id)
     .eq("org_id", orgId);
+  if (error) throw new Error(`Failed to delete grant report: ${error.message}`);
 }

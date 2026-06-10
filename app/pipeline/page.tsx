@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { BidPipelineStatus } from "@/lib/procurement/types";
+import { daysUntil } from "@/lib/dates";
 
 interface Opportunity {
   id: string;
@@ -115,7 +116,7 @@ function formatValue(amount: string | number | null, _currency = "GBP") {
 
 function formatDeadline(iso: string | null) {
   if (!iso) return null;
-  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  const days = daysUntil(iso);
   const label = new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",

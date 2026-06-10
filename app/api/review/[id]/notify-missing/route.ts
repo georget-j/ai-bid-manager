@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { getServiceSupabase } from "@/lib/supabase";
+import { getRequestOrgId } from "@/lib/org";
 import { getRoutingConfig } from "@/lib/routing";
 import { logReviewAction } from "@/lib/audit";
 import { escapeHtml } from "@/lib/html";
@@ -52,6 +53,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const orgId = await getRequestOrgId();
+  if (!orgId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let item: string, whyItMatters: string | undefined, ownerTopic: string;
   try {
@@ -72,10 +77,12 @@ export async function POST(
 
   const supabase = getServiceSupabase();
 
+  // Org-scoped via the parent query (queries.org_id) — cross-org ids 404.
   const { data: reviewRequest, error: rrError } = await supabase
     .from("review_requests")
-    .select("id, query_id, topic, assigned_to")
+    .select("id, query_id, topic, assigned_to, queries!inner(org_id)")
     .eq("id", id)
+    .eq("queries.org_id", orgId)
     .single();
 
   if (rrError || !reviewRequest) {
@@ -89,6 +96,7 @@ export async function POST(
     .from("queries")
     .select("query_text, rfp_context")
     .eq("id", reviewRequest.query_id)
+    .eq("org_id", orgId)
     .single();
 
   const routingConfig = await getRoutingConfig(ownerTopic);

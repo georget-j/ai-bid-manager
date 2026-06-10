@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 /** GET — this org's grant applications (grant-linked response drafts) for the pipeline. */
 export async function GET() {
   const orgId = await getRequestOrgId();
-  if (!orgId) return NextResponse.json({ applications: [] });
+  if (!orgId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -29,9 +30,18 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = data ?? [];
-  const reviews = await getRunReviewStatuses(
-    rows.map((r) => r.latest_rfp_run_id as string | null),
-  );
+  let reviews;
+  try {
+    reviews = await getRunReviewStatuses(
+      rows.map((r) => r.latest_rfp_run_id as string | null),
+    );
+  } catch (err) {
+    console.error("[grants/applications] failed to load review statuses:", err);
+    return NextResponse.json(
+      { error: "Failed to load applications" },
+      { status: 500 },
+    );
+  }
   const applications = rows.map((r) => ({
     ...r,
     review: r.latest_rfp_run_id

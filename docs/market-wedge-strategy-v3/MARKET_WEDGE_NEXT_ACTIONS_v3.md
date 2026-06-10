@@ -1,5 +1,15 @@
 # Market Wedge Next Actions v3
 
+> **✅ 2026-06-10 review fixes ALL DONE (2026-06-11):** S-015 (13 legacy routes org-scoped +
+> route-level isolation tests), S-016 (crons fail closed), S-017 (`lib/safe-fetch.ts` SSRF guard),
+> S-018 (stats scoped); `npm test` green (160 tests, 12 files); lint 0 errors 0 warnings; CI
+> workflow + Dependabot live; Supabase migration history repaired 001–068 (duplicate `026` renamed
+> to `068_question_class.sql` — **next free migration: 069**). Error-handling sweep killed the
+> silent-empty-data pattern in grants lib/routes; drafts PATCH now zod-validated; `daysUntil()`
+> centralised in `lib/dates.ts`. Non-blocking follow-ups → SECURITY_PLAN §"S-015..S-018
+> remediation". Current work: grants journey overhaul (goal 1), admin grant sync (goal 2),
+> investor meetings map (goal 3).
+
 > **Sources Hardening initiative — code COMPLETE (2026-06-08), all 5 phases pushed.**
 > State → `MARKET_WEDGE_SOURCES_HARDENING_v3.md`. Design → `.claude/plans/on-the-opportunity-rfp-snoopy-crane.md`.
 > **Outstanding:** apply migrations **050** (cosmetic) + **051** (enables Wales) by hand;

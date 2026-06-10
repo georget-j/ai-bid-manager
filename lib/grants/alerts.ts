@@ -69,16 +69,26 @@ export async function matchAlertsForGrants(
 
   const supabase = getServiceSupabase();
 
-  const { data: grants } = await supabase
+  // Alert matching is best-effort from the caller's side (the sync catches and
+  // records errors) — but failures must surface, not read as "no matches".
+  const { data: grants, error: grantsError } = await supabase
     .from("grants")
     .select("*")
     .in("id", grantIds);
+  if (grantsError)
+    throw new Error(
+      `Failed to load grants for alert matching: ${grantsError.message}`,
+    );
   if (!grants?.length) return { matched: 0 };
 
-  const { data: rules } = await supabase
+  const { data: rules, error: rulesError } = await supabase
     .from("alert_rules")
     .select("*")
     .eq("enabled", true);
+  if (rulesError)
+    throw new Error(
+      `Failed to load alert rules for alert matching: ${rulesError.message}`,
+    );
   if (!rules?.length) return { matched: 0 };
 
   const matchRows: Array<{
@@ -103,10 +113,16 @@ export async function matchAlertsForGrants(
 
   if (matchRows.length === 0) return { matched: 0 };
 
-  await supabase.from("grant_alert_matches").upsert(matchRows, {
-    onConflict: "alert_rule_id,grant_id",
-    ignoreDuplicates: true,
-  });
+  const { error: upsertError } = await supabase
+    .from("grant_alert_matches")
+    .upsert(matchRows, {
+      onConflict: "alert_rule_id,grant_id",
+      ignoreDuplicates: true,
+    });
+  if (upsertError)
+    throw new Error(
+      `Failed to upsert grant alert matches: ${upsertError.message}`,
+    );
 
   return { matched: matchRows.length };
 }

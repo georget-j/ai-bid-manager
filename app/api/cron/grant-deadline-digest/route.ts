@@ -11,10 +11,15 @@ export const maxDuration = 120;
 /** Scheduled digest of upcoming grant-application deadlines — Bearer CRON_SECRET. */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    if (req.headers.get("authorization") !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    return NextResponse.json(
+      { error: "CRON_SECRET environment variable is not configured" },
+      { status: 500 },
+    );
+  }
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const byOrg = await collectDeadlineDigests(14);

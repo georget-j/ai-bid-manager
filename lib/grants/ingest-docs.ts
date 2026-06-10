@@ -1,13 +1,15 @@
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { extractText, ALLOWED_EXTENSIONS } from "@/lib/extractors";
 import { ingestDocument } from "@/lib/documents";
+import { safeFetch } from "@/lib/safe-fetch";
 import type { GrantRow } from "./types";
 
 // Import a grant's resources — its documents (PDF/DOCX/…) AND the web links found in its
 // detail — into a PER-GRANT knowledge-base collection ("grant:<id>"). That collection is
 // excluded from general retrieval (see migration 063), so this context informs only this
 // grant's application and never affects other responses. Guardrails: identifying UA, size
-// cap + timeout, capped count, public resources only, org+collection-scoped dedup.
+// cap + timeout, capped count, public resources only (SSRF-guarded fetch — see
+// lib/safe-fetch.ts), org+collection-scoped dedup.
 
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
@@ -106,20 +108,25 @@ export async function ingestGrantDocuments(
         continue;
       }
 
-      // Org + collection-scoped dedup (keyed on the source URL).
-      const { data: existing } = await supabase
+      // Org + collection-scoped dedup (keyed on the source URL). A failed read
+      // throws into the per-item catch below so it's recorded, not re-ingested.
+      const { data: existing, error: existingError } = await supabase
         .from("documents")
         .select("id")
         .eq("org_id", orgId)
         .eq("collection", collection)
         .eq("file_name", item.url)
         .limit(1);
+      if (existingError)
+        throw new Error(`dedup check failed: ${existingError.message}`);
       if (existing && existing.length > 0) {
         res.alreadyPresent++;
         continue;
       }
 
-      const r = await fetch(item.url, {
+      // SSRF guard: URLs come from scraped external pages — safeFetch rejects
+      // private/loopback/metadata hosts and re-validates every redirect hop.
+      const r = await safeFetch(item.url, {
         headers: { "User-Agent": USER_AGENT },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });

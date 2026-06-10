@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { daysUntil } from "@/lib/dates";
 
 interface Report {
   id: string;
@@ -13,7 +14,7 @@ const STATUSES = ["not-started", "in-progress", "submitted"];
 
 function dueLabel(iso: string | null): { text: string; color: string } | null {
   if (!iso) return null;
-  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const days = daysUntil(iso);
   if (days < 0) return { text: `overdue ${-days}d`, color: "#dc2626" };
   if (days <= 14) return { text: `${days}d`, color: "#b45309" };
   return { text: `${days}d`, color: "#059669" };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
 import { getServiceSupabase } from "@/lib/supabase";
+import { getRequestOrgId } from "@/lib/org";
 import { ingestDocument } from "@/lib/documents";
 import { logReviewAction } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -39,6 +40,10 @@ export async function POST(
   if (limited) return limited;
 
   const { id } = await params;
+  const orgId = await getRequestOrgId();
+  if (!orgId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let action: string;
   let editedAnswer: string | undefined;
@@ -61,12 +66,14 @@ export async function POST(
 
   const supabase = getServiceSupabase();
 
+  // Org-scoped via the parent query (queries.org_id) — cross-org ids 404.
   const { data: reviewRequest, error: rrError } = await supabase
     .from("review_requests")
     .select(
-      "id, query_id, topic, risk_level, rfp_run_id, assigned_to, status, updated_at",
+      "id, query_id, topic, risk_level, rfp_run_id, assigned_to, status, updated_at, queries!inner(org_id)",
     )
     .eq("id", id)
+    .eq("queries.org_id", orgId)
     .single();
 
   if (rrError || !reviewRequest) {
@@ -92,6 +99,7 @@ export async function POST(
     .from("queries")
     .select("query_text, rfp_context, query_results(answer)")
     .eq("id", reviewRequest.query_id)
+    .eq("org_id", orgId)
     .single();
 
   if (qError || !queryData) {
@@ -144,6 +152,7 @@ export async function POST(
       text: content,
       title: docTitle,
       sourceType: "upload",
+      orgId,
     });
     ingestedDocumentId = result.document_id;
   } catch (err) {
@@ -152,6 +161,7 @@ export async function POST(
 
   await supabase.from("approved_answers").insert({
     review_request_id: id,
+    org_id: orgId,
     query_id: reviewRequest.query_id,
     original_question: queryData.query_text,
     approved_answer: approvedText,

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { daysUntil } from "@/lib/dates";
 
 // Upcoming grant-application deadlines + an email digest. An application = a grant-linked
 // response draft still being worked (stage drafting/submitted) whose grant deadline is
@@ -23,7 +24,7 @@ export async function collectDeadlineDigests(
   withinDays = 14,
 ): Promise<Map<string, DeadlineItem[]>> {
   const supabase = getServiceSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("response_drafts")
     .select(
       "id, rfp_title, org_id, stage, grant:grants(title, funder_name, deadline_at)",
@@ -31,6 +32,8 @@ export async function collectDeadlineDigests(
     .not("grant_id", "is", null)
     .neq("status", "archived")
     .in("stage", ["drafting", "submitted"]);
+  if (error)
+    throw new Error(`Failed to collect deadline digests: ${error.message}`);
 
   const now = Date.now();
   const horizon = now + withinDays * 86_400_000;
@@ -46,7 +49,7 @@ export async function collectDeadlineDigests(
       title: (g.title as string) ?? (row.rfp_title as string),
       funder: (g.funder_name as string) ?? null,
       deadlineAt: g.deadline_at as string,
-      daysLeft: Math.ceil((t - now) / 86_400_000),
+      daysLeft: daysUntil(g.deadline_at as string, now),
     };
     const arr = byOrg.get(row.org_id as string) ?? [];
     arr.push(item);
@@ -57,11 +60,12 @@ export async function collectDeadlineDigests(
 
 /** Owner/admin emails for an org (digest recipients). */
 export async function orgNotifyEmails(orgId: string): Promise<string[]> {
-  const { data } = await getServiceSupabase()
+  const { data, error } = await getServiceSupabase()
     .from("org_memberships")
     .select("email, role")
     .eq("org_id", orgId)
     .in("role", ["owner", "admin"]);
+  if (error) throw new Error(`Failed to load notify emails: ${error.message}`);
   return [
     ...new Set(
       (data ?? [])

@@ -9,6 +9,7 @@
 import { createHash } from "crypto";
 import { extractText } from "@/lib/extractors";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { safeFetch } from "@/lib/safe-fetch";
 import { collectTenderDocuments } from "@/lib/procurement/documents";
 import type { NormalizedDocument } from "@/lib/procurement/types";
 
@@ -89,9 +90,11 @@ async function fetchBytes(
 ): Promise<{ buffer: Buffer; fileName: string; contentType: string }> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    // SSRF guard: URLs come from external procurement feeds — safeFetch rejects
+    // private/loopback/metadata hosts and follows redirects manually (max 5
+    // hops), re-validating every hop. Blocked URLs surface as "fetch-failed".
+    res = await safeFetch(url, {
       headers: BROWSER_HEADERS,
-      redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {

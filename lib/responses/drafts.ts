@@ -61,12 +61,13 @@ export async function listResponseDrafts(
   orgId: string,
 ): Promise<ResponseDraftSummary[]> {
   const supabase = getServiceSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("response_drafts")
     .select(SUMMARY_COLS)
     .eq("org_id", orgId)
     .neq("status", "archived")
     .order("updated_at", { ascending: false });
+  if (error) throw new Error(`Failed to list drafts: ${error.message}`);
   return (data ?? []) as ResponseDraftSummary[];
 }
 
@@ -74,13 +75,16 @@ export async function getResponseDraft(
   id: string,
   orgId: string,
 ): Promise<ResponseDraft | null> {
+  // DB failure throws (caller → 500); null data means the draft genuinely
+  // doesn't exist for this org (caller → 404).
   const supabase = getServiceSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("response_drafts")
     .select(FULL_COLS)
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
+  if (error) throw new Error(`Failed to load draft: ${error.message}`);
   return (data as ResponseDraft) ?? null;
 }
 
@@ -139,13 +143,16 @@ export async function patchResponseDraft(
     update.submitted_at = new Date().toISOString();
   }
 
-  const { data } = await supabase
+  // DB failure throws (caller → 500); null data means the draft genuinely
+  // doesn't exist for this org (caller → 404).
+  const { data, error } = await supabase
     .from("response_drafts")
     .update(update)
     .eq("id", id)
     .eq("org_id", orgId)
     .select(FULL_COLS)
     .maybeSingle();
+  if (error) throw new Error(`Failed to update draft: ${error.message}`);
   return (data as ResponseDraft) ?? null;
 }
 
@@ -154,9 +161,10 @@ export async function deleteResponseDraft(
   orgId: string,
 ): Promise<void> {
   const supabase = getServiceSupabase();
-  await supabase
+  const { error } = await supabase
     .from("response_drafts")
     .delete()
     .eq("id", id)
     .eq("org_id", orgId);
+  if (error) throw new Error(`Failed to delete draft: ${error.message}`);
 }

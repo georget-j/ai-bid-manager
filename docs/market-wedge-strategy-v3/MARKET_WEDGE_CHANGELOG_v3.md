@@ -1,5 +1,43 @@
 # Market Wedge Changelog v3
 
+## 2026-06-11 — Review fixes: S-015..S-018, tests green, lint zero, CI, migration history
+
+All findings from the 2026-06-10 full-stack review fixed in one pass (7 agents, verified
+tsc/lint/test/build green):
+
+- **S-015 (HIGH)**: 13 legacy service-role routes (`queries`, `documents/[id]`+`/stats`,
+  `rfp/runs`, all `review/*`) now org-scoped via `getRequestOrgId()`; review routes scoped through
+  `queries!inner` join (review_requests.org_id never populated — follow-up noted); bonus write-leak
+  fix: approved-answer ingestion stamps org_id (was creating null-org rows visible to RAG).
+  New `tests/route-org-scoping.test.ts`.
+- **S-016**: `sync-grants` + `grant-deadline-digest` crons fail closed (500 unset / 401 mismatch).
+- **S-017**: new `lib/safe-fetch.ts` (scheme check, DNS private-IP rejection, manual ≤5-hop
+  redirects with per-hop revalidation) wired into grant/tender doc fetchers; 22 unit tests.
+- **S-018**: documents/stats org-scoped.
+- **Tests**: stale grants labels fixed; tenant-isolation lazy + `describe.skipIf` (env-less
+  checkouts skip instead of crash); vitest loads `.env.local`; suite 160/160 green.
+- **Lint**: 0 errors 0 warnings (was 9+5) — behaviour-preserving refactors, no eslint-disables.
+- **Error handling**: killed the `const {data}` ignore-error pattern across `lib/grants/*` +
+  recommendations route (500 on DB error instead of silent `[]`); drafts PATCH zod-validated,
+  404-vs-500 distinguished; my-applications gets load-error banner + optimistic-move rollback;
+  `daysUntil()` centralised in `lib/dates.ts`; 26 new unit tests for `application-flow`/`budget`.
+- **Platform**: `.github/workflows/ci.yml` + `dependabot.yml`; Dependabot alerts + auto security
+  fixes enabled; Supabase migration history repaired (001–068 in sync; `026_question_class.sql`
+  renamed `068_question_class.sql`; **next free: 069**).
+
+## 2026-06-10 — Full-stack review (code, GitHub, Vercel, Supabase) — findings only, no code changes
+
+Four-surface review. Live DB verified all 42 tables RLS-enabled; grants tables (058–067) correctly
+org-scoped; prod env correct (CRON_SECRET set, no DEMO_MODE); deploys green, 4 crons wired and
+401-ing unauthenticated (verified live); tsc clean; Next 16 conventions followed; grants code is
+the best-structured in the repo. **New risks recorded in SECURITY_PLAN: S-015 (HIGH — legacy
+queries/documents/rfp-runs/review routes use service-role with no org filter → cross-tenant
+read/write; re-opens the onboarding gate), S-016 (newer crons fail open without CRON_SECRET),
+S-017 (SSRF in grant/tender doc fetchers), S-018 (global doc stats leak).** Quality: `npm test`
+red (3 stale labels in `tests/grants.test.ts` + tenant-isolation env crash at collection), 9 lint
+errors (pre-grants files), no CI workflow, Dependabot disabled, Supabase migration history only
+tracks 001–023 (schema itself confirmed in sync through 067). Fix list → NEXT_ACTIONS top block.
+
 ## 2026-06-10 — Grants UX overhaul: guided, plain-English application journey
 
 A step-by-step review of the grant **view → understand → respond** journey found the pieces were

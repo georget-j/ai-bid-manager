@@ -83,9 +83,13 @@ function QuestionCard({
   const [answering, setAnswering] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
 
-  useEffect(() => {
+  // Keep draft in sync if parent updates (render-time state adjust — the
+  // documented "adjust state when props change" pattern; skipped while editing)
+  const [prevSync, setPrevSync] = useState({ ai_draft: q.ai_draft, editing });
+  if (prevSync.ai_draft !== q.ai_draft || prevSync.editing !== editing) {
+    setPrevSync({ ai_draft: q.ai_draft, editing });
     if (!editing) setDraft(q.ai_draft ?? "");
-  }, [q.ai_draft, editing]);
+  }
 
   async function answerSingle() {
     setAnswering(true);

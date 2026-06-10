@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { daysUntil } from "@/lib/dates";
 import { ReportsPanel } from "./ReportsPanel";
 
 interface GrantRef {
@@ -35,7 +36,7 @@ function deadlineBadge(
   iso: string | null,
 ): { text: string; color: string; bg: string } | null {
   if (!iso) return null;
-  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const days = daysUntil(iso);
   if (days < 0)
     return { text: `Overdue ${-days}d`, color: "#dc2626", bg: "#fee2e2" };
   if (days === 0) return { text: "Due today", color: "#dc2626", bg: "#fee2e2" };
@@ -52,7 +53,7 @@ function computeDueSoon(apps: Application[]): Application[] {
       return false;
     const iso = a.grant?.deadline_at;
     if (!iso) return false;
-    const days = Math.ceil((new Date(iso).getTime() - now) / 86_400_000);
+    const days = daysUntil(iso, now);
     return days >= 0 && days <= 14;
   });
 }
@@ -62,33 +63,68 @@ function hasUrgentDeadline(apps: Application[]): boolean {
   return apps.some((a) => {
     const iso = a.grant?.deadline_at;
     if (!iso) return false;
-    return Math.ceil((new Date(iso).getTime() - now) / 86_400_000) <= 3;
+    return daysUntil(iso, now) <= 3;
   });
 }
 
 export default function MyApplicationsPage() {
   const [apps, setApps] = useState<Application[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  // No synchronous setState here — the effect-safe path only updates state in
+  // promise callbacks; retry() resets to the loading state from a click.
+  const load = useCallback(() => {
+    fetch("/api/grants/applications")
+      .then(async (r) => {
+        const d = (await r.json().catch(() => ({}))) as {
+          applications?: Application[];
+          error?: string;
+        };
+        if (!r.ok) throw new Error(d.error ?? `HTTP ${r.status}`);
+        setApps(d.applications ?? []);
+        setLoadError(null);
+      })
+      .catch(() =>
+        setLoadError("Could not load your applications — please try again."),
+      );
+  }, []);
 
   useEffect(() => {
-    fetch("/api/grants/applications")
-      .then((r) => r.json())
-      .then((d: { applications?: Application[] }) =>
-        setApps(d.applications ?? []),
-      )
-      .catch(() => setApps([]));
-  }, []);
+    load();
+  }, [load]);
+
+  function retry() {
+    setLoadError(null);
+    setApps(null);
+    load();
+  }
 
   const dueSoon = computeDueSoon(apps ?? []);
 
   async function move(id: string, stage: string) {
+    const prevStage = apps?.find((a) => a.id === id)?.stage ?? "drafting";
+    if (prevStage === stage) return;
+    setMoveError(null);
+    // Optimistic update — revert if the save fails.
     setApps(
       (prev) => prev?.map((a) => (a.id === id ? { ...a, stage } : a)) ?? prev,
     );
-    await fetch(`/api/rfp/drafts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage }),
-    }).catch(() => {});
+    try {
+      const res = await fetch(`/api/rfp/drafts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      setApps(
+        (prev) =>
+          prev?.map((a) => (a.id === id ? { ...a, stage: prevStage } : a)) ??
+          prev,
+      );
+      setMoveError("Could not move the application — please try again.");
+    }
   }
 
   return (
@@ -129,7 +165,46 @@ export default function MyApplicationsPage() {
         </div>
       )}
 
-      {apps === null ? (
+      {moveError && (
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "var(--r-sm)",
+            background: "#fee2e2",
+            color: "#dc2626",
+            fontSize: 13,
+            marginBottom: 14,
+          }}
+        >
+          {moveError}
+        </div>
+      )}
+
+      {loadError ? (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: "var(--r-sm)",
+            background: "#fee2e2",
+            color: "#dc2626",
+            fontSize: 13,
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>{loadError}</span>
+          <button
+            onClick={retry}
+            className="btn ghost sm"
+            style={{ fontSize: 12 }}
+          >
+            Try again
+          </button>
+        </div>
+      ) : apps === null ? (
         <p style={{ fontSize: 13, color: "var(--muted)" }}>Loading…</p>
       ) : apps.length === 0 ? (
         <div className="card card-pad">

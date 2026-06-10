@@ -134,13 +134,21 @@ export async function generatePendingGuides(
   limit = 10,
 ): Promise<{ generated: number; attempted: number }> {
   const supabase = getServiceSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("grants")
     .select("*")
     .not("details", "is", null)
     .in("status", ["open", "forthcoming", "rolling"])
     .order("updated_at", { ascending: false })
     .limit(limit * 4);
+  if (error) {
+    // Best-effort cron path — log and report nothing attempted rather than fail.
+    console.error(
+      "[grants/guide] failed to list pending grants:",
+      error.message,
+    );
+    return { generated: 0, attempted: 0 };
+  }
 
   const grants = ((data ?? []) as GrantRow[])
     .filter((g) => !g.details?.guide)

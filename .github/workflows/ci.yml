@@ -1,0 +1,59 @@
+# Continuous integration — typecheck, lint, test, build on every push to main
+# and every pull request. No real secrets are available (or needed) here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      # Tests deliberately run WITHOUT Supabase env vars:
+      # - tests/tenant-isolation.test.ts un-skips whenever
+      #   NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are both set,
+      #   and would then fail against a dummy instance. With them absent the
+      #   suite self-skips, as designed for checkouts without secrets.
+      # - tests/opportunity-filters.test.ts has no skip guard and queries the
+      #   live Supabase catalog, so it is excluded explicitly until it gains
+      #   the same skipIf guard.
+      - name: Test
+        run: npx vitest run --exclude "tests/opportunity-filters.test.ts"
+        env:
+          # Satisfies the import-time check in lib/openai.ts; no API calls
+          # are made by the unit suites.
+          OPENAI_API_KEY: ci-dummy
+
+      # Dummy values exist only to satisfy import-time env validation
+      # (lib/env.ts, lib/openai.ts) during `next build`; nothing real is
+      # contacted. Scoped to this step so the test step above stays clean.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-dummy.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy
+          SUPABASE_SERVICE_ROLE_KEY: ci-dummy
+          OPENAI_API_KEY: ci-dummy
+          ADMIN_EMAILS: ci@example.com
+          CRON_SECRET: ci-dummy
+          NEXT_PUBLIC_APP_URL: http://localhost:3000

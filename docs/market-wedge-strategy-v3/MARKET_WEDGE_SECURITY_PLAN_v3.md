@@ -186,6 +186,66 @@ This product cannot onboard real organisations until customer data isolation is 
 
 ---
 
+## Full-stack review findings (2026-06-10)
+
+Review of code + GitHub + Vercel + Supabase. Live DB verified: all 42 public tables have RLS
+enabled; `raw_notices`/`raw_grant_notices` are deny-all (zero policies, service-role only —
+intentional). All grants tables (migs 058–067) have org_id + membership RLS. Production env:
+CRON_SECRET set, DEMO_MODE absent, service-role key server-only. Cron routes return 401
+unauthenticated (verified live).
+
+S-007..S-014 status: S-010 FIXED (mig 057). S-011 effectively closed (no
+`dangerouslySetInnerHTML`/`innerHTML` anywhere; export/email HTML escaped). S-007, S-008, S-009,
+S-012, S-013 unchanged. S-014 partially addressed (tenant-isolation + grants tests exist).
+
+### New risks
+
+| #     | Severity | Risk                                                                                                                                                                                                                                                                                                                                                                             | Remediation                                                                                |
+| ----- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| S-015 | 🔴 HIGH  | Cross-tenant read/write on legacy routes: service-role client (bypasses RLS) with **no org_id filter** in `app/api/queries` (+ `[id]`), `app/api/documents/[id]` (full raw_text), `app/api/rfp/runs` (+ `[id]`), and all `app/api/review/*` routes (queue, action, comments, bulk-action, notify-missing, confirm-routing). Any logged-in org A user can read/act on org B data. | Add `getRequestOrgId()` + `.eq('org_id', orgId)` to each handler (join-scope child tables) |
+| S-016 | 🟠 MED   | `cron/sync-grants` + `cron/grant-deadline-digest` fail OPEN if `CRON_SECRET` unset (`if (secret)` guard) — diverges from the S-003 pattern. Mitigated in prod (secret is set) but a config regression re-exposes them.                                                                                                                                                           | Mirror escalate pattern: 500 if unset, unconditional Bearer check                          |
+| S-017 | 🟠 MED   | SSRF: `lib/grants/ingest-docs.ts` + `lib/tender-docs.ts` fetch URLs from external grant/tender payloads with no private-IP/localhost guard, following redirects.                                                                                                                                                                                                                 | Block loopback/RFC-1918/link-local hosts before fetch; or allowlist known source hostnames |
+| S-018 | 🟡 LOW   | `app/api/documents/stats` returns global (all-org) document/chunk counts to any authenticated user.                                                                                                                                                                                                                                                                              | Scope to `getRequestOrgId()`                                                               |
+
+### Platform gaps (GitHub/Vercel/Supabase)
+
+- GitHub: ~~no CI workflow, Dependabot disabled~~ **FIXED 2026-06-11**: `.github/workflows/ci.yml`
+  (tsc + lint + vitest + build on push/PR) + `.github/dependabot.yml`; vulnerability alerts +
+  automated security fixes enabled via API. Branch protection still unavailable (private repo on
+  free plan); secret scanning unavailable (needs GHAS or public repo).
+- Supabase: ~~history only records 001–023~~ **FIXED 2026-06-11**: history repaired
+  (`migration repair --status applied` 024–068); duplicate prefix resolved by renaming
+  `026_question_class.sql` → `068_question_class.sql` (idempotent, no dependents). Next free: 069.
+- Vercel: healthy — deploys green, 4 crons wired, env minimal and correct.
+
+### S-015..S-018 remediation (2026-06-11)
+
+- [x] **S-015 FIXED**: all 13 legacy routes org-scoped via `getRequestOrgId()` (401 on null);
+      `queries`/`documents` filtered directly, children (`query_results`, `document_chunks`) via
+      org-checked parent, `review/*` via `queries!inner` join on `queries.org_id` (because
+      `review_requests.org_id` exists but was never populated — see follow-ups). Also closed a write
+      leak: approved-answer ingestion now stamps `org_id` (was inserting null-org rows retrievable
+      via RAG). Route-level isolation tests added (`tests/route-org-scoping.test.ts`).
+- [x] **S-016 FIXED**: both grant crons now 500 if `CRON_SECRET` unset + unconditional Bearer
+      check (matches S-003 pattern).
+- [x] **S-017 FIXED**: `lib/safe-fetch.ts` — scheme check, DNS-resolution private/loopback/
+      link-local/metadata IP rejection, manual redirects (≤5 hops, per-hop revalidation); wired into
+      `lib/grants/ingest-docs.ts` + `lib/tender-docs.ts`. 22 unit tests. Residual: DNS-rebinding
+      race (zero-TTL) accepted for these best-effort ingestion paths.
+- [x] **S-018 FIXED**: documents/stats scoped to org.
+
+Follow-ups from remediation (non-blocking):
+
+- Populate `review_requests.org_id` at creation (lib/routing.ts) + backfill, then simplify the
+  join-scoped review queries. Also backfill null-org `approved_answers` + ingested docs.
+- `escalateOverdueReviews()` notification side-effect still scans all orgs (no data exposure).
+- `tests/opportunity-filters.test.ts` hits live Supabase with no skip guard — CI excludes it via
+  `--exclude`; give it the same `describe.skipIf` guard as tenant-isolation, then drop the flag.
+- DEMO_MODE branches in review routes are now unreachable (org gate precedes them) — remove or
+  define a demo-org strategy.
+
+---
+
 ## Phase gate
 
 - [x] S-001: tender_doc_cache RLS added — migration 030, 2026-06-05
@@ -194,7 +254,12 @@ This product cannot onboard real organisations until customer data isolation is 
 - [x] S-004: supabase client files split — lib/supabase-service.ts, 2026-06-05
 - [x] S-005: cross-tenant tests — tests/tenant-isolation.test.ts, 2026-06-05
 - [x] S-006: rate limit fail-open — console.error on DB error, 2026-06-05
+- [x] S-015: legacy route org-scoping — 13 routes fixed + tests, 2026-06-11
+- [x] S-016: grant crons fail closed — 2026-06-11
+- [x] S-017: SSRF guard (lib/safe-fetch.ts) — 2026-06-11
+- [x] S-018: documents/stats org-scoped — 2026-06-11
 
-**Phase gate cleared 2026-06-05. Real organisations may be onboarded.**
+**Phase gate cleared 2026-06-05; re-opened by S-015 on 2026-06-10; re-cleared 2026-06-11** after
+S-015..S-018 remediation. Real organisations may be onboarded.
 
-Remaining medium/low risks (S-007 to S-014) are tracked for future sprints but do not block onboarding.
+Remaining medium/low risks (S-007 to S-009, S-012, S-013) are tracked for future sprints.

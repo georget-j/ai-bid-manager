@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useSyncExternalStore } from "react";
+
+// Static external "store" for hydration detection: the server snapshot is
+// false and the client snapshot is true, so server HTML and the hydration
+// render agree (both false) and React re-renders once hydration completes.
+const emptySubscribe = () => () => {};
 
 const NAV_INTELLIGENCE = [
   {
@@ -500,9 +505,30 @@ export function AppSidebar({
   const [open, setOpen] = useState(false);
   // mounted ensures server HTML and client initial render agree (both false),
   // eliminating hydration mismatches. Role-gated items only render post-mount.
-  const [mounted, setMounted] = useState(false);
-  const [isOperator, setIsOperator] = useState(isOperatorProp);
-  const [orgRole, setOrgRole] = useState<string | null>(orgRoleProp);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+  // Read the role cookies set by middleware on every authenticated request.
+  // Synchronous — no round-trip, no race. UI hint only; server gates enforce.
+  const cookieRoles = useMemo(() => {
+    if (!mounted) return null;
+    const read = (name: string) =>
+      document.cookie
+        .split("; ")
+        .find((r) => r.startsWith(`${name}=`))
+        ?.split("=")[1];
+    const role = read("x-org-role");
+    return {
+      isOperator: read("x-is-operator") === "1",
+      orgRole: role ? decodeURIComponent(role) : null,
+    };
+  }, [mounted]);
+  const isOperator = cookieRoles ? cookieRoles.isOperator : isOperatorProp;
+  const orgRole = cookieRoles
+    ? (cookieRoles.orgRole ?? orgRoleProp)
+    : orgRoleProp;
   const [userEmail] = useState(userEmailProp ?? null);
   const canManageTeam = orgRole === "owner" || orgRole === "admin";
 
@@ -515,20 +541,6 @@ export function AppSidebar({
       window.removeEventListener("toggle-sidebar", toggle);
       window.removeEventListener("close-sidebar", close);
     };
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    // Read the role cookies set by middleware on every authenticated request.
-    // Synchronous — no round-trip, no race. UI hint only; server gates enforce.
-    const read = (name: string) =>
-      document.cookie
-        .split("; ")
-        .find((r) => r.startsWith(`${name}=`))
-        ?.split("=")[1];
-    setIsOperator(read("x-is-operator") === "1");
-    const role = read("x-org-role");
-    if (role) setOrgRole(decodeURIComponent(role));
   }, []);
 
   function isActive(href: string, exact = false) {

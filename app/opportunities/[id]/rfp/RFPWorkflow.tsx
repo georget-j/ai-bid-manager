@@ -215,27 +215,6 @@ export function RFPWorkflow({
     }
   }
 
-  // ── Refresh counts ───────────────────────────────────────────────────────────
-
-  async function refreshCounts() {
-    try {
-      const res = await fetch(`/api/opportunities/${opp.id}/questions`);
-      const data = (await res.json()) as {
-        questions?: Array<{ question_class: string }>;
-      };
-      const arr = data.questions ?? [];
-      setCounts({
-        requirements: arr.filter((q) => q.question_class === "requirement")
-          .length,
-        questions: arr.filter((q) => q.question_class === "question").length,
-        guidance: arr.filter((q) => q.question_class === "guidance").length,
-        total: arr.length,
-      });
-    } catch {
-      // silently fail
-    }
-  }
-
   // ── Get all details (unified extraction) ──────────────────────────────────────
 
   async function getAllDetails() {
