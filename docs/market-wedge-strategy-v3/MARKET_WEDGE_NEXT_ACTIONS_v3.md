@@ -26,6 +26,8 @@ Parallel to tenders, under `lib/grants/`. Tables: `grants` / `grant_sources` / `
 - `threesixtygiving.ts` — awarded grants (funder intel + browse).
 - `govuk-find-a-grant.ts` — OPEN calls; reads the service's own `__NEXT_DATA__` JSON (no public API),
   maps applicant types → scoring org-type tokens, derives status from open/close dates.
+- `innovate-uk.ts` — OPEN innovation competitions; server-rendered GDS HTML, `fetchSince` enriches each
+  list item with its overview page (opens/closes dates, funding type, funder).
   Scoring `lib/grants/scoring.ts`; alerts `lib/grants/alerts.ts`; data `lib/grants/data.ts`.
   UI: `app/grants`, `app/my-grants`, `app/funders`, `app/programmes`, `app/grant-sources`.
   Migrations 058–061 **applied**; next free number is **062**. Verify connectors live with a throwaway
@@ -33,20 +35,20 @@ Parallel to tenders, under `lib/grants/`. Tables: `grants` / `grant_sources` / `
 
 ### Optional grants follow-ons (not required — feature is functionally complete)
 
-- **UKRI funding finder / Innovate UK open-call connector** — more open calls. Check
-  `apply-for-innovation-funding.service.gov.uk/competition/search` + `ukri.org/opportunity/` for a JSON
-  endpoint before scraping. (Seeded `ukri-gtr` = Gateway to Research = awarded/historical; no connector.)
 - **Config keys (user):** free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY` enable the
   profile "Auto-fill from registers" (`/api/profile/enrich`). Scoring + everything else work without them.
 - **Live investor-event data at scale** — Eventbrite's public event-search API was removed Feb 2020
   (not viable); needs a **paid** provider (Dealroom / Crunchbase) + a data agreement. `/programmes` is
   curated in `lib/programmes/data.ts` (edit there to add/maintain entries).
+- **More open-call sources** — both tractable UK gov sources are now connected (GOV.UK Find a Grant +
+  Innovate UK). UKRI funding finder (Ajax Load More) + EU/Horizon are larger lifts if ever wanted.
 
 Prior (all COMPLETE): DB query perf review (mig 056/057); org roles & teams · responses workspace ·
 review concurrency (mig 054/055); opportunity docs · buyer web research · profile buildout · UX review.
 
 Last commits (2026-06-10):
 
+- `91951ed` — feat(grants): Innovate UK open-call connector (25 live competitions)
 - `d3bf50b` — feat(grants): investor programmes feed — curated accelerators (Phase 6)
 - `d1da157` — feat(grants): grant alerts — reuse alert rules, match on sync (mig 061)
 - `ec392ee` — feat(grants): GOV.UK Find a Grant open-call connector (112 live grants)

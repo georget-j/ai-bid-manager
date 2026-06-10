@@ -2,11 +2,11 @@
 
 > **GRANTS FEATURE — COMPLETE (2026-06-10)** (migs 058–061). Discovery (list/detail) + confidence
 > scoring (eligibility card + `/my-grants`) + KB-grounded applications + funder directory +
-> **GOV.UK Find a Grant open-call connector** (112 real open grants) + **grant alerts** (reuse
-> alert_rules, mig 061) + **investor programmes feed** (`/programmes`, curated). Catalogue: 112 open +
-> 100 awarded. **Optional follow-ons only:** UKRI funding-finder open-call connector; Companies House +
-> Charity Commission API keys (register auto-enrich); paid investor-event data (Eventbrite search API
-> dead since Feb 2020 → needs Dealroom/Crunchbase + data agreement).
+> **open-call connectors** (GOV.UK Find a Grant 112 + Innovate UK 25) + **grant alerts** (reuse
+> alert_rules, mig 061) + **investor programmes feed** (`/programmes`, curated). Catalogue: ~137 open +
+> 100 awarded. **Optional follow-ons only:** Companies House + Charity Commission API keys (register
+> auto-enrich); paid investor-event data (Eventbrite search API dead since Feb 2020 → needs
+> Dealroom/Crunchbase + data agreement).
 > See `MARKET_WEDGE_GRANTS_STRATEGY_v3.md` + `MARKET_WEDGE_NEXT_ACTIONS_v3.md`.
 >
 > **PRIOR (2026-06-09): Database query performance review** — 4 phases COMPLETE & pushed

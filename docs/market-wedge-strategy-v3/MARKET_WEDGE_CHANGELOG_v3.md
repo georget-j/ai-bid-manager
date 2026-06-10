@@ -22,8 +22,15 @@ Remaining "do all" work finished, all pushed:
   info only, cyber/UK-leaning: NCSC For Startups, Cyber Runway, CyLon, Techstars, YC, EF, Seedcamp,
   Antler…). No migration/scrape/token. Live event data at scale = paid (Dealroom/Crunchbase) follow-on.
 
-**Grants feature is now functionally complete.** Optional follow-ons only: a UKRI funding-finder /
-Innovate UK open-call connector (more open calls), Companies House + Charity Commission API keys
+- **Open-call connector — Innovate UK** (`91951ed`): second open-call source — Innovate UK / UKRI
+  innovation competitions (the direct apply route, tech/cyber-relevant). No API and no embedded JSON
+  (server-rendered GDS HTML), so `fetchSince` enriches each list item with its overview page (opens/
+  closes dates, funding type, funder); same guardrails (UA, 400ms pacing, public fields, no PII).
+  **25 competitions ingested** (22 open + 3 forthcoming). UKRI's own funding finder has no REST
+  opportunity type (wp/v2 404) + uses Ajax Load More, so IFS is the tractable source.
+
+**Grants feature is now functionally complete.** Catalogue: 112 GOV.UK + 25 Innovate UK open calls +
+100 awarded (360Giving). Optional follow-ons only: Companies House + Charity Commission API keys
 (profile register auto-enrich), and paid investor-event data (needs a data agreement).
 
 ---
