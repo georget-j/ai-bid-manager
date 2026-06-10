@@ -6,6 +6,7 @@ import { getOrgProfile } from "@/lib/procurement/data";
 import { scoreGrant } from "@/lib/grants/scoring";
 import { enrichGrant } from "@/lib/grants/enrich";
 import { DraftApplicationButton } from "./DraftApplicationButton";
+import { IngestDocumentsButton } from "./IngestDocumentsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -197,6 +198,12 @@ export default async function GrantDetailPage({ params }: PageProps) {
           }}
         >
           {applyable && <DraftApplicationButton grantId={grant.id} />}
+          {applyable && details && details.documents.length > 0 && (
+            <IngestDocumentsButton
+              grantId={grant.id}
+              count={details.documents.length}
+            />
+          )}
           {applyUrl && applyable && (
             <a
               href={applyUrl}

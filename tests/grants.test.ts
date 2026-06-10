@@ -255,6 +255,45 @@ describe("govukFindAGrantConnector.normalize", () => {
   });
 });
 
+describe("buildGrantRequirementText", () => {
+  it("combines summary + eligibility + detail sections for extraction", async () => {
+    const { buildGrantRequirementText, hasRequirementText } =
+      await import("@/lib/grants/application");
+    const grant = makeGrant({
+      eligibility_text: "Who can apply: Private Sector",
+      details: {
+        sections: [
+          { heading: "Eligibility", text: "Your project must be UK-based." },
+          {
+            heading: "How to apply",
+            text: "Submit via the portal by the deadline.",
+          },
+        ],
+        links: [],
+        documents: [],
+        webpageUrl: null,
+      },
+    });
+    const text = buildGrantRequirementText(grant);
+    expect(text).toContain("Cyber Security Innovation Grant");
+    expect(text).toContain("Who can apply: Private Sector");
+    expect(text).toContain("## Eligibility");
+    expect(text).toContain("Your project must be UK-based.");
+    expect(text).toContain("## How to apply");
+    expect(hasRequirementText(grant)).toBe(true);
+  });
+
+  it("reports too-little-text for a bare grant", async () => {
+    const { hasRequirementText } = await import("@/lib/grants/application");
+    const bare = makeGrant({
+      description: null,
+      eligibility_text: null,
+      title: "X",
+    });
+    expect(hasRequirementText(bare)).toBe(false);
+  });
+});
+
 describe("rich text walker (GOV.UK detail)", () => {
   // A trimmed Contentful Rich Text doc like GOV.UK's grantEligibilityTab.
   const doc = {
