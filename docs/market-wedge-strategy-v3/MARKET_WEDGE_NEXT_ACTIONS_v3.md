@@ -14,16 +14,48 @@
 `scoreGrant` + register auto-enrich + `/my-grants` (mig 059); KB-grounded applications (reuse
 responses workspace) + `/funders` directory (mig 060). 100 real grants ingested; pipeline verified.
 
-**Remaining for full "do all":**
+### GRANTS — RESUME GUIDE (remaining work, in priority order)
 
-- **Open-call connectors** (UKRI funding finder / Innovate UK competition search + GOV.UK Find a
-  Grant) — HTML, no clean API → need per-site robots/ToS + markup verification before writing the
-  guardrailed scrapers (govuk grant source seeded **disabled**). These are what populate `/my-grants`
-  with applyable open calls (the catalogue is currently awarded grants only).
-- **Grant alerts** (grant-aware matcher + wire into the grant sync).
-- **Phase 6 vision:** investor open-days / demo days / accelerators (Eventbrite API + curated).
-- **Config:** add free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY` to enable profile
-  register auto-enrich (scoring works without them).
+**How the grants domain is built (orient here first):** parallel to tenders, under `lib/grants/`.
+Tables: `grants` / `grant_sources` / `raw_grant_notices` / `grant_matches` (mig 058). Engine:
+`lib/grants/sync.ts` (`syncGrantSource` + `seedGrantSources`) — adapted from `lib/procurement/sync.ts`.
+Connectors implement `GrantSourceConnector` (`lib/grants/types.ts`) and register in
+`lib/grants/connectors/index.ts`. **Reference connector: `lib/grants/connectors/threesixtygiving.ts`**
+(verified live). Scoring `lib/grants/scoring.ts`; data `lib/grants/data.ts`. UI: `app/grants`,
+`app/my-grants`, `app/funders`, `app/grant-sources`. Migrations 058/059/060 **applied**; next free
+number is **061**. Verify connectors live with a throwaway `.mjs` against the real API (delete after);
+DB insert-shape via a `begin; insert …; rollback;` (guard-bash blocks `DELETE`).
+
+**1. Open-call connectors (HIGH — populates `/my-grants` with applyable calls).** The catalogue is
+currently awarded grants only (`status:'awarded'`). Add connectors that ingest OPEN calls
+(`status:'open'|'forthcoming'|'rolling'`, set `deadline_at`, `application_url`):
+
+- **GOV.UK Find a Grant** — `find-government-grants.service.gov.uk`. No API. First **fetch
+  `/robots.txt`** + check ToS; then a guardrailed scraper (identifying User-Agent via
+  `GRANTS_USER_AGENT`, ≥0.5s/req, structured fields only, **no personal data**). New file
+  `lib/grants/connectors/govuk-find-a-grant.ts`; register it; then flip the seeded `govuk-find-a-grant`
+  source to `enabled:true`.
+- **UKRI funding finder / Innovate UK** — check `apply-for-innovation-funding.service.gov.uk/competition/search`
+  and `ukri.org/opportunity/` for a JSON endpoint (try `?format=json` / network XHR) BEFORE
+  scraping. Add a NEW source (e.g. `ukri-funding-finder`) — note the seeded `ukri-gtr` is Gateway
+  to Research = **awarded/historical**, not open calls (no connector built for it yet).
+- For each: implement `fetchSince` + `normalize`, register in `connectors/index.ts`; the admin
+  "Sync now" (`/grant-sources`) + cron (`/api/cron/sync-grants`) pick it up automatically.
+
+**2. Grant alerts.** New `lib/grants/alerts.ts`: `matchAlertsForGrants(grantIds)` + a grant-aware
+matcher (mirror `lib/procurement/alerts.ts` `matchesRule` but read grant fields: themes/sectors/
+regions/amount_min/max). Add a `grant_alert_matches` table (or `grant_id` on `alert_matches`) =
+**migration 061**. Wire into `syncGrantSource` (collect upserted grant ids via `.select("id")` on the
+grants upsert — currently not collected — then call the matcher). Surface in the alerts UI.
+
+**3. Phase 6 vision — investor events.** `lib/grants/connectors/eventbrite.ts` (Eventbrite API,
+`EVENTBRITE_API_TOKEN`) for funding/pitch/demo-day events + a curated accelerator list
+(YC/Techstars/EF/Seedcamp/Antler — guardrailed public-page scrape, no PII). Surface as an
+Events/Programmes feed. Dealroom/Crunchbase/F6S/Gust = paid/partnership, not without a data agreement.
+
+**Config to add (user):** free `COMPANIES_HOUSE_API_KEY` + `CHARITY_COMMISSION_API_KEY` enable the
+profile "Auto-fill from registers" (`/api/profile/enrich`); `EVENTBRITE_API_TOKEN` for Phase 6.
+Scoring + the rest work without them.
 
 Prior (all COMPLETE): DB query perf review (mig 056/057); org roles & teams · responses workspace ·
 review concurrency (mig 054/055); opportunity docs · buyer web research · profile buildout · UX review.
