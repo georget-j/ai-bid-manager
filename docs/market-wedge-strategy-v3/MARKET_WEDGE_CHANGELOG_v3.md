@@ -1,5 +1,18 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Fix: dead Apply / View-source links (`259f92f`)
+
+Clicking Apply / View source on some grants (and 3 Programmes) hit "not found". Causes +
+fixes: (1) GOV.UK / Innovate UK list only currently-open calls, so closed grants get
+delisted at source but the sync never removed them — added a `listsAllOpenCalls` connector
+flag + **sync pruning** (grants not seen in a complete, clean run → `closed`; guarded
+against partial runs/outages); GOV.UK can also rotate a grant's URL slug, which a re-sync
+now refreshes. (2) Grant detail hides Apply/Draft for non-applyable statuses and View-source
+for closed grants, showing a "this call has closed" note instead. (3) Fixed 3 stale curated
+programme URLs (NCSC For Startups, Cyber Runway→Plexal, Seedcamp). Data cleanup: 4 delisted
+GOV.UK grants closed, 109 source_urls refreshed. Spot check: 64/65 open-grant links resolve
+(the 1 residual is a GOV.UK upstream duplicate whose own detail page 404s).
+
 ## 2026-06-10 — Grants feature (COMPLETE: open calls + alerts + programmes)
 
 Remaining "do all" work finished, all pushed:
