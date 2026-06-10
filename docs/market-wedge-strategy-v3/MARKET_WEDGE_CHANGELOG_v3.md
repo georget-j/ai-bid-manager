@@ -1,5 +1,22 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grant applications from requirements + docs to KB (`8aad61e`)
+
+"Draft an application" now does real work instead of a blank draft: it ensures the grant
+is deep-enriched, **extracts the requirements/questions from the grant's detailed text**
+(eligibility / how to apply / objectives / supporting info, via the existing
+`extractRFPQuestions`) and seeds the response draft with them — so the user lands in the
+responses workspace ready to respond (items classified question/requirement/guidance with
+mandatory + priority), no form upload needed. It also **imports the grant's documents**
+(conditions of funding, application templates, budget forms) into the org knowledge base so
+AI answers are grounded in them (`lib/grants/ingest-docs.ts`: fetch → `extractText` →
+`ingestDocument`, org-scoped dedup by source URL, size/time caps, public files only) —
+bounded inside the draft request, with a standalone "Add N documents to knowledge base"
+button on the grant detail for the rest. Data: 55 enriched grants have rich requirement text,
+16 have document files (UKRI budget-form DOCX verified to fetch+parse; removed gov.uk assets
+skipped cleanly). New: `lib/grants/application.ts`, `lib/grants/ingest-docs.ts`,
+`/api/grants/[id]/ingest-documents`, `IngestDocumentsButton`. Tests: 21 grants tests green.
+
 ## 2026-06-10 — Deep grant detail enrichment (`3f6bc0b`, mig 062)
 
 Open grants were ingested from listing summaries only. Now each grant's full detail is
