@@ -4,6 +4,8 @@ export interface ResponseDraftSummary {
   id: string;
   rfp_title: string;
   status: string;
+  stage: string;
+  submitted_at: string | null;
   question_count: number;
   answered_count: number;
   opportunity_id: string | null;
@@ -26,6 +28,8 @@ export interface DraftInput {
   opportunity_id?: string | null;
   grant_id?: string | null;
   status?: string;
+  stage?: string;
+  submitted_at?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extracted_questions?: any[];
   selected_question_ids?: number[];
@@ -35,7 +39,7 @@ export interface DraftInput {
 }
 
 const SUMMARY_COLS =
-  "id, rfp_title, status, question_count, answered_count, opportunity_id, grant_id, created_at, updated_at";
+  "id, rfp_title, status, stage, submitted_at, question_count, answered_count, opportunity_id, grant_id, created_at, updated_at";
 const FULL_COLS = `${SUMMARY_COLS}, extracted_questions, selected_question_ids, answers, latest_rfp_run_id`;
 
 function counts(input: DraftInput): {
@@ -116,12 +120,18 @@ export async function patchResponseDraft(
     "opportunity_id",
     "grant_id",
     "status",
+    "stage",
+    "submitted_at",
     "extracted_questions",
     "selected_question_ids",
     "answers",
     "latest_rfp_run_id",
   ] as const) {
     if (patch[k] !== undefined) update[k] = patch[k];
+  }
+  // Stamp submitted_at the first time an application is marked submitted.
+  if (patch.stage === "submitted" && patch.submitted_at === undefined) {
+    update.submitted_at = new Date().toISOString();
   }
 
   const { data } = await supabase

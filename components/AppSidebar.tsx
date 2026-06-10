@@ -368,6 +368,25 @@ const NAV_FUNDING = [
     ),
   },
   {
+    href: "/my-applications",
+    label: "My Applications",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" />
+        <path d="M5 6h6M5 8.5h6M5 11h3.5" />
+      </svg>
+    ),
+  },
+  {
     href: "/funders",
     label: "Funders",
     icon: (
