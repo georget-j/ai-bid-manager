@@ -218,6 +218,20 @@ export default function MyApplicationsPage() {
                             />
                           </div>
                         )}
+                        {a.answered_count > 0 && (
+                          <a
+                            href={`/api/grants/applications/${a.id}/export`}
+                            style={{
+                              display: "inline-block",
+                              fontSize: 11.5,
+                              color: "var(--accent)",
+                              textDecoration: "none",
+                              marginBottom: 8,
+                            }}
+                          >
+                            ↓ Export DOCX
+                          </a>
+                        )}
                         <select
                           value={a.stage || "drafting"}
                           onChange={(e) => move(a.id, e.target.value)}
