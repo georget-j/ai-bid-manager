@@ -1,5 +1,25 @@
 # Market Wedge Changelog v3
 
+## 2026-06-10 — Grants gap-closing: export, deadline reminders, review, more funders
+
+1. **Application DOCX export** (`80d6556`): `GET /api/grants/applications/[id]/export` builds a
+   grant-titled DOCX from saved answers (reuses `generateBatchDocx`); "↓ Export DOCX" on My
+   Applications. (Workspace export already existed; this surfaces it from the pipeline.)
+2. **Deadline reminders** (`0f4f28b`): My Applications "N due in 14 days" banner + an email digest
+   (`lib/grants/deadlines.ts` → Resend to owner/admin members) via `/api/cron/grant-deadline-digest`.
+   **Also registered the grant sync cron in `vercel.json`** — `sync-grants` was never actually
+   scheduled (now 23:30 daily; digest 08:00).
+3. **Review visibility + readiness** (`b18606d`): the answer pipeline already routes high-risk answers
+   to the review system; now `/api/grants/applications` returns each app's review counts (by
+   rfp_run_id), My Applications shows an "N in review" badge, and submission-readiness adds a
+   "High-risk answers reviewed" check.
+4. **More funders** (`aac194c`): 360Giving connector expanded to 10 major UK funders (Esmée Fairbairn,
+   Paul Hamlyn, Trust for London, Children in Need, Comic Relief, City Bridge, Power to Change, Nesta,
+   Wellcome), capped to one recent page each (~720 awarded grants ingested) for richer `/funders`.
+
+No new migration. Still open: post-award reporting, budget builder, semantic matching, more
+open-call sources, register auto-enrich (needs CH/Charity keys).
+
 ## 2026-06-10 — Grants follow-ups: smarter scoring, pipeline, readiness, funder intel
 
 Four enhancements:
