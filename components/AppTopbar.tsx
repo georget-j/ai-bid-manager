@@ -3,36 +3,93 @@
 import { useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const CRUMB_MAP: Record<string, string> = {
-  "/": "Dashboard",
-  "/clients": "Clients",
-  "/clients/[id]/evidence": "Evidence vault",
-  "/opportunities": "Opportunities",
-  "/opportunities/[id]/gaps": "Evidence Gaps",
-  "/pipeline": "Bid Pipeline",
+// Breadcrumb labels by route. Keys may contain dynamic segments
+// (e.g. "/opportunities/[id]/gaps") which match any value in that position.
+// The most specific (longest) matching key wins, so "/rfp/drafts" beats "/rfp".
+export const CRUMB_MAP: Record<string, string> = {
+  "/": "Home",
+  // Tenders
+  "/opportunities/[id]/gaps": "Evidence gaps",
+  "/opportunities": "Find tenders",
+  "/my-opportunities": "Matched to you",
+  "/pipeline": "Bid pipeline",
   "/buyers": "Buyers",
-  "/sources": "Sources",
-  "/profile": "Organisation Profile",
+  // Grants
+  "/grants": "Find grants",
+  "/my-grants": "Matched to you",
+  "/my-applications": "My applications",
+  "/funders": "Funders",
+  // Investors
+  "/investor-events/organizers": "Event organiser",
+  "/investor-events": "Investor events",
+  "/programmes": "Programmes",
+  // Your workspace
   "/ask": "Ask",
-  "/documents": "Knowledge Base",
-  "/history": "History",
-  "/review": "Review Queue",
+  "/documents": "Evidence library",
+  "/responses": "Responses",
+  "/review": "Review queue",
   "/alerts": "Alerts",
-  "/compliance": "Compliance Matrices",
-  "/rfp": "RFP Runs",
-  "/demo": "Demo Scenarios",
+  "/compliance": "Compliance",
+  "/history": "History",
+  "/profile": "Organisation profile",
+  "/team": "Team",
+  // Answer builder (legacy paths — URLs don't change, labels do)
+  "/rfp/drafts": "Application",
+  "/rfp/history": "Response history",
+  "/rfp": "New response",
+  // Agency workspace
+  "/clients/[id]/evidence": "Evidence vault",
+  "/clients": "Clients",
+  // Operator
+  "/sources": "Sources",
+  "/grant-sources": "Sources",
   "/admin": "Admin",
+  "/demo": "Demo scenarios",
 };
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Pre-compiled matchers, most specific first. "[param]" segments match any
+// single path segment, so real URLs like /opportunities/abc123/gaps resolve.
+const CRUMB_PATTERNS = Object.entries(CRUMB_MAP)
+  .filter(([key]) => key !== "/")
+  .sort(([a], [b]) => b.length - a.length)
+  .map(([key, label]) => ({
+    label,
+    regex: new RegExp(
+      "^" +
+        key
+          .split("/")
+          .map((seg) =>
+            seg.startsWith("[") && seg.endsWith("]")
+              ? "[^/]+"
+              : escapeRegExp(seg),
+          )
+          .join("/") +
+        "(?:/|$)",
+    ),
+  }));
+
+/**
+ * Resolve the breadcrumb label for a pathname. Falls back to a humanised
+ * last path segment so the crumb never reads "Page".
+ */
+export function crumbLabelFor(path: string): string {
+  const exact = CRUMB_MAP[path];
+  if (exact) return exact;
+  const match = CRUMB_PATTERNS.find((p) => p.regex.test(path));
+  if (match) return match.label;
+  const last = path.split("/").filter(Boolean).pop() ?? "";
+  const words = decodeURIComponent(last).replace(/[-_]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Home";
+}
 
 export function AppTopbar() {
   const path = usePathname();
   const router = useRouter();
-  const label =
-    CRUMB_MAP[path] ??
-    CRUMB_MAP[
-      Object.keys(CRUMB_MAP).find((k) => k !== "/" && path.startsWith(k)) ?? ""
-    ] ??
-    "Page";
+  const label = crumbLabelFor(path);
 
   const handleSignOut = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -95,7 +152,7 @@ export function AppTopbar() {
             <circle cx="6.5" cy="6.5" r="5" />
             <path d="M10.5 10.5l3.5 3.5" />
           </svg>
-          <span>Search knowledge base…</span>
+          <span>Search your evidence…</span>
           <kbd>⌘K</kbd>
         </div>
 
