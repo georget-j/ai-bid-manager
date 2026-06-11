@@ -4,6 +4,7 @@ import { openai, CHAT_MODEL } from "@/lib/openai";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { enrichGrant } from "./enrich";
 import { buildGrantRequirementText } from "./application";
+import { classifyOutputGenre } from "./genre";
 import type { GrantRow, ApplicationGuide } from "./types";
 
 // Generate a tailored, navigable "how to apply" guide for a specific grant from its
@@ -113,6 +114,15 @@ export async function ensureApplicationGuide(
   const guide = await generateApplicationGuide(grant).catch(() => null);
   if (!guide) return null;
 
+  // Cheap top-up in the same write: classify what kind of submission the funder
+  // expects when we don't know yet. "unknown" isn't cached (see genre.ts) so a later
+  // pass with the funder's documents can retry.
+  let outputGenre = details?.output_genre ?? null;
+  if (!outputGenre) {
+    const classified = await classifyOutputGenre(grant);
+    if (classified.kind !== "unknown") outputGenre = classified;
+  }
+
   const mergedDetails = {
     ...(details ?? {
       sections: [],
@@ -121,6 +131,7 @@ export async function ensureApplicationGuide(
       webpageUrl: null,
     }),
     guide,
+    ...(outputGenre ? { output_genre: outputGenre } : {}),
   };
   await getServiceSupabase()
     .from("grants")

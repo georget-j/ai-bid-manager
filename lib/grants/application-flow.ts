@@ -26,7 +26,11 @@ export type StepStatus = "done" | "current" | "todo" | "blocked";
 
 export interface StepAction {
   label: string;
-  /** A page/profile link; when absent the UI scrolls to the step's own anchor. */
+  /**
+   * A page link ("/profile#…") or an in-page anchor ("#step-…") when the
+   * action lives in a different step's section; when absent the UI scrolls
+   * to the step's own anchor.
+   */
   href?: string;
 }
 
@@ -161,7 +165,9 @@ export function buildApplicationFlow(input: {
     action:
       requirementsCount > 0
         ? undefined
-        : { label: "Upload the application form" },
+        : // The upload dropzone lives in the answers section, not here — send
+          // the user straight to it rather than leaving a dead label.
+          { label: "Upload the application form", href: "#step-answers" },
   });
 
   steps.push({

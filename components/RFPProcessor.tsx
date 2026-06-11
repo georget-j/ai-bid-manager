@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ErrorAlert } from "./ErrorAlert";
+import { ResponseCard } from "./ResponseCard";
 import type { ExtractedQuestion } from "@/lib/rfp-extract";
 import type { RFPResponse, RetrievedChunk } from "@/lib/schema";
 import type { BatchItem } from "@/lib/export-docx";
@@ -47,6 +48,9 @@ export function RFPProcessor({
   onDraftCreated,
   onSaved,
 }: RFPProcessorProps = {}) {
+  // Grant applications get plain-English copy and the richer per-answer
+  // review UI; the tender-side experience is unchanged.
+  const isGrant = !!initialGrantId;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>(
     initialStep ??
@@ -139,9 +143,10 @@ export function RFPProcessor({
   ]);
   const [answering, setAnswering] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  // Question ids whose full answer (draft + sources + gaps) is expanded.
+  const [openAnswers, setOpenAnswers] = useState<Set<number>>(new Set());
 
   const [exporting, setExporting] = useState(false);
-  const [rfpRunId, setRfpRunId] = useState<string | null>(null);
   const [pendingReview, setPendingReview] = useState<
     Array<{
       queryId: string;
@@ -229,11 +234,20 @@ export function RFPProcessor({
 
   // ── Step 3: Batch answering ───────────────────────────────────────────────
 
-  async function handleAnswerAll() {
-    const toAnswer = questions.filter((q) => selected.has(q.id));
-    if (toAnswer.length === 0) return;
+  // Runs the given questions through the batch endpoint and MERGES results
+  // into the existing answers map — existing answers are only ever replaced
+  // by a fresh result for the same question, never wiped wholesale.
+  // A fresh server run is started every time: reusing a run id across a
+  // different question subset would replay cached results by index and
+  // attach them to the wrong questions.
+  async function runBatch(
+    toAnswer: ExtractedQuestion[],
+    { updateRouting = true }: { updateRouting?: boolean } = {},
+  ) {
+    if (toAnswer.length === 0 || answering.size > 0) return;
 
-    setAnswers(new Map());
+    const stepBefore = step;
+    setError(null);
     setAnswering(new Set(toAnswer.map((q) => q.id)));
     setProgress({ done: 0, total: toAnswer.length });
     setStep("answering");
@@ -244,8 +258,18 @@ export function RFPProcessor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rfp_title: rfpTitle,
-          questions: toAnswer,
-          rfp_run_id: rfpRunId ?? undefined,
+          // Send the per-question extras (word_limit / mandatory / priority)
+          // explicitly — the server uses them to keep drafts within limits.
+          questions: toAnswer.map((q) => ({
+            id: q.id,
+            section: q.section,
+            text: q.text,
+            topic: q.topic,
+            risk_level: q.risk_level,
+            word_limit: q.word_limit ?? null,
+            mandatory: q.mandatory ?? false,
+            priority: q.priority ?? "medium",
+          })),
           opportunity_id: initialOpportunityId ?? undefined,
           grant_id: initialGrantId ?? undefined,
         }),
@@ -292,18 +316,70 @@ export function RFPProcessor({
             });
             setProgress((prev) => ({ ...prev, done: prev.done + 1 }));
           } else if (event.type === "done") {
-            setPendingReview(event.pending_review ?? []);
-            setRfpRunIdForRouting(event.rfp_run_id ?? "");
-            setRfpTitleForRouting(event.rfp_title ?? rfpTitle);
-            if (event.rfp_run_id) setRfpRunId(event.rfp_run_id);
+            // A one-question retry must not clobber the routing summary of
+            // the wider run, so only full runs update it.
+            if (updateRouting) {
+              setPendingReview(event.pending_review ?? []);
+              setRfpRunIdForRouting(event.rfp_run_id ?? "");
+              setRfpTitleForRouting(event.rfp_title ?? rfpTitle);
+            }
             setStep("done");
           }
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      setStep("reviewing");
+      setAnswering(new Set());
+      setStep(stepBefore === "done" ? "done" : "reviewing");
     }
+  }
+
+  /** Default path: answer only the selected questions with no answer yet. */
+  function handleAnswerRemaining() {
+    void runBatch(
+      questions.filter((q) => selected.has(q.id) && !answers.has(q.id)),
+    );
+  }
+
+  /** Explicit do-over: replaces every selected answer after a confirmation. */
+  function handleRedoAll() {
+    const toRedo = questions.filter((q) => selected.has(q.id));
+    if (toRedo.length === 0) return;
+    const ok = window.confirm(
+      `Start these answers again? This will replace all ${toRedo.length} answer${
+        toRedo.length === 1 ? "" : "s"
+      }, including any edits you've made.`,
+    );
+    if (!ok) return;
+    void runBatch(toRedo);
+  }
+
+  /** Re-runs a single question and replaces just that answer. */
+  function handleRetryOne(q: ExtractedQuestion) {
+    void runBatch([q], { updateRouting: false });
+  }
+
+  /** Persist an inline edit: merge the new draft into the saved answers. */
+  function handleAnswerEdited(questionId: number, draft: string) {
+    setAnswers((prev) => {
+      const current = prev.get(questionId);
+      if (!current) return prev;
+      const next = new Map(prev);
+      next.set(questionId, {
+        ...current,
+        response: { ...current.response, draft_answer: draft },
+      });
+      return next;
+    });
+  }
+
+  function toggleAnswerOpen(id: number) {
+    setOpenAnswers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   // ── Send for review ───────────────────────────────────────────────────────
@@ -418,6 +494,13 @@ export function RFPProcessor({
     {},
   );
 
+  const selectedUnanswered = questions.filter(
+    (q) => selected.has(q.id) && !answers.has(q.id),
+  );
+  const busy = answering.size > 0;
+  // Plain-English copy for grant applicants; tender wording is unchanged.
+  const noun = isGrant ? "question" : "requirement";
+
   return (
     <div className="space-y-6">
       {error && <ErrorAlert message={error} onDismiss={() => setError(null)} />}
@@ -446,16 +529,24 @@ export function RFPProcessor({
                   />
                 ))}
               </div>
-              <p className="text-sm text-gray-500">Analysing RFP document…</p>
+              <p className="text-sm text-gray-500">
+                {isGrant
+                  ? "Reading the form and pulling out the questions…"
+                  : "Analysing RFP document…"}
+              </p>
             </div>
           ) : (
             <>
               <div className="text-3xl mb-3">📄</div>
               <p className="text-sm font-medium text-gray-700 mb-1">
-                Upload your RFP document
+                {isGrant
+                  ? "Upload the funder's application form (PDF or Word) and I'll pull out the questions"
+                  : "Upload your RFP document"}
               </p>
               <p className="text-xs text-gray-400">
-                PDF, DOCX, TXT, HTML — up to 4 MB
+                {isGrant
+                  ? "PDF, Word, text or HTML — up to 4 MB"
+                  : "PDF, DOCX, TXT, HTML — up to 4 MB"}
               </p>
             </>
           )}
@@ -472,15 +563,16 @@ export function RFPProcessor({
                 {rfpTitle}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                {questions.length} requirement
-                {questions.length !== 1 ? "s" : ""} extracted
+                {questions.length} {noun}
+                {questions.length !== 1 ? "s" : ""}{" "}
+                {isGrant ? "found" : "extracted"}
                 {selected.size < questions.length &&
                   ` · ${selected.size} selected`}
                 {savedAt && <span style={{ color: "#059669" }}> · Saved</span>}
               </p>
             </div>
             {step === "reviewing" && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() =>
                     setSelected(new Set(questions.map((q) => q.id)))
@@ -495,13 +587,23 @@ export function RFPProcessor({
                 >
                   Deselect all
                 </button>
+                {isGrant && answers.size > 0 && (
+                  <button
+                    onClick={handleRedoAll}
+                    disabled={busy || selected.size === 0}
+                    className="text-xs text-gray-500 hover:text-gray-800 underline disabled:opacity-40"
+                  >
+                    Redo all answers
+                  </button>
+                )}
                 <button
-                  onClick={handleAnswerAll}
-                  disabled={selected.size === 0}
+                  onClick={handleAnswerRemaining}
+                  disabled={selectedUnanswered.length === 0 || busy}
                   className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors"
                 >
-                  Answer {selected.size} requirement
-                  {selected.size !== 1 ? "s" : ""}
+                  Answer {selectedUnanswered.length}
+                  {answers.size > 0 ? " remaining" : ""} {noun}
+                  {selectedUnanswered.length !== 1 ? "s" : ""}
                 </button>
               </div>
             )}
@@ -529,17 +631,50 @@ export function RFPProcessor({
                   flexWrap: "wrap",
                 }}
               >
-                <button
-                  onClick={handleExportAll}
-                  disabled={exporting}
-                  className="btn sm"
-                  style={{ background: "var(--ink)", color: "var(--surface)" }}
-                >
-                  {exporting ? "Exporting…" : "⬇ Export all as Word"}
-                </button>
-                <button onClick={handlePrintAsPdf} className="btn ghost sm">
-                  ⎙ Save as PDF
-                </button>
+                {isGrant ? (
+                  // Grant flow: downloads live in "Review & submit" below, so
+                  // this header offers the answer-again paths instead.
+                  <>
+                    {selectedUnanswered.length > 0 && (
+                      <button
+                        onClick={handleAnswerRemaining}
+                        disabled={busy}
+                        className="btn sm"
+                        style={{
+                          background: "var(--ink)",
+                          color: "var(--surface)",
+                        }}
+                      >
+                        Answer {selectedUnanswered.length} remaining question
+                        {selectedUnanswered.length !== 1 ? "s" : ""}
+                      </button>
+                    )}
+                    <button
+                      onClick={handleRedoAll}
+                      disabled={busy || selected.size === 0}
+                      className="btn ghost sm"
+                    >
+                      ↻ Redo all answers
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleExportAll}
+                      disabled={exporting}
+                      className="btn sm"
+                      style={{
+                        background: "var(--ink)",
+                        color: "var(--surface)",
+                      }}
+                    >
+                      {exporting ? "Exporting…" : "⬇ Export all as Word"}
+                    </button>
+                    <button onClick={handlePrintAsPdf} className="btn ghost sm">
+                      ⎙ Save as PDF
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -664,16 +799,64 @@ export function RFPProcessor({
                             <p className="text-sm text-gray-800 leading-relaxed">
                               {q.text}
                             </p>
+                            {isGrant && q.word_limit != null && (
+                              <p className="text-[11px] text-gray-400 mt-0.5">
+                                Limit: {q.word_limit} words
+                              </p>
+                            )}
                             {answer && (
                               <div className="mt-2 space-y-1.5">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <ConfidenceBadge
                                     confidence={answer.response.confidence}
                                   />
+                                  {isGrant && (
+                                    <>
+                                      <button
+                                        onClick={() => toggleAnswerOpen(q.id)}
+                                        className="text-xs text-gray-500 hover:text-gray-900 underline"
+                                      >
+                                        {openAnswers.has(q.id)
+                                          ? "Hide full answer"
+                                          : "Read & edit full answer"}
+                                      </button>
+                                      <button
+                                        onClick={() => handleRetryOne(q)}
+                                        disabled={busy}
+                                        className="text-xs text-gray-500 hover:text-gray-900 underline disabled:opacity-40"
+                                      >
+                                        Try again
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
-                                <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
-                                  {answer.response.executive_summary}
-                                </p>
+                                {!(isGrant && openAnswers.has(q.id)) && (
+                                  <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
+                                    {answer.response.executive_summary}
+                                  </p>
+                                )}
+                                {isGrant && openAnswers.has(q.id) && (
+                                  <div className="mt-2">
+                                    <ResponseCard
+                                      // Remount when the draft changes (retry
+                                      // or saved edit) so local edit state
+                                      // resets to the new canonical answer.
+                                      key={`${q.id}:${answer.response.draft_answer}`}
+                                      result={{
+                                        query_id: String(q.id),
+                                        response: answer.response,
+                                        retrieved_chunks:
+                                          answer.retrieved_chunks ?? [],
+                                      }}
+                                      query={q.text}
+                                      title="Your draft answer"
+                                      wordLimit={q.word_limit ?? null}
+                                      onDraftSaved={(draft) =>
+                                        handleAnswerEdited(q.id, draft)
+                                      }
+                                    />
+                                  </div>
+                                )}
                               </div>
                             )}
                             {isInProgress && (

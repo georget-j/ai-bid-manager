@@ -64,9 +64,41 @@ export type ExtractedQuestion = {
 
 const FORMAT = zodResponseFormat(ExtractedQuestionsSchema, "rfp_questions");
 
+export interface ExtractQuestionsOptions {
+  /**
+   * "tender" (default) — analyse a buyer's RFP/ITT that a VENDOR responds to.
+   * "grant" — analyse a funder's grant material that an APPLICANT responds to:
+   * application-form questions, assessment criteria, required sections, word limits.
+   * Tender behaviour is unchanged when mode is absent.
+   */
+  mode?: "tender" | "grant";
+}
+
+const GRANT_SYSTEM_PROMPT = `You are a grant application analyzer. Extract every question, requirement, and assessment criterion that an APPLICANT must respond to when applying for this grant. Prioritise the funder's ACTUAL application-form questions and required sections (e.g. "Describe your project", "What difference will the funding make?") over background prose, and capture assessment criteria the funder will score against.
+
+For each item provide:
+- id: sequential integer starting at 1
+- section: the form section or category it belongs to (e.g. "About your project", "Eligibility", "Budget & costs") — use the funder's own section names where stated
+- text: the complete, self-contained question or requirement, in the funder's wording where possible
+- topic: classify into one of: security_compliance, legal, pricing, technical, engineering, commercial, implementation, support, general
+  (use pricing for budget/costs/match-funding items; use engineering for software build, API, integration, and architecture requirements)
+- risk_level: high (involves legal, contractual, financial, or security commitments), medium (operational or delivery claims), low (factual or general)
+- question_class: classify as one of:
+    "question"     — open-ended, requires a prose answer (e.g. "Describe your project…", "Tell us about the need…", "How will you measure impact?")
+    "requirement"  — specific factual confirmation or value (e.g. "Confirm your organisation is UK-registered", "State your total project cost", "Provide your charity number")
+    "guidance"     — informational context, no answer needed (e.g. "Note: answers must be under 500 words", "You will need your accounts to hand", section instructions)
+- word_limit: if the item states a maximum word or page count (e.g. "maximum 500 words", "no more than 2 pages"), return it as an integer; otherwise null
+- mandatory: true ONLY when the funder frames this as mandatory — i.e. a pass/fail eligibility gate, a required field/section, or uses "must"/"shall"/"required". Use false for desirable, optional, "should", or items that are only weighted/scored. Guidance items are never mandatory.
+- priority: how much this item matters to a successful application. "high" = mandatory/eligibility items or heavily weighted / core assessed criteria; "medium" = standard assessed questions; "low" = minor, administrative, or guidance items. Mandatory items are always "high"; guidance is always "low".
+
+Include guidance items so the funder's instructions are visible alongside the questions they relate to.
+Skip pure preamble, navigation text, cover pages, and table-of-contents entries.`;
+
 export async function extractRFPQuestions(
   documentText: string,
+  options: ExtractQuestionsOptions = {},
 ): Promise<ExtractedQuestion[]> {
+  const grantMode = options.mode === "grant";
   const safeText = documentText
     .replace(/\0/g, "")
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F]/g, " ");
@@ -76,7 +108,9 @@ export async function extractRFPQuestions(
     messages: [
       {
         role: "system",
-        content: `You are an RFP document analyzer. Extract all questions, requirements, and evaluation criteria that a vendor must respond to.
+        content: grantMode
+          ? GRANT_SYSTEM_PROMPT
+          : `You are an RFP document analyzer. Extract all questions, requirements, and evaluation criteria that a vendor must respond to.
 
 For each item provide:
 - id: sequential integer starting at 1
@@ -98,7 +132,9 @@ Skip pure preamble, cover pages, and table-of-contents entries.`,
       },
       {
         role: "user",
-        content: `Extract all vendor requirements from this RFP:\n\n${safeText.slice(0, 30000)}`,
+        content: grantMode
+          ? `Extract everything an applicant must respond to from this grant material:\n\n${safeText.slice(0, 30000)}`
+          : `Extract all vendor requirements from this RFP:\n\n${safeText.slice(0, 30000)}`,
       },
     ],
     response_format: FORMAT,

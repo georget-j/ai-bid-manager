@@ -9,8 +9,10 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { computeRoutingCandidates } from "@/lib/review-routing";
 import { getRequestOrgId } from "@/lib/org";
+import { withWordLimit } from "@/lib/prompts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RFPResponse } from "@/lib/schema";
+import { AnswerBatchQuestionSchema } from "@/lib/schema";
+import type { RFPContext, RFPResponse } from "@/lib/schema";
 
 const BatchRequestSchema = z.object({
   rfp_title: z.string().optional(),
@@ -18,18 +20,9 @@ const BatchRequestSchema = z.object({
   opportunity_id: z.string().uuid().optional(), // link run to a procurement opportunity
   grant_id: z.string().uuid().optional(), // grant draft -> include the grant's scoped KB collection
 
-  questions: z
-    .array(
-      z.object({
-        id: z.number(),
-        section: z.string(),
-        text: z.string(),
-        topic: z.string().optional(),
-        risk_level: z.string().optional(),
-      }),
-    )
-    .min(1)
-    .max(100),
+  // Per-question word_limit / mandatory / priority are optional extras
+  // (see AnswerBatchQuestionSchema) — existing clients are unaffected.
+  questions: z.array(AnswerBatchQuestionSchema).min(1).max(100),
 });
 
 type Question = z.infer<typeof BatchRequestSchema>["questions"][number];
@@ -62,6 +55,7 @@ async function processQuestion(
   completed: CompletedAnswer[],
   orgId: string | null,
   collection: string | null,
+  rfpContext: RFPContext | undefined,
 ) {
   controller.enqueue(sseEvent("start", { question_id: question.id }));
   try {
@@ -76,6 +70,13 @@ async function processQuestion(
             rfp_title: rfpTitle,
             topic: question.topic ?? "general",
             risk_level: question.risk_level ?? "low",
+            ...(question.word_limit != null
+              ? { word_limit: question.word_limit }
+              : {}),
+            ...(question.mandatory != null
+              ? { mandatory: question.mandatory }
+              : {}),
+            ...(question.priority ? { priority: question.priority } : {}),
           },
           org_id: orgId ?? null,
         })
@@ -84,9 +85,12 @@ async function processQuestion(
       retrieveChunks(question.text, orgId, null, collection),
     ]);
 
+    // Mirror reevaluate: surface any stated word limit to the model so the
+    // draft stays within the funder's/buyer's limit.
     const rawResponse = await generateRFPResponse(
-      question.text,
+      withWordLimit(question.text, question.word_limit),
       retrievedChunks,
+      rfpContext,
     );
     const retrievedIds = new Set(retrievedChunks.map((c) => c.id));
     const { response } = verifyCitations(rawResponse, retrievedIds);
@@ -153,6 +157,7 @@ export async function POST(request: NextRequest) {
   let clientRunId: string | undefined;
   let opportunityId: string | null = null;
   let collection: string | null = null;
+  let rfpContext: RFPContext | undefined;
   try {
     const body = await request.json();
     const parsed = BatchRequestSchema.safeParse(body);
@@ -165,6 +170,11 @@ export async function POST(request: NextRequest) {
     clientRunId = parsed.data.rfp_run_id;
     opportunityId = parsed.data.opportunity_id ?? null;
     collection = parsed.data.grant_id ? `grant:${parsed.data.grant_id}` : null;
+    // Grant drafts are written in the applicant's voice for the funder —
+    // grant_id is the switch that selects the grant-application prompt.
+    rfpContext = parsed.data.grant_id
+      ? { response_type: "grant-application" }
+      : undefined;
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,
@@ -264,6 +274,7 @@ export async function POST(request: NextRequest) {
                 completed,
                 orgId,
                 collection,
+                rfpContext,
               );
             }),
           );

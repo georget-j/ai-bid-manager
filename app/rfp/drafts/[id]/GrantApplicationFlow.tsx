@@ -109,8 +109,14 @@ function StepSpine({
 
   function next() {
     if (!nextStep) return;
-    if (nextStep.action?.href) {
-      window.location.href = nextStep.action.href;
+    const href = nextStep.action?.href;
+    if (href) {
+      // In-page anchors ("#step-…") scroll smoothly; real pages navigate.
+      if (href.startsWith("#")) {
+        scrollToAnchor(href.slice(1));
+        return;
+      }
+      window.location.href = href;
       return;
     }
     scrollToAnchor(nextStep.anchorId);
@@ -754,26 +760,48 @@ export function GrantApplicationFlow({
 
             <div
               style={{
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
                 marginTop: 16,
                 paddingTop: 14,
                 borderTop: "1px solid var(--border)",
               }}
             >
-              <a
-                href={`/api/grants/applications/${draftId}/export`}
-                className="btn ghost sm"
-                style={{ fontSize: 13 }}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
               >
-                ⬇ Export your answers (Word)
-              </a>
-              <MarkSubmittedButton
-                draftId={draftId}
-                ready={flow.readyToSubmit}
-              />
+                <a
+                  href={`/api/grants/applications/${draftId}/export?mode=clean`}
+                  className="btn"
+                  style={{ fontSize: 13 }}
+                >
+                  ⬇ Download application (Word)
+                </a>
+                <a
+                  href={`/api/grants/applications/${draftId}/export?mode=review`}
+                  className="btn ghost sm"
+                  style={{ fontSize: 12.5 }}
+                >
+                  Download internal review copy
+                </a>
+                <MarkSubmittedButton
+                  draftId={draftId}
+                  ready={flow.readyToSubmit}
+                />
+              </div>
+              <p
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--muted)",
+                  margin: "8px 0 0",
+                }}
+              >
+                The application file is ready to share with the funder. The
+                review copy adds confidence notes and gaps for your own checks.
+              </p>
             </div>
           </section>
         </div>

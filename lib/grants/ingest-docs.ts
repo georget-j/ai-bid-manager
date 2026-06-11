@@ -171,3 +171,54 @@ export async function ingestGrantDocuments(
   }
   return res;
 }
+
+// Extracted text of one of this grant's ingested resources, with the source kind so
+// callers can put real funder documents (application forms, guidance PDFs) ahead of
+// scraped web pages.
+export interface GrantDocumentText {
+  title: string;
+  url: string;
+  kind: "document" | "link";
+  text: string;
+}
+
+// Per-document cap on the text we hand back — matches the question-extraction input
+// budget (lib/rfp-extract.ts slices to 30k chars), so we never haul multi-MB raw_text
+// strings around for nothing.
+const TEXT_CAP = 30_000;
+
+/**
+ * Read back the extracted TEXT of this grant's already-ingested resources from the
+ * org's KB (collection "grant:<id>"). Run after ingestGrantDocuments() so freshly
+ * imported and previously imported documents are both covered. Read-only — does not
+ * touch ingestion behaviour. Best-effort: returns [] on a read failure.
+ */
+export async function getGrantDocumentTexts(
+  orgId: string,
+  grant: GrantRow,
+): Promise<GrantDocumentText[]> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("documents")
+    .select("title, file_name, raw_text")
+    .eq("org_id", orgId)
+    .eq("collection", grantCollection(grant.id))
+    .not("raw_text", "is", null);
+  if (error || !data) return [];
+
+  // Ingestion stores the source URL in file_name (for dedup); recover the kind by
+  // matching it against the grant's document list. Unknown URLs are treated as links.
+  const documentUrls = new Set(
+    (grant.details?.documents ?? []).map((d) => d.url),
+  );
+  return data
+    .map((row) => ({
+      title: (row.title as string) ?? "",
+      url: (row.file_name as string) ?? "",
+      kind: documentUrls.has(row.file_name as string)
+        ? ("document" as const)
+        : ("link" as const),
+      text: ((row.raw_text as string) ?? "").slice(0, TEXT_CAP),
+    }))
+    .filter((d) => d.text.trim().length > 0);
+}

@@ -1,5 +1,42 @@
 # Market Wedge Changelog v3
 
+## 2026-06-11 — Grant journey overhaul: real funder questions, grant-aware AI, in-flow review, shareable export
+
+5-track build against a 4-agent journey review (review found: questions AI-guessed from web
+prose not funder docs; tender persona answering grants; answers invisible until export; export
+headlined "RFP Response Document" with internal QA artefacts; awarded history padding discovery).
+
+1. **Real funder questions** (`lib/grants/application.ts`, draft route): funder documents are
+   ingested FIRST and question extraction runs over the actual application docs (docs-first
+   merge, web-prose fallback); per-question provenance `source: funder-document|grant-listing`;
+   grant-mode extraction prompt (funder/applicant vocabulary). Duplicate drafts prevented —
+   POST returns `{draftId, existing:true}` for an in-flight (org, grant) draft.
+2. **Output-genre understanding** (`lib/grants/genre.ts`): classifies what the funder expects
+   (application-form / project-proposal / pitch / business-case), cached in
+   `grants.details.output_genre`, drives the export doc type. Unknown results not cached (retry
+   after docs land).
+3. **Grant-aware generation** (`lib/prompts.ts`, answer-batch): grant-applicant persona
+   (first-person org addressing funder, anti-salesy) via `response_type='grant-application'`;
+   word_limit/mandatory/priority now flow through the batch schema; "(Limit: N words)" injected
+   at generation. Tender path byte-identical.
+4. **In-flow review & analyse** (RFPProcessor/ResponseCard/GrantApplicationFlow): full draft
+   answers readable + editable inside the flow; edits persist via draft PATCH; non-destructive
+   re-runs ("Answer N remaining", confirm-gated "Redo all", per-question "Try again"); word
+   counts vs funder limits; clean vs internal-review export links. Fixed a pre-existing bug:
+   client reused rfp_run_id across runs → cached answers could attach to wrong questions.
+5. **Shareable export** (`lib/export-grant-docx.ts` + rewritten export route): real cover page
+   (org, genre-derived doc type, funder, deadline, amount, reference), application summary
+   table, per-answer word counts (red over limit), "[Response to be drafted]" placeholders +
+   completeness, budget table, page numbers/running header, org as Word creator;
+   `?mode=clean` (default, shareable) vs `?mode=review` (amber "Internal review notes" blocks).
+6. **Discovery polish** (/grants, grant detail): default view = OPEN grants (132) with awarded
+   history opt-in; deadline/region/amount filter UI (params already existed); detail page gets
+   loading.tsx skeleton, no-profile prompt card, Continue-your-application CTA with progress.
+
+Tests 214/214 (was 160 — +54 across questions/genre/prompts/export/flow); tsc/lint/build clean.
+Follow-ups noted: `latest_rfp_run_id` never written (flagged-answers check trivially passes);
+draft "refresh questions" action for late-arriving docs; region value normalisation in connectors.
+
 ## 2026-06-11 — Review fixes: S-015..S-018, tests green, lint zero, CI, migration history
 
 All findings from the 2026-06-10 full-stack review fixed in one pass (7 agents, verified

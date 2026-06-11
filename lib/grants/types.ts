@@ -45,6 +45,22 @@ export interface GrantDetails {
   documents: GrantLink[]; // downloadable documents (PDF / DOCX / ...)
   webpageUrl?: string | null; // canonical apply / info page on the source
   guide?: ApplicationGuide | null; // generated "how to apply" navigator (lazy)
+  output_genre?: OutputGenre | null; // what kind of submission the funder expects (lazy)
+}
+
+// What KIND of submission this funder expects (classified once, cached on
+// grants.details.output_genre) so downstream drafting/export can adapt its shape.
+export type OutputGenreKind =
+  | "application-form" // a fixed form with set questions to answer
+  | "project-proposal" // a free-form written proposal / case for the project
+  | "pitch" // a short pitch (often video / deck / summary first stage)
+  | "business-case" // a costed business case (options, benefits, finances)
+  | "unknown";
+
+export interface OutputGenre {
+  kind: OutputGenreKind;
+  confidence: "high" | "medium" | "low";
+  rationale: string;
 }
 
 // A tailored, navigable "how to apply" guide generated from the grant's detail text.

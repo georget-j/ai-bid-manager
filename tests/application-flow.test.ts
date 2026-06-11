@@ -183,6 +183,16 @@ describe("buildApplicationFlow — step statuses", () => {
     expect(flow.checks.some((c) => c.label === "Budget balances")).toBe(false);
   });
 
+  it("no questions yet: the upload action points at the answers section", () => {
+    // The upload dropzone renders inside step 4 (answers), so the step-2
+    // action must deep-link there rather than being a dead label.
+    const flow = buildApplicationFlow(baseInput({ extractedQuestions: [] }));
+    const step = flow.steps.find((s) => s.key === "requirements")!;
+    expect(step.status).toBe("todo");
+    expect(step.action?.label).toBe("Upload the application form");
+    expect(step.action?.href).toBe("#step-answers");
+  });
+
   it("no profile (fit null): eligibility is todo and points at the profile", () => {
     const flow = buildApplicationFlow(baseInput({ fit: null }));
     const step = flow.steps.find((s) => s.key === "eligible")!;

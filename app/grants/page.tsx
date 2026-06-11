@@ -47,10 +47,64 @@ interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
 
+// Region values as they appear in the catalogue (filtering matches them exactly).
+const REGION_OPTIONS = [
+  "National",
+  "United Kingdom",
+  "England",
+  "Scotland",
+  "Wales",
+  "Northern Ireland",
+  "Midlands",
+  "North East England",
+  "North West England",
+  "South East England",
+  "South West England",
+  "International",
+];
+
+const STATUS_WORDS: Record<string, string> = {
+  open: "open",
+  forthcoming: "forthcoming",
+  rolling: "rolling",
+  closed: "closed",
+  awarded: "awarded",
+};
+
+function parseAmount(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const n = Number(raw.replace(/[£,\s]/g, ""));
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11 }}
+    >
+      <span style={{ color: "var(--muted)", fontWeight: 600 }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export default async function GrantsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const limit = 25;
+
+  // Default to live opportunities: with no status in the URL we show open calls only.
+  // "All statuses" (status=all) keeps the awarded history reachable for funder research.
+  const statusParam = sp.status ?? "open";
+  const status = statusParam === "all" ? undefined : statusParam || undefined;
+  const amountMin = parseAmount(sp.amountMin);
+  const amountMax = parseAmount(sp.amountMax);
 
   let grants: GrantRow[] = [];
   let total = 0;
@@ -59,8 +113,11 @@ export default async function GrantsPage({ searchParams }: PageProps) {
     const res = await listGrants({
       search: sp.search,
       funder: sp.funder,
-      status: sp.status,
+      status,
       deadline: sp.deadline,
+      region: sp.region,
+      amountMin,
+      amountMax,
       limit,
       offset: (page - 1) * limit,
     });
@@ -71,6 +128,26 @@ export default async function GrantsPage({ searchParams }: PageProps) {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // Plain-English summary of what's on screen, e.g. "Showing 113 open grants".
+  const statusWord = status ? (STATUS_WORDS[status] ?? "") : "";
+  const otherFiltersActive = Boolean(
+    sp.search ||
+    sp.funder ||
+    sp.deadline ||
+    sp.region ||
+    amountMin != null ||
+    amountMax != null,
+  );
+  const anyFiltersActive = otherFiltersActive || statusParam !== "open";
+  const summary = [
+    `Showing ${total.toLocaleString()}`,
+    statusWord,
+    `grant${total === 1 ? "" : "s"}`,
+    otherFiltersActive ? "matching your filters" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div style={{ maxWidth: 880 }}>
@@ -111,40 +188,121 @@ export default async function GrantsPage({ searchParams }: PageProps) {
           marginBottom: 16,
         }}
       >
-        <input
-          className="input"
-          name="search"
-          defaultValue={sp.search ?? ""}
-          placeholder="Search title…"
-          style={{ flex: 1, minWidth: 180 }}
-        />
-        <input
-          className="input"
-          name="funder"
-          defaultValue={sp.funder ?? ""}
-          placeholder="Funder…"
-          style={{ width: 160 }}
-        />
-        <select
-          className="input"
-          name="status"
-          defaultValue={sp.status ?? ""}
-          style={{ width: 140 }}
-        >
-          <option value="">All statuses</option>
-          <option value="open">Open</option>
-          <option value="forthcoming">Forthcoming</option>
-          <option value="rolling">Rolling</option>
-          <option value="closed">Closed</option>
-          <option value="awarded">Awarded</option>
-        </select>
+        <Field label="Search">
+          <input
+            className="input"
+            name="search"
+            defaultValue={sp.search ?? ""}
+            placeholder="Search title…"
+            style={{ width: 180 }}
+          />
+        </Field>
+        <Field label="Funder">
+          <input
+            className="input"
+            name="funder"
+            defaultValue={sp.funder ?? ""}
+            placeholder="Funder…"
+            style={{ width: 140 }}
+          />
+        </Field>
+        <Field label="Status">
+          <select
+            className="input"
+            name="status"
+            defaultValue={statusParam}
+            style={{ width: 130 }}
+          >
+            <option value="open">Open</option>
+            <option value="forthcoming">Forthcoming</option>
+            <option value="rolling">Rolling</option>
+            <option value="closed">Closed</option>
+            <option value="awarded">Awarded</option>
+            <option value="all">All statuses</option>
+          </select>
+        </Field>
+        <Field label="Deadline">
+          <select
+            className="input"
+            name="deadline"
+            defaultValue={sp.deadline ?? ""}
+            style={{ width: 160 }}
+          >
+            <option value="">Any deadline</option>
+            <option value="open">Still open</option>
+            <option value="soon">Closing in 30 days</option>
+            <option value="closed">Deadline passed</option>
+          </select>
+        </Field>
+        <Field label="Region">
+          <select
+            className="input"
+            name="region"
+            defaultValue={sp.region ?? ""}
+            style={{ width: 150 }}
+          >
+            <option value="">Any region</option>
+            {REGION_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Amount from (£)">
+          <input
+            className="input"
+            type="number"
+            name="amountMin"
+            min={0}
+            defaultValue={sp.amountMin ?? ""}
+            placeholder="e.g. 10,000"
+            style={{ width: 110 }}
+          />
+        </Field>
+        <Field label="Amount up to (£)">
+          <input
+            className="input"
+            type="number"
+            name="amountMax"
+            min={0}
+            defaultValue={sp.amountMax ?? ""}
+            placeholder="e.g. 250,000"
+            style={{ width: 110 }}
+          />
+        </Field>
         <button type="submit" className="btn primary" style={{ fontSize: 13 }}>
           Filter
         </button>
       </form>
 
-      <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>
-        {total.toLocaleString()} grant{total === 1 ? "" : "s"}
+      <p
+        style={{
+          fontSize: 13,
+          color: "var(--muted)",
+          marginBottom: 12,
+          display: "flex",
+          gap: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <span>{summary}</span>
+        {statusParam === "open" && (
+          <Link
+            href="/grants?status=all"
+            style={{ color: "var(--accent)", textDecoration: "none" }}
+          >
+            Include past awards
+          </Link>
+        )}
+        {anyFiltersActive && (
+          <Link
+            href="/grants"
+            style={{ color: "var(--accent)", textDecoration: "none" }}
+          >
+            Reset filters
+          </Link>
+        )}
       </p>
 
       {error && (
@@ -156,8 +314,12 @@ export default async function GrantsPage({ searchParams }: PageProps) {
       {!error && grants.length === 0 && (
         <div className="card card-pad">
           <p style={{ fontSize: 13, color: "var(--muted)" }}>
-            No grants match these filters. Try clearing the search box or
-            choosing a different status.
+            No grants match these filters. Try widening the amount range,
+            choosing a different region or status, or{" "}
+            <Link href="/grants" style={{ color: "var(--accent)" }}>
+              reset the filters
+            </Link>
+            .
           </p>
         </div>
       )}
