@@ -3,6 +3,10 @@ import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile } from "@/lib/procurement/data";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { scoreGrant } from "@/lib/grants/scoring";
+import {
+  DEFAULT_EXCLUDED_GRANT_SOURCES,
+  excludedSourcesFilter,
+} from "@/lib/grants/data";
 import type { GrantRow } from "@/lib/grants/types";
 import { generateEmbedding } from "@/lib/embeddings";
 import {
@@ -37,6 +41,12 @@ export async function GET() {
       "id, title, funder_name, amount_min, amount_max, currency, deadline_at, status, themes, regions, eligibility_text, eligible_org_types, match_funding_required, description, sectors, beneficiaries, embedding",
     )
     .in("status", ["open", "forthcoming", "rolling"])
+    // Curated programme rows are recommended on /programmes, not as grants.
+    .not(
+      "source_name",
+      "in",
+      excludedSourcesFilter(DEFAULT_EXCLUDED_GRANT_SOURCES),
+    )
     .limit(SAMPLE);
   if (error) {
     console.error(

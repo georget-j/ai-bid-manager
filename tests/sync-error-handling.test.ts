@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   openGrants: [] as any[], // grants select("id, source_notice_id") rows (prune)
   upsertErrors: {} as Record<string, string>,
+  insertErrors: {} as Record<string, string>, // per-table insert failures
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateCalls: [] as any[],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,7 +53,11 @@ vi.mock("@/lib/supabase-service", () => ({
         },
         insert(rows: unknown) {
           state.insertCalls.push({ table, rows });
-          return Promise.resolve({ data: null, error: null });
+          const msg = state.insertErrors[table];
+          return Promise.resolve({
+            data: null,
+            error: msg ? { message: msg } : null,
+          });
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         upsert(rows: any[], opts: unknown) {
@@ -158,6 +163,7 @@ beforeEach(() => {
   state.rawHashes.length = 0;
   state.openGrants.length = 0;
   state.upsertErrors = {};
+  state.insertErrors = {};
   state.updateCalls.length = 0;
   state.upsertCalls.length = 0;
   state.insertCalls.length = 0;
@@ -317,6 +323,174 @@ describe("syncGrantSource error handling", () => {
     );
     expect(closes).toHaveLength(1);
     expect(closes[0].in?.vals).toEqual(["stale-id"]);
+  });
+});
+
+describe("delisting prune vs page cap (UKRI convergence)", () => {
+  // A ~12-listing-page source, one item per page; the walk has more pages while
+  // page < 11 (so pages 0..11 = 12 pages total).
+  function twelvePageConnector() {
+    return grantConnector({
+      listsAllOpenCalls: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fetchSince: vi.fn(async ({ cursor }: any) => {
+        const page = cursor ? Number(cursor) : 0;
+        const last = page >= 11;
+        return {
+          sourceName: "govuk-find-a-grant",
+          rawItems: [{ id: `g-${page}`, title: `G${page}` }],
+          nextCursor: last ? null : String(page + 1),
+          fetchedAt: new Date().toISOString(),
+          hasMore: !last,
+        };
+      }),
+      normalize: vi
+        .fn()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .mockImplementation(async (raw: any) => [normalizedGrant(raw.id)]),
+    });
+  }
+
+  it("maxPages 13 fits the full 12-page walk in ONE run, so the prune qualifies", async () => {
+    state.sourceRow = { last_cursor: null };
+    state.openGrants.push({ id: "stale-id", source_notice_id: "stale-1" });
+    const connector = twelvePageConnector();
+
+    const res = await syncGrantSource(connector, { maxPages: 13 });
+
+    expect(res.pages).toBe(12);
+    expect(res.hasMore).toBe(false);
+    expect(res.nextCursor).toBeNull();
+    // Complete from-page-1 walk → the delisted grant is pruned.
+    expect(res.closedPruned).toBe(1);
+    const closes = state.updateCalls.filter(
+      (u) => u.table === "grants" && u.payload?.status === "closed",
+    );
+    expect(closes).toHaveLength(1);
+    expect(closes[0].in?.vals).toEqual(["stale-id"]);
+    // The cursor is cleared, so tomorrow restarts from page 1 (prunable again).
+    const src = state.updateCalls.find((u) => u.table === "grant_sources");
+    expect(src.payload.last_cursor).toBeNull();
+  });
+
+  it("the old cap (maxPages 6) truncates the walk: NO prune, cursor saved", async () => {
+    state.sourceRow = { last_cursor: null };
+    state.openGrants.push({ id: "stale-id", source_notice_id: "stale-1" });
+    const connector = twelvePageConnector();
+
+    const res = await syncGrantSource(connector, { maxPages: 6 });
+
+    expect(res.pages).toBe(6);
+    expect(res.hasMore).toBe(true);
+    expect(res.nextCursor).toBe("6");
+    // A capped walk only saw part of the listing — pruning would mass-close
+    // every grant past the cap.
+    expect(res.closedPruned).toBe(0);
+    const closes = state.updateCalls.filter(
+      (u) => u.table === "grants" && u.payload?.status === "closed",
+    );
+    expect(closes).toHaveLength(0);
+    const src = state.updateCalls.find((u) => u.table === "grant_sources");
+    expect(src.payload.last_cursor).toBe("6");
+  });
+});
+
+describe("grant_sync_runs history (migration 071)", () => {
+  it("a clean run writes a start row and a finish update", async () => {
+    state.sourceRow = { last_cursor: null };
+    const connector = grantConnector({
+      fetchSince: vi
+        .fn()
+        .mockResolvedValue(pageResult([{ id: "g-1", title: "A" }])),
+      normalize: vi.fn().mockResolvedValue([normalizedGrant("g-1")]),
+    });
+
+    const res = await syncGrantSource(connector, { trigger: "cron" });
+
+    expect(res.errors).toHaveLength(0);
+    const start = state.insertCalls.find((c) => c.table === "grant_sync_runs");
+    expect(start).toBeDefined();
+    expect(start.rows).toMatchObject({
+      source_name: "govuk-find-a-grant",
+      trigger: "cron",
+      cursor_before: null,
+    });
+    expect(typeof start.rows.id).toBe("string");
+    expect(typeof start.rows.started_at).toBe("string");
+
+    const finish = state.updateCalls.find((u) => u.table === "grant_sync_runs");
+    expect(finish).toBeDefined();
+    expect(finish.payload).toMatchObject({
+      pages: 1,
+      fetched: 1,
+      raw_stored: 1,
+      upserted: 1,
+      duplicates: 0,
+      pruned: 0,
+      errors: [],
+      cursor_after: null,
+    });
+    expect(typeof finish.payload.finished_at).toBe("string");
+  });
+
+  it("defaults trigger to 'manual' and records the cursor it resumed from", async () => {
+    state.sourceRow = { last_cursor: "7" };
+    const connector = grantConnector({
+      fetchSince: vi.fn().mockResolvedValue(pageResult([])),
+    });
+
+    await syncGrantSource(connector);
+
+    const start = state.insertCalls.find((c) => c.table === "grant_sync_runs");
+    expect(start.rows.trigger).toBe("manual");
+    expect(start.rows.cursor_before).toBe("7");
+  });
+
+  it("a page-0 fetch failure still finishes its run row with the error", async () => {
+    const connector = grantConnector({
+      fetchSince: vi.fn().mockRejectedValue(new Error("boom 503")),
+    });
+
+    const res = await syncGrantSource(connector, { trigger: "sync-all" });
+
+    expect(res.errors[0]).toContain("503");
+    const start = state.insertCalls.find((c) => c.table === "grant_sync_runs");
+    expect(start.rows.trigger).toBe("sync-all");
+    const finish = state.updateCalls.find((u) => u.table === "grant_sync_runs");
+    expect(finish).toBeDefined();
+    expect(finish.payload.pages).toBe(0);
+    expect(finish.payload.errors[0]).toContain("503");
+    expect(typeof finish.payload.finished_at).toBe("string");
+  });
+
+  it("a missing grant_sync_runs table degrades to console.error — the sync itself succeeds", async () => {
+    state.insertErrors["grant_sync_runs"] =
+      'relation "grant_sync_runs" does not exist';
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const connector = grantConnector({
+        fetchSince: vi
+          .fn()
+          .mockResolvedValue(pageResult([{ id: "g-1", title: "A" }])),
+        normalize: vi.fn().mockResolvedValue([normalizedGrant("g-1")]),
+      });
+
+      const res = await syncGrantSource(connector);
+
+      // The sync is untouched by the history failure.
+      expect(res.errors).toHaveLength(0);
+      expect(res.grantsUpserted).toBe(1);
+      // Logged, and no finish update is attempted for a row that never existed.
+      expect(errSpy).toHaveBeenCalledWith(
+        expect.stringContaining("grant_sync_runs"),
+      );
+      const finish = state.updateCalls.find(
+        (u) => u.table === "grant_sync_runs",
+      );
+      expect(finish).toBeUndefined();
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });
 

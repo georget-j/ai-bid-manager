@@ -14,6 +14,10 @@ import { getIsOperator } from "@/lib/admin-auth";
 import { getOrgProfile, listOpportunities } from "@/lib/procurement/data";
 import { scoreOpportunity } from "@/lib/procurement/scoring";
 import { scoreGrant } from "@/lib/grants/scoring";
+import {
+  DEFAULT_EXCLUDED_GRANT_SOURCES,
+  excludedSourcesFilter,
+} from "@/lib/grants/data";
 import type { OrganisationProfileRow } from "@/lib/procurement/types";
 import type { GrantRow } from "@/lib/grants/types";
 import { daysUntil } from "@/lib/dates";
@@ -159,6 +163,12 @@ async function grantRecommendations(
     .from("grants")
     .select(GRANT_SCORING_COLUMNS)
     .in("status", ["open", "forthcoming", "rolling"])
+    // Curated programme rows are recommended on /programmes, not as grants.
+    .not(
+      "source_name",
+      "in",
+      excludedSourcesFilter(DEFAULT_EXCLUDED_GRANT_SOURCES),
+    )
     .limit(RECS_SAMPLE);
   if (error) throw new Error(`Failed to load grants: ${error.message}`);
 

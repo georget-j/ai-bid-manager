@@ -263,7 +263,11 @@ export const innovateUkConnector: GrantSourceConnector = {
       }
     }
 
-    const hasMore = stubs.length >= 10 && page < 10;
+    // More pages exist while the listing keeps returning full pages. No
+    // connector-side page cap: the engine's maxPages bounds the walk and sets
+    // hasMoreAfterCap, so a capped run can never masquerade as a complete walk
+    // (which would wrongly mass-prune every grant past the cap as delisted).
+    const hasMore = stubs.length >= 10;
     return {
       sourceName: "innovate-uk",
       rawItems: items,

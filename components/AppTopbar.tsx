@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 // Breadcrumb labels by route. Keys may contain dynamic segments
 // (e.g. "/opportunities/[id]/gaps") which match any value in that position.
-// The most specific (longest) matching key wins, so "/rfp/drafts" beats "/rfp".
+// The most specific (longest) matching key wins, so
+// "/opportunities/[id]/gaps" beats "/opportunities".
 export const CRUMB_MAP: Record<string, string> = {
   "/": "Home",
   // Tenders
@@ -33,10 +34,8 @@ export const CRUMB_MAP: Record<string, string> = {
   "/history": "History",
   "/profile": "Organisation profile",
   "/team": "Team",
-  // Answer builder (legacy paths — URLs don't change, labels do)
+  // Answer builder (legacy path — URL doesn't change, label does)
   "/rfp/drafts": "Application",
-  "/rfp/history": "Response history",
-  "/rfp": "New response",
   // Agency workspace
   "/clients/[id]/evidence": "Evidence vault",
   "/clients": "Clients",
@@ -44,7 +43,6 @@ export const CRUMB_MAP: Record<string, string> = {
   "/sources": "Sources",
   "/grant-sources": "Sources",
   "/admin": "Admin",
-  "/demo": "Demo scenarios",
 };
 
 function escapeRegExp(s: string) {

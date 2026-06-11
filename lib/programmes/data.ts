@@ -8,12 +8,20 @@
 // data at scale needs a paid provider (Dealroom / Crunchbase) or per-organiser
 // integrations — tracked as a roadmap follow-on in the grants strategy doc.
 
+// Only types that actually have programmes in the list below — "incubator" and
+// "grant-competition" were never used and had no filter pill, so they were dropped.
 export type ProgrammeType =
   | "accelerator"
-  | "incubator"
   | "investor-programme"
-  | "grant-competition"
   | "ecosystem-support";
+
+/**
+ * The grants-catalogue source name for curated programme rows. Programmes are
+ * upserted into `grants` under this source (lib/programmes/seed.ts) so the whole
+ * guided apply flow works for them unchanged — and grant surfaces exclude this
+ * source by default so programmes never pollute grant lists/recommendations.
+ */
+export const CURATED_PROGRAMMES_SOURCE = "curated-programmes";
 
 export interface Programme {
   id: string;
@@ -30,6 +38,12 @@ export interface Programme {
   description: string;
   /** True for programmes especially relevant to the cyber/IT supplier wedge. */
   cyberRelevant?: boolean;
+  /**
+   * Slug of this organiser's row in investor_organizers (lib/events/seed.ts),
+   * set only where the two curated lists describe the SAME organisation —
+   * renders a "See their investor events" cross-link on the programme card.
+   */
+  organizerSlug?: string;
 }
 
 export const PROGRAMMES: Programme[] = [
@@ -114,6 +128,7 @@ export const PROGRAMMES: Programme[] = [
     applicationUrl: "https://www.joinef.com/",
     description:
       "A 'talent investor' that backs individuals before they have a company or co-founder. Strong fit for technical founders leaving industry to start up.",
+    organizerSlug: "entrepreneur-first",
   },
   {
     id: "seedcamp",
@@ -127,6 +142,7 @@ export const PROGRAMMES: Programme[] = [
     applicationUrl: "https://seedcamp.com/",
     description:
       "Europe's leading seed fund. Rolling applications, fast process, and an unusually strong post-investment platform and expert network.",
+    organizerSlug: "seedcamp",
   },
   {
     id: "antler",

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { hashPayload } from "@/lib/procurement/hash";
 import { matchAlertsForGrants } from "./alerts";
@@ -38,6 +39,8 @@ export async function syncGrantSource(
     cursor?: string | null;
     maxPages?: number;
     timeBudgetMs?: number;
+    /** What kicked this run off — recorded in grant_sync_runs for the audit trail. */
+    trigger?: "cron" | "manual" | "sync-all";
   } = {},
 ): Promise<GrantSyncResult> {
   const supabase = getServiceSupabase();
@@ -82,6 +85,15 @@ export async function syncGrantSource(
   let currentCursor = startCursor;
   let hasMoreAfterCap = false;
 
+  // Per-run history row (migration 071). Best-effort: a missing table (migration
+  // not yet applied) must degrade to a logged error, never fail the sync.
+  const runId = await recordSyncRunStart(
+    supabase,
+    connector.sourceName,
+    options.trigger ?? "manual",
+    startCursor,
+  );
+
   while (totalPages < pageLimit) {
     let fetchResult;
     try {
@@ -97,6 +109,16 @@ export async function syncGrantSource(
         if (!options.backfill) {
           await updateSourceError(supabase, connector.sourceName, msg);
         }
+        await recordSyncRunFinish(supabase, runId, {
+          pages: 0,
+          fetched: 0,
+          raw_stored: 0,
+          upserted: 0,
+          duplicates: 0,
+          pruned: 0,
+          errors: [msg],
+          cursor_after: null,
+        });
         return {
           source: connector.sourceName,
           fetched: 0,
@@ -297,6 +319,17 @@ export async function syncGrantSource(
     }
   }
 
+  await recordSyncRunFinish(supabase, runId, {
+    pages: totalPages,
+    fetched: totalFetched,
+    raw_stored: rawStored,
+    upserted: grantsUpserted,
+    duplicates: duplicatesSkipped,
+    pruned: closedPruned,
+    errors,
+    cursor_after: hasMoreAfterCap ? currentCursor : null,
+  });
+
   return {
     source: connector.sourceName,
     fetched: totalFetched,
@@ -310,6 +343,71 @@ export async function syncGrantSource(
     nextCursor: hasMoreAfterCap ? currentCursor : null,
     closedPruned,
   };
+}
+
+// --- grant_sync_runs history (migration 071) -------------------------------
+// One row per syncGrantSource run so operators can audit what each sync did
+// (pages, counts, prunes, errors, cursor before/after). Service-role only.
+// Both writes are guarded: if the table is missing (migration not applied yet)
+// or the write fails, we log and carry on — history must never break a sync.
+
+async function recordSyncRunStart(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  sourceName: string,
+  trigger: "cron" | "manual" | "sync-all",
+  cursorBefore: string | null,
+): Promise<string | null> {
+  // Client-generated id so the finish update needs no select round-trip.
+  const id = randomUUID();
+  try {
+    const { error } = await supabase.from("grant_sync_runs").insert({
+      id,
+      source_name: sourceName,
+      started_at: new Date().toISOString(),
+      cursor_before: cursorBefore,
+      trigger,
+    });
+    if (error) {
+      console.error(
+        `grant_sync_runs start write failed for ${sourceName}: ${error.message}`,
+      );
+      return null;
+    }
+    return id;
+  } catch (err) {
+    console.error(`grant_sync_runs start write failed for ${sourceName}:`, err);
+    return null;
+  }
+}
+
+async function recordSyncRunFinish(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  runId: string | null,
+  fields: {
+    pages: number;
+    fetched: number;
+    raw_stored: number;
+    upserted: number;
+    duplicates: number;
+    pruned: number;
+    errors: string[];
+    cursor_after: string | null;
+  },
+): Promise<void> {
+  if (!runId) return; // start write already failed (and was logged)
+  try {
+    const { error } = await supabase
+      .from("grant_sync_runs")
+      .update({ ...fields, finished_at: new Date().toISOString() })
+      .eq("id", runId);
+    if (error) {
+      console.error(`grant_sync_runs finish write failed: ${error.message}`);
+    }
+  } catch (err) {
+    console.error("grant_sync_runs finish write failed:", err);
+  }
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

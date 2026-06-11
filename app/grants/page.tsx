@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listGrants } from "@/lib/grants/data";
+import { listGrants, collapseDuplicateGrants } from "@/lib/grants/data";
 import type { GrantRow } from "@/lib/grants/types";
 import { daysUntil, formatDaysLeft } from "@/lib/dates";
 import { formatAmountRange, AMOUNT_NOT_STATED } from "@/lib/grants/copy";
@@ -51,12 +51,18 @@ const REGION_OPTIONS = [
 ];
 
 const STATUS_WORDS: Record<string, string> = {
+  live: "open or upcoming",
   open: "open",
   forthcoming: "forthcoming",
   rolling: "rolling",
   closed: "closed",
   awarded: "awarded",
 };
+
+// The default view: everything you could still apply to with a planned opening —
+// open calls plus forthcoming ones. Single-status options stay available below.
+const DEFAULT_STATUS = "live";
+const LIVE_STATUSES = ["open", "forthcoming"];
 
 function parseAmount(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
@@ -86,10 +92,13 @@ export default async function GrantsPage({ searchParams }: PageProps) {
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const limit = 25;
 
-  // Default to live opportunities: with no status in the URL we show open calls only.
-  // "All statuses" (status=all) keeps the awarded history reachable for funder research.
-  const statusParam = sp.status ?? "open";
-  const status = statusParam === "all" ? undefined : statusParam || undefined;
+  // Default to live opportunities: with no status in the URL we show open AND
+  // forthcoming calls ("Open & upcoming"). "All statuses" (status=all) keeps the
+  // awarded history reachable for funder research.
+  const statusParam = sp.status ?? DEFAULT_STATUS;
+  const statuses = statusParam === DEFAULT_STATUS ? LIVE_STATUSES : undefined;
+  const status =
+    statusParam === "all" || statuses ? undefined : statusParam || undefined;
   const amountMin = parseAmount(sp.amountMin);
   const amountMax = parseAmount(sp.amountMax);
 
@@ -101,6 +110,7 @@ export default async function GrantsPage({ searchParams }: PageProps) {
       search: sp.search,
       funder: sp.funder,
       status,
+      statuses,
       deadline: sp.deadline,
       region: sp.region,
       amountMin,
@@ -108,7 +118,9 @@ export default async function GrantsPage({ searchParams }: PageProps) {
       limit,
       offset: (page - 1) * limit,
     });
-    grants = res.grants;
+    // Display-level: the same call often appears 2–3× across sources — show one
+    // card per call (DB rows and their audit trails stay untouched).
+    grants = collapseDuplicateGrants(res.grants);
     total = res.total;
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load grants";
@@ -117,7 +129,8 @@ export default async function GrantsPage({ searchParams }: PageProps) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // Plain-English summary of what's on screen, e.g. "Showing 113 open grants".
-  const statusWord = status ? (STATUS_WORDS[status] ?? "") : "";
+  const statusWord =
+    statusParam === "all" ? "" : (STATUS_WORDS[statusParam] ?? "");
   const otherFiltersActive = Boolean(
     sp.search ||
     sp.funder ||
@@ -126,7 +139,7 @@ export default async function GrantsPage({ searchParams }: PageProps) {
     amountMin != null ||
     amountMax != null,
   );
-  const anyFiltersActive = otherFiltersActive || statusParam !== "open";
+  const anyFiltersActive = otherFiltersActive || statusParam !== DEFAULT_STATUS;
   const summary = [
     `Showing ${total.toLocaleString()}`,
     statusWord,
@@ -200,6 +213,7 @@ export default async function GrantsPage({ searchParams }: PageProps) {
             defaultValue={statusParam}
             style={{ width: 130 }}
           >
+            <option value="live">Open &amp; upcoming</option>
             <option value="open">Open</option>
             <option value="forthcoming">Forthcoming</option>
             <option value="rolling">Rolling</option>
@@ -274,7 +288,7 @@ export default async function GrantsPage({ searchParams }: PageProps) {
         }}
       >
         <span>{summary}</span>
-        {statusParam === "open" && (
+        {statusParam === DEFAULT_STATUS && (
           <Link
             href="/grants?status=all"
             style={{ color: "var(--accent)", textDecoration: "none" }}

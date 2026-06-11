@@ -146,10 +146,16 @@ describe("crumbLabelFor", () => {
     expect(crumbLabelFor("/clients/9f3")).toBe("Clients");
   });
 
-  it("legacy answer-builder paths get plain-English labels", () => {
-    expect(crumbLabelFor("/rfp")).toBe("New response");
+  it("legacy answer-builder draft path gets a plain-English label", () => {
     expect(crumbLabelFor("/rfp/drafts/some-draft")).toBe("Application");
-    expect(crumbLabelFor("/rfp/history")).toBe("Response history");
+  });
+
+  it("deleted routes no longer carry crumb labels", () => {
+    // /demo, /rfp and /rfp/history were removed (E2E review v1); only the
+    // guided drafts flow under /rfp/drafts survives.
+    expect(CRUMB_MAP).not.toHaveProperty("/demo");
+    expect(CRUMB_MAP).not.toHaveProperty("/rfp");
+    expect(CRUMB_MAP).not.toHaveProperty("/rfp/history");
   });
 
   it("never renders 'Page' for any app route", () => {
@@ -165,7 +171,6 @@ describe("crumbLabelFor", () => {
       "/clients/1/evidence",
       "/compliance",
       "/compliance/1",
-      "/demo",
       "/documents",
       "/funders",
       "/funders/innovate-uk",
@@ -189,9 +194,7 @@ describe("crumbLabelFor", () => {
       "/responses",
       "/review",
       "/review/1",
-      "/rfp",
       "/rfp/drafts/1",
-      "/rfp/history",
       "/sources",
       "/team",
     ];

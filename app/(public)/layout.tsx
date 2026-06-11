@@ -72,6 +72,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         >
           {[
             { href: "/how-it-works", label: "How it works" },
+            { href: "/services", label: "Services" },
             { href: "/industries", label: "Industries" },
             { href: "/resources", label: "Resources" },
             { href: "/pricing", label: "Pricing" },
@@ -125,6 +126,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         <div style={{ display: "flex", gap: 20 }}>
           {[
             { href: "/how-it-works", label: "How it works" },
+            { href: "/services", label: "Services" },
             { href: "/resources", label: "Resources" },
             { href: "/pricing", label: "Pricing" },
             { href: "/contact", label: "Contact" },

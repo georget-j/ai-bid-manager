@@ -259,7 +259,7 @@ export function OpportunityActions({
           </button>
         )}
         <Link
-          href={`/rfp?title=${encodeURIComponent(opportunityTitle)}&opportunityId=${opportunityId}`}
+          href={`/opportunities/${opportunityId}/rfp`}
           className="btn ghost"
         >
           Start RFP response

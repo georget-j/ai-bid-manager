@@ -16,13 +16,15 @@ export const maxDuration = 300;
 const SYNC_BUDGET_MS = 210_000;
 
 // Per-source page caps. For HTML-walking sources one "page" = 1 listing fetch
-// plus ~10 politely-paced detail-page fetches, so a full first walk (UKRI: ~12
-// listing pages, ~120 requests) is too much for one nightly run. A capped run
-// saves its cursor and the engine resumes next night, so the walk converges over
-// a few runs; steady-state nightly runs fit comfortably under the cap.
+// plus ~10 politely-paced detail-page fetches. A capped run saves its cursor and
+// the engine resumes next night.
 const DEFAULT_MAX_PAGES = 25;
 const PER_SOURCE_MAX_PAGES: Record<string, number> = {
-  "ukri-funding-finder": 6,
+  // 13 lets a full UKRI walk (~12 listing pages, ~130 requests at 150ms pacing
+  // ≈ 20s of pacing + fetch time) complete in ONE run, well inside the 210s
+  // budget. A complete from-page-1 walk clears the cursor and lets the
+  // delisting prune qualify (it never runs on capped/cursor-resumed walks).
+  "ukri-funding-finder": 13,
 };
 
 /** Scheduled grant sync — Bearer CRON_SECRET. Syncs all enabled grant sources. */
@@ -57,9 +59,33 @@ export async function GET(req: NextRequest) {
       syncGrantSource(c, {
         maxPages: PER_SOURCE_MAX_PAGES[c.sourceName] ?? DEFAULT_MAX_PAGES,
         timeBudgetMs: SYNC_BUDGET_MS,
+        trigger: "cron",
       }),
     ),
   );
+
+  // Nightly status sweep — backstop for ALL sources, including disabled ones
+  // (the per-source prune only covers enabled listsAllOpenCalls sources): any
+  // grant still marked open/forthcoming whose deadline has passed is closed.
+  // Grants with no deadline (e.g. rolling calls) are untouched.
+  let deadlinesSwept = 0;
+  try {
+    const nowIso = new Date().toISOString();
+    const { data: swept, error: sweepErr } = await supabase
+      .from("grants")
+      .update({ status: "closed", updated_at: nowIso })
+      .in("status", ["open", "forthcoming"])
+      .not("deadline_at", "is", null)
+      .lt("deadline_at", nowIso)
+      .select("id");
+    if (sweepErr) {
+      console.error(`grants deadline sweep failed: ${sweepErr.message}`);
+    } else {
+      deadlinesSwept = (swept ?? []).length;
+    }
+  } catch (err) {
+    console.error("grants deadline sweep failed:", err);
+  }
 
   // Top up deep details for a capped batch of open grants (lazy enrichment also runs
   // on first view; this fills the rest in over a few daily runs without hammering).
@@ -91,6 +117,7 @@ export async function GET(req: NextRequest) {
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { error: String(r.reason) },
     ),
+    deadlinesSwept,
     enriched,
     guides,
     embedded,
