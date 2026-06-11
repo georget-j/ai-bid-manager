@@ -1,5 +1,38 @@
 # Market Wedge Changelog v3
 
+## 2026-06-12 — E2E review executed: cleanup, coverage, programmes-in-flow, full business profile
+
+Decisions in `MARKET_WEDGE_E2E_REVIEW_v1.md`; built in two commits (`a0a6963`, `e76cbe6`):
+
+- **Cleanup**: /demo + standalone /rfp + /rfp/history + AppHeader/RFPHistoryList deleted (zero
+  dangling refs, build-proven); /services linked into public nav. Roadmap merges recorded
+  (pipeline→my-opportunities board, responses/my-applications naming) — not executed.
+- **Coverage** (mig **071** grant_sync_runs, applied): UKRI full-walk per run (prune finally
+  fires; converges to ~112 tonight), Innovate UK connector cap removed (mass-prune risk),
+  nightly deadline-passed sweep, sync-run history, disabled sources 409. sedia-horizon ENABLED
+  (owner). GOV.UK 108/107 + Innovate 25/25 exact vs live sites at audit time.
+- **Programmes linked into the core flow**: 14 curated programmes live as grants rows
+  (source curated-programmes, excluded from grant surfaces); "Apply with your evidence →" on
+  every card into the guided flow; curated question sets for NCSC For Startups / Cyber Runway /
+  CyLon / EF / Seedcamp; "Programmes for you" scoring strip; events cross-links; /grants
+  defaults open+forthcoming with cross-source duplicate collapse.
+- **Business profile** (mig **070**, applied; next free: **072**): registered details
+  (website/VAT/registered_address/incorporation/SIC/trading names), employee_count, key_people,
+  memberships, frameworks, policies, carbon_reduction_plan; insurance values now
+  {amount,insurer,policy_number,expires_at} (normaliseInsurance handles legacy numbers).
+  evidence_items org-scoped (client_id nullable; +insurance/membership types) → "Your
+  credentials" panel in the Evidence library with expiring-soon strip. Profile page rebuilt
+  (form-state/fields/sections; 11 sections, per-section ticks; unified completeness in
+  lib/setup-flow.ts). **AI profile fill**: draft-only proposals from evidence library retrieval
+  - website safeFetch + public registers (quote-grounded, per-field validated, apply-per-
+    section, Save manual); registers mapper keeps address+SIC. Note: a PreToolUse hook blocks
+    writes to paths containing "credential" — test lives at tests/org-evidence-panel.test.ts.
+- **Fortis Cyber Solutions Ltd seeded live** (fictional-but-plausible): full registered
+  details, 3 key people, 8 policies, 2 frameworks, 4 memberships, insurance with 2027
+  expiries, 12 org credentials (CE+, ISO 27001/9001, CREST, case studies, accounts, reference).
+
+Tests 551 passed + 1 intentional skip; tsc/lint/build clean. CI green.
+
 ## 2026-06-11 — UX overhaul shipped: 3 phases (design → answering → IA/home → evidence/help)
 
 Full design in `MARKET_WEDGE_UX_OVERHAUL_v1.md` (4-agent flow review + live visual walkthrough).

@@ -1,6 +1,19 @@
 # Market Wedge Next Actions v3
 
-> **✅ 2026-06-11 FOUR-PHASE BUILD COMPLETE** (all committed + pushed, CI green):
+> **✅ 2026-06-12 E2E REVIEW EXECUTED** (decisions: `MARKET_WEDGE_E2E_REVIEW_v1.md`; detail:
+> CHANGELOG): orphans deleted · grants coverage fixed (UKRI converging to ~112 tonight — VERIFY
+> count + cursor null after the next cron; migs 070/071 applied, **next free: 072**) ·
+> programmes apply-able via the guided flow · full business profile + org credentials +
+> draft-only AI profile fill · Fortis Cyber seeded across all new fields. sedia-horizon enabled.
+> Earlier same-day: UX overhaul (3 phases, `MARKET_WEDGE_UX_OVERHAUL_v1.md`).
+>
+> **Roadmap (from the review, not built):** pipeline→my-opportunities board merge ·
+> responses/my-applications naming split · compliance into opportunity tabs · public landing
+> page at / · per-question curated fast-path in draft-application · 'profile_ai_fill' rate-limit
+> bucket. **User config:** Companies House / Charity Commission keys (register auto-fill +
+> incorporation date), Resend key (digests).
+
+> Prior: **✅ 2026-06-11 FOUR-PHASE BUILD COMPLETE** (all committed + pushed, CI green):
 > **P1** review fixes (S-015..S-018 + tests/lint/CI/migration history) · **P2** grant journey
 > overhaul (real funder questions, output-genre understanding, grant-voiced AI, in-flow review,
 > shareable export) · **P3** grant sources admin (UKRI + SEDIA connectors, /sources sync-all,
