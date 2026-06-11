@@ -1,5 +1,36 @@
 # Market Wedge Changelog v3
 
+## 2026-06-11 — Grant sources: UKRI + SEDIA connectors, admin sync-all in /sources, 360Giving fixed
+
+Goal: admins sync ALL available UK grants from the admin sources panel.
+
+- **UKRI Funding Finder connector** (`ukri-funding-finder`, enabled): polite HTML crawl of
+  ukri.org/opportunity (no API exists — WP REST hides the post type; verified empirically), open-
+  filtered listing pages + detail pages, 150ms pacing, raw HTML stored per page, cursor-resumed.
+  ~114 open opportunities across all 9 councils. First live sync: 30 grants in; nightly cron
+  converges the rest (per-source page cap 6/night).
+- **EU SEDIA / Horizon Europe connector** (`sedia-horizon`, **disabled — operator opt-in**):
+  official EC search API (POST multipart, anonymous SEDIA key; languages=en filter avoids 23×
+  duplication; 276 open EN topics). 50 grants staged from live verification; enable the source on
+  /sources to keep them fresh. Note: API open-status flag lags for two-stage calls — status
+  derived from dates instead.
+- **Admin panel unified**: grant sources now a section of /sources (id=#grant-sources) via
+  `GrantSourcesPanel` — per-source toggle/sync/full result detail (raw stored, dupes, pruned,
+  errors softened plain-English, "backlog pending" cursor badge), "Sync all grant sources" →
+  new POST /api/grant-sources/sync-all (operator, allSettled). /grant-sources now redirects.
+  Connectorless sources show "Planned" (kills the dead ukri-gtr 404 button; row disabled).
+  middleware OPERATOR_PAGES += /grant-sources.
+- **360Giving fixed via live forensics**: root causes — (a) grant_sources + raw_grant_notices
+  were emptied/recreated ~2026-06-11 00:20 (cause unconfirmed; nightly cron re-seeded; pre-reset
+  raw payloads unrecoverable), (b) intermittent first-page API stall hitting the full 30s
+  timeout (API normally 3-5s; added one polite retry), (c) failed runs never wrote last_run_at
+  (now recorded with zeroed counts). Raw-before-normalise now ENFORCED (raw insert failure skips
+  that page's normalisation). seedGrantSources no longer clobbers operator toggles/sync state
+  (insert-only-missing + targeted dead-source repair). Live re-sync: 1,000 raw stored, error
+  cleared.
+- Catalogue now: 113 GOV.UK + 25 Innovate UK + 30 UKRI (growing) open + 1,331 awarded history +
+  50 staged Horizon. Tests 244/244; tsc/lint/build clean.
+
 ## 2026-06-11 — Grant journey overhaul: real funder questions, grant-aware AI, in-flow review, shareable export
 
 5-track build against a 4-agent journey review (review found: questions AI-guessed from web

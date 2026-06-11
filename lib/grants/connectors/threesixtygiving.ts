@@ -45,15 +45,41 @@ function firstUrl(funderId: string, limit: number): string {
   return `${BASE_URL}/org/${encodeURIComponent(funderId)}/grants_made/?limit=${limit}`;
 }
 
+const FETCH_TIMEOUT_MS = 30_000;
+const RETRY_DELAY_MS = 2_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// The API normally answers in 1–5s, but live cron runs have seen one-off stalls
+// that ran out the full 30s abort timeout ("The operation was aborted due to
+// timeout") and killed the whole sync at page 0. One polite retry after a short
+// pause rides out a stalled connection without hammering the API; 4xx responses
+// are NOT retried (they won't change).
 async function getJson(url: string): Promise<AnyRecord> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) {
-    throw new Error(`360Giving API ${res.status}: ${await res.text()}`);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAY_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      lastErr = err; // network stall / abort — retry once
+      continue;
+    }
+    if (res.ok) return (await res.json()) as AnyRecord;
+    const error = new Error(`360Giving API ${res.status}: ${await res.text()}`);
+    if (res.status >= 500) {
+      lastErr = error; // transient server error — retry once
+      continue;
+    }
+    throw error;
   }
-  return (await res.json()) as AnyRecord;
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 export const threeSixtyGivingConnector: GrantSourceConnector = {

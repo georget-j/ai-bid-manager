@@ -9,7 +9,21 @@ import { embedPendingGrants } from "@/lib/grants/embed";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const OVERALL_BUDGET_MS = 240_000;
+// Per-connector time budget (they run in parallel, so this bounds wall-clock for
+// the whole sync pass). Kept under maxDuration with headroom for the capped
+// enrich/guide/embed passes that follow — anything unfinished resumes via the
+// stored cursor on the next run.
+const SYNC_BUDGET_MS = 210_000;
+
+// Per-source page caps. For HTML-walking sources one "page" = 1 listing fetch
+// plus ~10 politely-paced detail-page fetches, so a full first walk (UKRI: ~12
+// listing pages, ~120 requests) is too much for one nightly run. A capped run
+// saves its cursor and the engine resumes next night, so the walk converges over
+// a few runs; steady-state nightly runs fit comfortably under the cap.
+const DEFAULT_MAX_PAGES = 25;
+const PER_SOURCE_MAX_PAGES: Record<string, number> = {
+  "ukri-funding-finder": 6,
+};
 
 /** Scheduled grant sync — Bearer CRON_SECRET. Syncs all enabled grant sources. */
 export async function GET(req: NextRequest) {
@@ -40,7 +54,10 @@ export async function GET(req: NextRequest) {
 
   const results = await Promise.allSettled(
     connectors.map((c) =>
-      syncGrantSource(c, { maxPages: 25, timeBudgetMs: OVERALL_BUDGET_MS }),
+      syncGrantSource(c, {
+        maxPages: PER_SOURCE_MAX_PAGES[c.sourceName] ?? DEFAULT_MAX_PAGES,
+        timeBudgetMs: SYNC_BUDGET_MS,
+      }),
     ),
   );
 

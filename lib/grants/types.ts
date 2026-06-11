@@ -5,6 +5,8 @@ export type GrantSourceName =
   | "ukri-gtr"
   | "govuk-find-a-grant"
   | "innovate-uk"
+  | "ukri-funding-finder"
+  | "sedia-horizon"
   | "manual-upload";
 
 export type GrantStatus =

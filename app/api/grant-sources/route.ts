@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { getGrantConnector } from "@/lib/grants/connectors";
 import { seedGrantSources } from "@/lib/grants/sync";
 
 export async function GET() {
@@ -37,6 +38,9 @@ export async function GET() {
         ...source,
         grant_count: grantCount ?? 0,
         raw_count: rawCount ?? 0,
+        // Whether a sync connector exists for this source — the UI gates its
+        // "Sync now" button on this instead of offering a dead button.
+        hasConnector: Boolean(getGrantConnector(source.name)),
       };
     }),
   );

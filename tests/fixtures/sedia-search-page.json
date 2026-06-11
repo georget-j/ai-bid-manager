@@ -1,0 +1,143 @@
+{
+ "_comment": "Trimmed fixture: real response from POST https://api.tech.ec.europa.eu/search-api/prod/rest/search?apiKey=SEDIA&text=***&pageSize=3&pageNumber=1 (multipart form parts: query/sort/languages), fetched 2026-06-11. 2 of 3 records kept; long HTML metadata strings truncated; budgetOverview kept intact (parseable JSON).",
+ "apiVersion": "2.146",
+ "totalResults": 276,
+ "pageNumber": 1,
+ "pageSize": 3,
+ "results": [
+  {
+   "apiVersion": "2.146",
+   "reference": "47888746TOPICSen",
+   "url": "https://ec.europa.eu/info/funding-tenders/opportunities/data/topicDetails/HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage.json",
+   "title": null,
+   "language": "en",
+   "database": "SEDIA",
+   "summary": "Low power Edge AI Chips",
+   "content": "Low power Edge AI Chips",
+   "metadata": {
+    "identifier": [
+     "HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage"
+    ],
+    "callIdentifier": [
+     "HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage"
+    ],
+    "callTitle": [
+     "HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage"
+    ],
+    "title": [
+     "Low power Edge AI Chips"
+    ],
+    "deadlineDate": [
+     "2025-04-29T00:00:00.000+0000",
+     "2025-09-17T00:00:00.000+0000"
+    ],
+    "deadlineModel": [
+     "two-stage"
+    ],
+    "startDate": [
+     "2025-03-04T00:00:00.000+0000"
+    ],
+    "status": [
+     "31094501"
+    ],
+    "frameworkProgramme": [
+     "43108390"
+    ],
+    "type": [
+     "1"
+    ],
+    "url": [
+     "https://ec.europa.eu/info/funding-tenders/opportunities/data/topicDetails/HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage.json"
+    ],
+    "keywords": [
+     "HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage",
+     "HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage"
+    ],
+    "typesOfAction": [
+     "HORIZON JU Innovation Actions"
+    ],
+    "budgetOverview": [
+     "{\"budgetYearsColumns\":[\"2025\"],\"budgetTopicActionMap\":{\"109381\":[{\"action\":\"HORIZON-JU-CHIPS-2025-IA-LEAI-two-stage - HORIZON-JU-IA HORIZON JU Innovation Actions\",\"expectedGrants\":2,\"minContribution\":1000000,\"maxContribution\":20000000,\"budgetYearMap\":{\"2025\":\"20000000\"},\"plannedOpeningDate\":\"2025-03-04\",\"deadlineModel\":\"two-stage\",\"deadlineDates\":[\"2025-04-29\",\"2025-09-17\"]}]}}"
+    ],
+    "descriptionByte": [
+     "<span class=\"topicdescriptionkind\">Expected Outcome:</span><p>Successful proposals are expected to deliver the following outcomes:</p><ul level=\"0\"><li>Develop AI chip prototypes reaching TRL 6-7, integrating cutting-edge technologies such as non-volatile memories, neuromorphic computing, 3D heterogeneous integration, and photonic connectivity. These prototypes should be tested under real-world conditions and show potential for industrial scaling.</li><li>Leverage the advanced capabilities of state-of-the-art infrastructures with fabrication and testing capabilities available within the Union,..."
+    ],
+    "programmePeriod": [
+     "2021 - 2027"
+    ],
+    "sortStatus": [
+     "2"
+    ],
+    "crossCuttingPriorities": []
+   }
+  },
+  {
+   "apiVersion": "2.146",
+   "reference": "51349685TOPICSen",
+   "url": "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE",
+   "title": null,
+   "language": "en",
+   "database": "SEDIA",
+   "summary": "HORIZON-JU-EDCTP3-2026-Scientific Leadership Man SSA Prize",
+   "content": "HORIZON-JU-EDCTP3-2026-Scientific Leadership Man SSA Prize",
+   "metadata": {
+    "identifier": [
+     "HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE"
+    ],
+    "callIdentifier": [
+     "HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE"
+    ],
+    "callTitle": [
+     "HORIZON-JU-EDCTP3-2026-Scientific Leadership Man SSA Prize"
+    ],
+    "title": [
+     "HORIZON-JU-EDCTP3-2026-Scientific Leadership Man SSA Prize"
+    ],
+    "deadlineDate": [
+     "2026-09-02T00:00:00.000+0000"
+    ],
+    "deadlineModel": [
+     "single-stage"
+    ],
+    "startDate": [
+     "2026-05-27T00:00:00.000+0000"
+    ],
+    "status": [
+     "31094501"
+    ],
+    "frameworkProgramme": [
+     "43108390"
+    ],
+    "type": [
+     "1"
+    ],
+    "url": [
+     "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE"
+    ],
+    "keywords": [
+     "HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE",
+     "HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE"
+    ],
+    "typesOfAction": [
+     "HORIZON Recognition Prize"
+    ],
+    "budgetOverview": [
+     "{\"budgetYearsColumns\":[\"2026\"],\"budgetTopicActionMap\":{\"114547\":[{\"action\":\"HORIZON-JU-EDCTP3-2026-SCILEADERSHIPMANSSAPRIZE - HORIZON-RPr HORIZON Recognition Prize\",\"expectedGrants\":1,\"minContribution\":15000,\"maxContribution\":15000,\"budgetYearMap\":{\"2026\":\"15000\"},\"plannedOpeningDate\":\"2026-05-27\",\"deadlineModel\":\"single-stage\",\"deadlineDates\":[\"2026-09-02\"]}]}}"
+    ],
+    "descriptionByte": [
+     "<p class=\"topicdescriptionkind\">Objective:</p><p><strong>1. Background</strong></p><p>The EDCTP Prizes 2026-2027 are recognition prizes funded under Horizon Europe.</p><p>Prizes are financial contributions given as rewards following the publication of a contest. A ‘recognition prize’ is used to recognise past achievements and outstanding work after it has been performed, whereas an ‘inducement prize’ is used to spur investment in a given direction, by specifying a target prior to the performance of the work.</p><p>Applications will have to clearly state the involvement of the applicants in the..."
+    ],
+    "programmePeriod": [
+     "2021 - 2027"
+    ],
+    "sortStatus": [
+     "2"
+    ],
+    "crossCuttingPriorities": [
+     "AI",
+     "DigitalAgenda"
+    ]
+   }
+  }
+ ]
+}

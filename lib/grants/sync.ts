@@ -3,6 +3,7 @@ import { hashPayload } from "@/lib/procurement/hash";
 import { matchAlertsForGrants } from "./alerts";
 import type {
   GrantSourceConnector,
+  GrantSourceName,
   NormalizedGrant,
   GrantSourceRow,
 } from "./types";
@@ -165,41 +166,51 @@ export async function syncGrantSource(
           onConflict: "source_name,source_notice_id,content_hash",
           ignoreDuplicates: true,
         });
-      if (rawErr) errors.push(`raw_grant_notices: ${rawErr.message}`);
-      else rawStored += freshItems.length;
+      if (rawErr) {
+        // Raw-before-normalise (repo policy): if the raw payload can't be stored,
+        // do NOT normalise this page — no grant row without its audit trail. The
+        // hash dedup won't see these items next run, so they retry automatically.
+        errors.push(`raw_grant_notices: ${rawErr.message}`);
+        grantsErrored += freshItems.length;
+      } else {
+        rawStored += freshItems.length;
 
-      const normResults = await Promise.allSettled(
-        freshItems.map((i) => connector.normalize(i.raw)),
-      );
-      const grantByKey = new Map<string, Record<string, unknown>>();
-      for (const res of normResults) {
-        if (res.status === "rejected") {
-          normalizeErrors++;
-          errors.push(`normalize: ${String(res.reason)}`);
-          continue;
+        const normResults = await Promise.allSettled(
+          freshItems.map((i) => connector.normalize(i.raw)),
+        );
+        const grantByKey = new Map<string, Record<string, unknown>>();
+        for (const res of normResults) {
+          if (res.status === "rejected") {
+            normalizeErrors++;
+            errors.push(`normalize: ${String(res.reason)}`);
+            continue;
+          }
+          for (const g of res.value) {
+            grantByKey.set(
+              `${g.sourceName}|${g.sourceNoticeId}`,
+              toGrantRow(g),
+            );
+          }
         }
-        for (const g of res.value) {
-          grantByKey.set(`${g.sourceName}|${g.sourceNoticeId}`, toGrantRow(g));
-        }
-      }
-      const grantRows = [...grantByKey.values()];
+        const grantRows = [...grantByKey.values()];
 
-      if (grantRows.length > 0) {
-        const { data: upserted, error: gErr } = await supabase
-          .from("grants")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .upsert(grantRows as any, {
-            onConflict: "source_name,source_notice_id",
-            ignoreDuplicates: false,
-          })
-          .select("id");
-        if (gErr) {
-          errors.push(`grants: ${gErr.message}`);
-          grantsErrored += grantRows.length;
-        } else {
-          grantsUpserted += grantRows.length;
-          for (const row of upserted ?? [])
-            if (row?.id) upsertedIds.push(row.id as string);
+        if (grantRows.length > 0) {
+          const { data: upserted, error: gErr } = await supabase
+            .from("grants")
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .upsert(grantRows as any, {
+              onConflict: "source_name,source_notice_id",
+              ignoreDuplicates: false,
+            })
+            .select("id");
+          if (gErr) {
+            errors.push(`grants: ${gErr.message}`);
+            grantsErrored += grantRows.length;
+          } else {
+            grantsUpserted += grantRows.length;
+            for (const row of upserted ?? [])
+              if (row?.id) upsertedIds.push(row.id as string);
+          }
         }
       }
     }
@@ -220,8 +231,11 @@ export async function syncGrantSource(
     await supabase
       .from("grant_sources")
       .update({
+        // A clean run is a successful sync even when everything was a duplicate
+        // (the nightly steady state); an errored run must NOT advance the
+        // watermark, or the next incremental window would skip the failed data.
         last_successful_sync_at:
-          rawStored > 0
+          errors.length === 0 && totalPages > 0
             ? now.toISOString()
             : sourceRow?.last_successful_sync_at,
         last_cursor: hasMoreAfterCap ? currentCursor : null,
@@ -239,10 +253,13 @@ export async function syncGrantSource(
   // any previously-open grant not seen in a COMPLETE, clean sync has been delisted
   // (closed at source) — mark it closed so it drops out of recommendations and
   // stops showing dead "Apply"/"View source" links. Guarded to avoid mass-closing
-  // on a partial run or a source outage.
+  // on a partial run or a source outage. A cursor-resumed run only saw the TAIL of
+  // the listing (pages after the cursor), so it must never prune — only a walk
+  // that started from page 1 (null cursor) and finished is a complete picture.
   if (
     connector.listsAllOpenCalls &&
     !options.backfill &&
+    startCursor === null &&
     !hasMoreAfterCap &&
     totalFetched > 0 &&
     seenNoticeIds.size > 0 &&
@@ -349,15 +366,29 @@ async function updateSourceError(
   name: string,
   message: string,
 ) {
+  // last_run_at records ATTEMPTS, not just successes — a source that fails every
+  // night must not look like it never ran (live 360giving bug: timeout at page 0
+  // left last_run_at NULL while last_error said "aborted due to timeout").
   await supabase
     .from("grant_sources")
     .update({
       last_error: message,
       last_cursor: null,
+      last_run_at: new Date().toISOString(),
+      last_fetched_count: 0,
+      last_pages: 0,
+      last_normalize_errors: 0,
       updated_at: new Date().toISOString(),
     })
     .eq("name", name);
 }
+
+// Seeded sources that have NO working connector — kept visible in the admin
+// panel as "Planned" but never enabled. Also used as a targeted one-time repair:
+// any pre-existing live row for these is force-disabled (enabling a connectorless
+// source does nothing anyway). Remove a name from this list when its connector
+// ships.
+const DEAD_SOURCES: GrantSourceName[] = ["ukri-gtr"];
 
 /** Ensure grant source rows exist (idempotent). */
 export async function seedGrantSources(): Promise<void> {
@@ -379,7 +410,7 @@ export async function seedGrantSources(): Promise<void> {
         display_name: "UKRI Gateway to Research",
         type: "GtR JSON API",
         base_url: "https://gtr.ukri.org",
-        enabled: true,
+        enabled: false, // no connector yet — shown as "Planned" in the admin panel
         last_successful_sync_at: null,
         last_cursor: null,
         last_error: null,
@@ -405,6 +436,27 @@ export async function seedGrantSources(): Promise<void> {
         last_error: null,
       },
       {
+        name: "ukri-funding-finder",
+        display_name: "UKRI Funding Finder",
+        type: "Web (guardrailed)",
+        base_url: "https://www.ukri.org",
+        enabled: true, // open UKRI opportunities across all nine councils — core UK coverage
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
+        name: "sedia-horizon",
+        display_name: "EU Funding & Tenders (Horizon Europe)",
+        type: "EC SEDIA search API",
+        base_url:
+          "https://ec.europa.eu/info/funding-tenders/opportunities/portal",
+        enabled: false, // EU programme open to UK orgs — operator opts in
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
         name: "manual-upload",
         display_name: "Manual Upload",
         type: "File upload",
@@ -416,12 +468,30 @@ export async function seedGrantSources(): Promise<void> {
       },
     ];
 
-  for (const row of rows) {
+  // Insert only rows that don't exist yet. An upsert here would clobber operator
+  // enable/disable toggles and live sync state (last_error/last_cursor/
+  // last_successful_sync_at) on every cron run.
+  const { data: existing } = await supabase
+    .from("grant_sources")
+    .select("name");
+  const have = new Set((existing ?? []).map((r: { name: string }) => r.name));
+  const missing = rows.filter((row) => !have.has(row.name));
+  if (missing.length > 0) {
+    const nowIso = new Date().toISOString();
     await supabase
       .from("grant_sources")
-      .upsert(
-        { ...row, updated_at: new Date().toISOString() },
-        { onConflict: "name" },
-      );
+      .insert(missing.map((row) => ({ ...row, updated_at: nowIso })));
+  }
+
+  // Targeted repair for known-dead sources only: force-disable any live row that
+  // is still enabled (there is no connector, so it can never sync). Scoped to
+  // DEAD_SOURCES by name — operator toggles on healthy sources are untouched.
+  const dead = DEAD_SOURCES.filter((name) => have.has(name));
+  if (dead.length > 0) {
+    await supabase
+      .from("grant_sources")
+      .update({ enabled: false, updated_at: new Date().toISOString() })
+      .in("name", dead)
+      .eq("enabled", true);
   }
 }

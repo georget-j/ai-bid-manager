@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import GrantSourcesPanel from "./GrantSourcesPanel";
 
 interface SourceRow {
   id: string;
@@ -577,6 +578,16 @@ export default function SourcesPage() {
         >
           {syncingAll ? "Syncing all…" : "Sync all enabled sources"}
         </button>
+        <a
+          href="#grant-sources"
+          style={{
+            fontSize: 12,
+            color: "var(--accent)",
+            textDecoration: "none",
+          }}
+        >
+          Jump to grant sources ↓
+        </a>
       </div>
 
       {loading && (
@@ -1346,6 +1357,8 @@ export default function SourcesPage() {
         </div>
       )}
 
+      <GrantSourcesPanel />
+
       <div
         className="card card-pad"
         style={{ marginTop: 20, background: "var(--accent-tint)" }}
@@ -1354,9 +1367,10 @@ export default function SourcesPage() {
           Source strategy
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
-          Official APIs and OCDS feeds are used before scraping. All raw
-          procurement payloads are stored before normalisation. Source links and
-          notice IDs are preserved in every opportunity record.
+          Official APIs and OCDS feeds are used before scraping — for
+          procurement and grant feeds alike. All raw payloads are stored before
+          normalisation. Source links and notice IDs are preserved in every
+          opportunity and grant record.
         </p>
         <p
           style={{
@@ -1374,8 +1388,9 @@ export default function SourcesPage() {
           we already ingest. The cron syncs all four nightly at 23:59 UK time.
           Sell2Wales depends on the Welsh Government OCDS service, which can
           have availability gaps; the connector falls back to its monthly bulk
-          download and resumes automatically. Manual document upload is
-          available via the{" "}
+          download and resumes automatically. Grant feeds (360Giving, GOV.UK
+          Find a Grant, Innovate UK) follow the same raw-first rules and sync
+          nightly on their own cron. Manual document upload is available via the{" "}
           <Link
             href="/documents"
             style={{ color: "var(--accent)", textDecoration: "none" }}

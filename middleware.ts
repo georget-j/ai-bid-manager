@@ -22,7 +22,7 @@ const PUBLIC_PAGES = [
 
 // Platform-operator-only page prefixes (global system config) — others redirect to /.
 // NOTE: /clients is org-scoped data, NOT operator-only — it's accessible to org members.
-const OPERATOR_PAGES = ["/sources", "/admin"];
+const OPERATOR_PAGES = ["/sources", "/admin", "/grant-sources"];
 
 function computeIsOperator(email: string): boolean {
   const adminEmails = (process.env.ADMIN_EMAILS ?? "")
