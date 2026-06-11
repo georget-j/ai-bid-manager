@@ -429,6 +429,25 @@ const NAV_FUNDING = [
     ),
   },
   {
+    href: "/investor-events",
+    label: "Investor Events",
+    icon: (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 1.5a4.5 4.5 0 0 1 4.5 4.5c0 3.4-4.5 8.5-4.5 8.5S3.5 9.4 3.5 6A4.5 4.5 0 0 1 8 1.5z" />
+        <circle cx="8" cy="6" r="1.8" />
+      </svg>
+    ),
+  },
+  {
     href: "/grant-sources",
     label: "Grant Sources",
     operatorOnly: true,

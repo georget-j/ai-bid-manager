@@ -1,0 +1,156 @@
+{
+  "_comment": "Synthetic fixture shaped per the Eventbrite v3 organizer-scoped events endpoint (GET /v3/organizations/{org_id}/events/?status=live&expand=venue,organizer): name.text, description.text, start/end .utc, online_event, is_free, organization_id, expanded organizer, expanded venue with deprecated-but-present string latitude/longitude.",
+  "pagination": {
+    "object_count": 3,
+    "page_number": 1,
+    "page_size": 50,
+    "page_count": 1,
+    "continuation": "eyJwYWdlIjogMn0",
+    "has_more_items": false
+  },
+  "events": [
+    {
+      "name": {
+        "text": "Founders & Investors Pitch Night",
+        "html": "Founders &amp; Investors Pitch Night"
+      },
+      "description": {
+        "text": "Six early-stage startups pitch live to a room of angel investors and VCs, followed by drinks and networking.",
+        "html": "<p>Six early-stage startups pitch live to a room of angel investors and VCs, followed by drinks and networking.</p>"
+      },
+      "id": "1234567890123",
+      "url": "https://www.eventbrite.co.uk/e/founders-investors-pitch-night-tickets-1234567890123",
+      "start": {
+        "timezone": "Europe/London",
+        "local": "2026-07-02T18:00:00",
+        "utc": "2026-07-02T17:00:00Z"
+      },
+      "end": {
+        "timezone": "Europe/London",
+        "local": "2026-07-02T21:00:00",
+        "utc": "2026-07-02T20:00:00Z"
+      },
+      "organization_id": "26163087533",
+      "created": "2026-05-01T09:00:00Z",
+      "changed": "2026-06-01T09:00:00Z",
+      "capacity": 150,
+      "status": "live",
+      "currency": "GBP",
+      "listed": true,
+      "shareable": true,
+      "online_event": false,
+      "is_free": false,
+      "organizer_id": "98765432101",
+      "venue_id": "55555555",
+      "format_id": "9",
+      "organizer": {
+        "name": "Entrepreneurs Collective",
+        "description": { "text": null, "html": null },
+        "id": "98765432101",
+        "url": "https://www.eventbrite.co.uk/o/entrepreneurs-collective-98765432101",
+        "num_past_events": 120,
+        "num_future_events": 8
+      },
+      "venue": {
+        "name": "Huckletree Shoreditch",
+        "id": "55555555",
+        "address": {
+          "address_1": "Alphabeta Building, 18 Finsbury Square",
+          "address_2": "",
+          "city": "London",
+          "region": "Greater London",
+          "postal_code": "EC2A 1AH",
+          "country": "GB",
+          "localized_address_display": "Alphabeta Building, 18 Finsbury Square, London EC2A 1AH"
+        },
+        "latitude": "51.5202766",
+        "longitude": "-0.0846085"
+      }
+    },
+    {
+      "name": {
+        "text": "SEIS & EIS Explained — Online Webinar for Founders",
+        "html": "SEIS &amp; EIS Explained — Online Webinar for Founders"
+      },
+      "description": {
+        "text": "A one-hour webinar on the UK tax reliefs every founder should understand before raising from angels.",
+        "html": "<p>A one-hour webinar on the UK tax reliefs every founder should understand before raising from angels.</p>"
+      },
+      "id": "2234567890124",
+      "url": "https://www.eventbrite.co.uk/e/seis-eis-explained-tickets-2234567890124",
+      "start": {
+        "timezone": "Europe/London",
+        "local": "2026-07-09T12:00:00",
+        "utc": "2026-07-09T11:00:00Z"
+      },
+      "end": {
+        "timezone": "Europe/London",
+        "local": "2026-07-09T13:00:00",
+        "utc": "2026-07-09T12:00:00Z"
+      },
+      "organization_id": "26163087533",
+      "status": "live",
+      "currency": "GBP",
+      "listed": true,
+      "online_event": true,
+      "is_free": true,
+      "organizer_id": "98765432101",
+      "venue_id": null,
+      "organizer": {
+        "name": "Entrepreneurs Collective",
+        "id": "98765432101",
+        "url": "https://www.eventbrite.co.uk/o/entrepreneurs-collective-98765432101"
+      }
+    },
+    {
+      "name": {
+        "text": "Angel Investor Breakfast — Leeds",
+        "html": "Angel Investor Breakfast — Leeds"
+      },
+      "description": {
+        "text": "Informal breakfast networking for founders and angel investors across the North.",
+        "html": "<p>Informal breakfast networking for founders and angel investors across the North.</p>"
+      },
+      "id": "3234567890125",
+      "url": "https://www.eventbrite.co.uk/e/angel-investor-breakfast-tickets-3234567890125",
+      "start": {
+        "timezone": "Europe/London",
+        "local": "2026-07-15T08:30:00",
+        "utc": "2026-07-15T07:30:00Z"
+      },
+      "end": {
+        "timezone": "Europe/London",
+        "local": "2026-07-15T10:00:00",
+        "utc": "2026-07-15T09:00:00Z"
+      },
+      "organization_id": "15393768327",
+      "status": "live",
+      "currency": "GBP",
+      "listed": true,
+      "online_event": false,
+      "is_free": false,
+      "organizer_id": "11111111111",
+      "venue_id": "66666666",
+      "organizer": {
+        "name": "NorthInvest",
+        "id": "11111111111",
+        "url": "https://www.eventbrite.co.uk/o/northinvest-11111111111"
+      },
+      "venue": {
+        "name": "Platform",
+        "id": "66666666",
+        "address": {
+          "address_1": "New Station Street",
+          "address_2": "",
+          "city": "Leeds",
+          "region": "West Yorkshire",
+          "postal_code": "LS1 4JB",
+          "country": "GB",
+          "localized_address_display": "New Station Street, Leeds LS1 4JB"
+        },
+        "latitude": null,
+        "longitude": null
+      }
+    }
+  ]
+}

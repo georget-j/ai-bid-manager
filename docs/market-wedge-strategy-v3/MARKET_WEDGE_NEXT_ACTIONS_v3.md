@@ -1,6 +1,18 @@
 # Market Wedge Next Actions v3
 
-> **✅ 2026-06-10 review fixes ALL DONE (2026-06-11):** S-015 (13 legacy routes org-scoped +
+> **✅ 2026-06-11 FOUR-PHASE BUILD COMPLETE** (all committed + pushed, CI green):
+> **P1** review fixes (S-015..S-018 + tests/lint/CI/migration history) · **P2** grant journey
+> overhaul (real funder questions, output-genre understanding, grant-voiced AI, in-flow review,
+> shareable export) · **P3** grant sources admin (UKRI + SEDIA connectors, /sources sync-all,
+> 360Giving fixed) · **P4** investor events (map + virtual, organizer profiles, UKBAA live,
+> Eventbrite token-gated; **migration 069 applied — next free: 070**).
+>
+> **User config to unlock more:** `EVENTBRITE_TOKEN` (investor events ~30-60/mo), enable
+> `sedia-horizon` source on /sources (Horizon Europe), plus the older optional keys
+> (Companies House / Charity Commission / Resend). **Unresolved dep:** `xlsx` 2 high advisories,
+> no npm fix — needs user decision: SheetJS CDN install vs swap to exceljs.
+
+> Prior status: **✅ 2026-06-10 review fixes ALL DONE (2026-06-11):** S-015 (13 legacy routes org-scoped +
 > route-level isolation tests), S-016 (crons fail closed), S-017 (`lib/safe-fetch.ts` SSRF guard),
 > S-018 (stats scoped); `npm test` green (160 tests, 12 files); lint 0 errors 0 warnings; CI
 > workflow + Dependabot live; Supabase migration history repaired 001–068 (duplicate `026` renamed

@@ -1,5 +1,35 @@
 # Market Wedge Changelog v3
 
+## 2026-06-11 — Investor events: UK map + virtual list, organizer profiles, Eventbrite/UKBAA sync
+
+New feature (migration **069**, applied via `db push` — history recorded; next free: 070):
+investor meetings across the UK on a map, virtual events alongside, organizer profiles.
+
+- **Schema**: `investor_event_sources` + `raw_event_notices` (service-role-only, raw-before-
+  normalise) and `investor_organizers` + `investor_events` (global catalogs, authenticated read)
+  — mirrors the grants pattern incl. all its sync-engine hardening.
+- **Engine** (`lib/events/`): sync with hash-deduped raw storage, cursor resume, organizer
+  linking (Eventbrite id → name match); keyword event-type classifier (pitch-night, demo-day,
+  angel-network, vc-office-hours, conference, networking, accelerator, webinar) + virtual
+  detection (zoom/meet/teams/webex); free geocoding via postcodes.io + Nominatim fallback
+  (paced, cached); 22 curated UK organizers seeded (5 with verified Eventbrite org ids).
+- **Connectors**: `ukbaa` (live: 31 events, 3 pages, geocoded venues; UA note — their WAF
+  blocks the repo's usual "Mozilla/5.0 (compatible…)" UA, plain UKBidIntelligence UA works) and
+  `eventbrite` (organizer polling, Bearer auth so the token can't leak into URLs; **seeded
+  disabled until `EVENTBRITE_TOKEN` is set** — free from eventbrite.com → Account settings →
+  Developer; panel shows amber setup guidance).
+- **UI**: `/investor-events` — Leaflet/OSM map (inline-SVG pins, UK bounds) + date-sorted list,
+  mode toggle (In person | Virtual | All), type chips, 30/60/120-day window; organizer profile
+  pages at `/investor-events/organizers/[slug]`; sidebar "Investor events" in Funding group.
+- **Admin**: `EventSourcesPanel` in /sources (#event-sources) with toggle/sync/sync-all + the
+  same error softening as grants; cron `/api/cron/sync-events` (fail-closed) scheduled 23:45.
+- Live state: 22 organizers, 31 events (23 upcoming, 5 virtual, 14 geocoded), 124 raw notices.
+  Tests 326 passed + 1 intentional skip; tsc/lint/build clean. New deps: leaflet, react-leaflet,
+  @types/leaflet.
+
+Follow-ups: set `EVENTBRITE_TOKEN` then enable the source (unlocks ~30-60 events/month);
+organizer website fill-in pass; raw-notice retention policy; unify crawler UA convention.
+
 ## 2026-06-11 — Grant sources: UKRI + SEDIA connectors, admin sync-all in /sources, 360Giving fixed
 
 Goal: admins sync ALL available UK grants from the admin sources panel.

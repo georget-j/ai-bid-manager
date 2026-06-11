@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import GrantSourcesPanel from "./GrantSourcesPanel";
+import EventSourcesPanel from "./EventSourcesPanel";
 
 interface SourceRow {
   id: string;
@@ -587,6 +588,16 @@ export default function SourcesPage() {
           }}
         >
           Jump to grant sources ↓
+        </a>
+        <a
+          href="#event-sources"
+          style={{
+            fontSize: 12,
+            color: "var(--accent)",
+            textDecoration: "none",
+          }}
+        >
+          Jump to investor event sources ↓
         </a>
       </div>
 
@@ -1358,6 +1369,8 @@ export default function SourcesPage() {
       )}
 
       <GrantSourcesPanel />
+
+      <EventSourcesPanel />
 
       <div
         className="card card-pad"
