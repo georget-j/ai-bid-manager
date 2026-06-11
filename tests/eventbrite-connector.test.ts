@@ -135,7 +135,7 @@ describe("eventbrite cursor + URL helpers", () => {
 
   it("builds the organizer-scoped live-events URL with no token in it", () => {
     expect(eventbriteEventsUrl("26163087533")).toBe(
-      "https://www.eventbriteapi.com/v3/organizations/26163087533/events/?status=live&expand=venue,organizer",
+      "https://www.eventbriteapi.com/v3/organizers/26163087533/events/?status=live&expand=venue,organizer",
     );
     expect(eventbriteEventsUrl("26163087533", "ey J+x")).toContain(
       "&continuation=ey%20J%2Bx",
@@ -198,6 +198,30 @@ describe("eventbrite fetchSince", () => {
     expect(String(fetchMock.mock.calls[1][0])).toBe(
       eventbriteEventsUrl("26163087533", "abc123"),
     );
+  });
+
+  it("skips a 404 organizer and advances the walk instead of failing the run", async () => {
+    process.env.EVENTBRITE_TOKEN = "test-token";
+    twoOrganizers();
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "NOT_FOUND" }), { status: 404 }),
+    );
+
+    const result = await eventbriteConnector.fetchSince({ cursor: null });
+
+    expect(result.rawItems).toHaveLength(0);
+    expect(result.nextCursor).toBe(
+      JSON.stringify({ orgIndex: 1, continuation: null }),
+    );
+    expect(result.hasMore).toBe(true);
+
+    // 404 on the LAST organizer ends the walk cleanly.
+    const last = await eventbriteConnector.fetchSince({
+      cursor: result.nextCursor,
+    });
+    expect(last.rawItems).toHaveLength(0);
+    expect(last.nextCursor).toBeNull();
+    expect(last.hasMore).toBe(false);
   });
 
   it("finishes the walk on the last organizer's last page", async () => {

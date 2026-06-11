@@ -70,7 +70,9 @@ export function eventbriteEventsUrl(
   orgId: string,
   continuation?: string | null,
 ): string {
-  const base = `${API_BASE}/organizations/${encodeURIComponent(orgId)}/events/?status=live&expand=venue,organizer`;
+  // /organizers/ (not /organizations/): the ids on public /o/{slug}-{id} pages
+  // are organizer ids — the organizations API 404s for them (verified live).
+  const base = `${API_BASE}/organizers/${encodeURIComponent(orgId)}/events/?status=live&expand=venue,organizer`;
   return continuation
     ? `${base}&continuation=${encodeURIComponent(continuation)}`
     : base;
@@ -174,6 +176,24 @@ export const eventbriteConnector: InvestorEventSourceConnector = {
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    if (res.status === 404) {
+      // Stale/wrong organizer id: skip it and let the engine continue the walk
+      // from the next organizer — one bad id must not kill the whole sync.
+      console.error(
+        `[eventbrite] organizer ${orgId} not found (404) — skipping`,
+      );
+      const skipCursor =
+        orgIndex + 1 < orgs.length
+          ? JSON.stringify({ orgIndex: orgIndex + 1, continuation: null })
+          : null;
+      return {
+        sourceName: "eventbrite",
+        rawItems: [],
+        nextCursor: skipCursor,
+        fetchedAt: new Date().toISOString(),
+        hasMore: skipCursor !== null,
+      };
+    }
     if (!res.ok) {
       // Deliberately no URL/token in the message.
       throw new Error(`Eventbrite API ${res.status} for organisation ${orgId}`);
