@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { listGrants } from "@/lib/grants/data";
 import type { GrantRow } from "@/lib/grants/types";
-import { daysUntil } from "@/lib/dates";
+import { daysUntil, formatDaysLeft } from "@/lib/dates";
+import { formatAmountRange, AMOUNT_NOT_STATED } from "@/lib/grants/copy";
 
 export const dynamic = "force-dynamic";
 
@@ -19,28 +20,14 @@ const STATUS_STYLES: Record<
   unknown: { label: "—", color: "#6b7280", bg: "#f3f4f6" },
 };
 
-function formatAmount(min: number | null, max: number | null) {
-  const fmt = (n: number) =>
-    n >= 1_000_000
-      ? `£${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}m`
-      : n >= 1_000
-        ? `£${Math.round(n / 1_000)}k`
-        : `£${n.toLocaleString()}`;
-  if (min != null && max != null && min !== max)
-    return `${fmt(min)}–${fmt(max)}`;
-  const one = max ?? min;
-  return one != null ? fmt(one) : null;
-}
-
 function deadlineBadge(
   iso: string | null,
 ): { label: string; color: string } | null {
   if (!iso) return null;
   const days = daysUntil(iso);
   if (days < 0) return null;
-  if (days === 0) return { label: "Due today", color: "#dc2626" };
-  if (days <= 14) return { label: `${days} days left`, color: "#b45309" };
-  return { label: `${days} days left`, color: "#059669" };
+  const color = days === 0 ? "#dc2626" : days <= 14 ? "#b45309" : "#059669";
+  return { label: formatDaysLeft(days), color };
 }
 
 interface PageProps {
@@ -326,7 +313,10 @@ export default async function GrantsPage({ searchParams }: PageProps) {
 
       {grants.map((g) => {
         const s = STATUS_STYLES[g.status] ?? STATUS_STYLES.unknown;
-        const amount = formatAmount(g.amount_min, g.amount_max);
+        const formatted = formatAmountRange(g.amount_min, g.amount_max);
+        // Cards stay quiet when there's no amount — the helper's
+        // "Amount not stated" copy is for surfaces with an Amount label.
+        const amount = formatted === AMOUNT_NOT_STATED ? null : formatted;
         return (
           <Link
             key={g.id}

@@ -15,3 +15,14 @@ export function daysUntil(
   const days = Math.ceil((new Date(iso).getTime() - nowMs) / DAY_MS);
   return days === 0 ? 0 : days; // Math.ceil(-0.5) is -0 — normalise it
 }
+
+/**
+ * Plain-English label for a `daysUntil` value, with correct pluralisation:
+ * "Deadline passed" / "Due today" / "1 day left" / "12 days left".
+ */
+export function formatDaysLeft(days: number): string {
+  if (days < 0) return "Deadline passed";
+  if (days === 0) return "Due today";
+  if (days === 1) return "1 day left";
+  return `${days} days left`;
+}

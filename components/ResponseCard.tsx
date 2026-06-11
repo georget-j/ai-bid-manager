@@ -49,7 +49,7 @@ function Skeleton({ lines = 3 }: { lines?: number }) {
   );
 }
 
-function countWords(text: string) {
+export function countWords(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 

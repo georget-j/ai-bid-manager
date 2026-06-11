@@ -19,7 +19,7 @@ import type {
   StepStatus,
 } from "@/lib/grants/application-flow";
 import { matchColor, matchVerdict } from "@/lib/grants/copy";
-import { daysUntil } from "@/lib/dates";
+import { daysUntil, formatDaysLeft } from "@/lib/dates";
 
 type Step = "upload" | "reviewing" | "answering" | "done";
 
@@ -45,10 +45,16 @@ function deadlineInfo(
 ): { label: string; color: string } | null {
   if (!iso) return null;
   const days = daysUntil(iso);
-  if (days < 0) return { label: `Closed ${-days}d ago`, color: "#dc2626" };
+  if (days < 0)
+    return {
+      label: `Closed ${-days === 1 ? "1 day" : `${-days} days`} ago`,
+      color: "#dc2626",
+    };
   if (days === 0) return { label: "Due today", color: "#dc2626" };
-  if (days <= 14) return { label: `${days} days left`, color: "#b45309" };
-  return { label: `${days} days left`, color: "#059669" };
+  return {
+    label: formatDaysLeft(days),
+    color: days <= 14 ? "#b45309" : "#059669",
+  };
 }
 
 function scrollToAnchor(id: string) {
@@ -74,11 +80,16 @@ function StepSpine({
   progress,
   submitted,
   nextStep,
+  draftCtaLabel,
+  onDraftAnswers,
 }: {
   steps: FlowStep[];
   progress: number;
   submitted: boolean;
   nextStep: FlowStep | null;
+  /** Pinned one-click answering CTA — shown whenever questions still need answers. */
+  draftCtaLabel: string | null;
+  onDraftAnswers: () => void;
 }) {
   const [active, setActive] = useState<string | null>(
     steps[0]?.anchorId ?? null,
@@ -240,10 +251,11 @@ function StepSpine({
           })}
         </ol>
 
-        {!submitted && nextStep && (
+        {/* One-click answering: always pinned while questions need answers */}
+        {!submitted && draftCtaLabel && (
           <button
             className="btn primary"
-            onClick={next}
+            onClick={onDraftAnswers}
             style={{
               width: "100%",
               marginTop: 12,
@@ -251,9 +263,26 @@ function StepSpine({
               justifyContent: "center",
             }}
           >
-            Next: {nextStep.action?.label ?? nextStep.label} →
+            {draftCtaLabel} →
           </button>
         )}
+        {/* The step-based "Next:" stays unless it would duplicate the CTA above */}
+        {!submitted &&
+          nextStep &&
+          !(draftCtaLabel && nextStep.key === "answers") && (
+            <button
+              className={draftCtaLabel ? "btn" : "btn primary"}
+              onClick={next}
+              style={{
+                width: "100%",
+                marginTop: draftCtaLabel ? 8 : 12,
+                fontSize: 13,
+                justifyContent: "center",
+              }}
+            >
+              Next: {nextStep.action?.label ?? nextStep.label} →
+            </button>
+          )}
       </div>
     </nav>
   );
@@ -443,6 +472,27 @@ export function GrantApplicationFlow({
     refreshTimer.current = setTimeout(() => router.refresh(), 600);
   }, [router]);
 
+  // The processor registers its "answer the remaining questions" handler here
+  // so the pinned CTAs in the header and spine can start drafting directly.
+  const answerTrigger = useRef<(() => void) | null>(null);
+  const registerAnswerTrigger = useCallback((fn: () => void) => {
+    answerTrigger.current = fn;
+  }, []);
+  const startAnswering = useCallback(() => {
+    scrollToAnchor("step-answers");
+    answerTrigger.current?.();
+  }, []);
+
+  // One-click answering CTA — pinned whenever questions still need answers.
+  const draftCtaLabel =
+    !flow.submitted && flow.unansweredCount > 0
+      ? flow.answeredCount === 0
+        ? flow.unansweredCount === 1
+          ? "Draft the answer"
+          : `Draft all ${flow.unansweredCount} answers`
+        : `Answer ${flow.unansweredCount} remaining`
+      : null;
+
   const stepByKey = (k: FlowStep["key"]) =>
     flow.steps.find((s) => s.key === k)!;
 
@@ -528,6 +578,15 @@ export function GrantApplicationFlow({
               {deadline.label}
             </span>
           )}
+          {draftCtaLabel && (
+            <button
+              className="btn primary"
+              onClick={startAnswering}
+              style={{ fontSize: 13 }}
+            >
+              {draftCtaLabel} →
+            </button>
+          )}
         </div>
       </div>
 
@@ -544,6 +603,8 @@ export function GrantApplicationFlow({
           progress={flow.progress}
           submitted={flow.submitted}
           nextStep={flow.nextStep}
+          draftCtaLabel={draftCtaLabel}
+          onDraftAnswers={startAnswering}
         />
 
         <div style={{ flex: 1, minWidth: 320 }}>
@@ -679,6 +740,7 @@ export function GrantApplicationFlow({
               initialAnswers={initialAnswers}
               initialStep={initialStep}
               onSaved={scheduleRefresh}
+              onRegisterAnswerRemaining={registerAnswerTrigger}
             />
           </section>
 

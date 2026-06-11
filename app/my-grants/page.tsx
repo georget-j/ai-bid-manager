@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { matchColor } from "@/lib/grants/copy";
-import { daysUntil } from "@/lib/dates";
+import { daysUntil, formatDaysLeft } from "@/lib/dates";
 
 interface Rec {
   id: string;
@@ -27,9 +27,8 @@ function deadlineBadge(
   if (!iso) return null;
   const days = daysUntil(iso);
   if (days < 0) return null;
-  if (days === 0) return { label: "Due today", color: "#dc2626" };
-  if (days <= 14) return { label: `${days} days left`, color: "#b45309" };
-  return { label: `${days} days left`, color: "#059669" };
+  const color = days === 0 ? "#dc2626" : days <= 14 ? "#b45309" : "#059669";
+  return { label: formatDaysLeft(days), color };
 }
 
 export default function MyGrantsPage() {

@@ -4,7 +4,9 @@ import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ErrorAlert } from "./ErrorAlert";
-import { ResponseCard } from "./ResponseCard";
+import { ResponseCard, countWords } from "./ResponseCard";
+import { CitationCard } from "./CitationCard";
+import { MissingInfoPanel } from "./MissingInfoPanel";
 import type { ExtractedQuestion } from "@/lib/rfp-extract";
 import type { RFPResponse, RetrievedChunk } from "@/lib/schema";
 import type { BatchItem } from "@/lib/export-docx";
@@ -18,6 +20,18 @@ export type AnsweredQuestion = {
 };
 
 type Step = "upload" | "reviewing" | "answering" | "done";
+
+/** A batch that finished early — feeds the "we answered X of N" banner. */
+type PartialBatchInfo = {
+  answered: number;
+  total: number;
+  remaining: number;
+  reason: "timeout" | "error";
+};
+
+function isGuidance(q: ExtractedQuestion): boolean {
+  return q.question_class === "guidance";
+}
 
 interface RFPProcessorProps {
   initialTitle?: string;
@@ -34,6 +48,12 @@ interface RFPProcessorProps {
   onDraftCreated?: (id: string) => void;
   /** Called after each successful autosave — lets a parent refresh derived state (e.g. the step spine). */
   onSaved?: () => void;
+  /**
+   * Hands the parent a stable trigger that answers the remaining selected
+   * questions — lets a surrounding page (e.g. the grant step spine) pin its
+   * own "Draft answers" CTA outside this component.
+   */
+  onRegisterAnswerRemaining?: (trigger: () => void) => void;
 }
 
 export function RFPProcessor({
@@ -47,6 +67,7 @@ export function RFPProcessor({
   initialAnswers,
   onDraftCreated,
   onSaved,
+  onRegisterAnswerRemaining,
 }: RFPProcessorProps = {}) {
   // Grant applications get plain-English copy and the richer per-answer
   // review UI; the tender-side experience is unchanged.
@@ -65,9 +86,15 @@ export function RFPProcessor({
   const [questions, setQuestions] = useState<ExtractedQuestion[]>(
     initialQuestions ?? [],
   );
-  const [selected, setSelected] = useState<Set<number>>(
-    new Set(initialSelected ?? (initialQuestions ?? []).map((q) => q.id)),
-  );
+  const [selected, setSelected] = useState<Set<number>>(() => {
+    // Guidance items are the funder's notes, not questions — they're never
+    // auto-selected and never answered. Older saved drafts may still carry
+    // guidance ids in their selection, so strip them here too.
+    const qs = initialQuestions ?? [];
+    const guidanceIds = new Set(qs.filter(isGuidance).map((q) => q.id));
+    const base = initialSelected ?? qs.map((q) => q.id);
+    return new Set(base.filter((id) => !guidanceIds.has(id)));
+  });
 
   const [answers, setAnswers] = useState<Map<number, AnsweredQuestion>>(() => {
     const m = new Map<number, AnsweredQuestion>();
@@ -145,6 +172,25 @@ export function RFPProcessor({
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   // Question ids whose full answer (draft + sources + gaps) is expanded.
   const [openAnswers, setOpenAnswers] = useState<Set<number>>(new Set());
+  // Live draft text per question while the server streams 'delta' events
+  // (each delta carries the full accumulated text so far, not a diff).
+  const [streamingDrafts, setStreamingDrafts] = useState<Map<number, string>>(
+    new Map(),
+  );
+  // Set when a batch ends early (server timeout, error, or a dropped stream).
+  const [partialInfo, setPartialInfo] = useState<PartialBatchInfo | null>(null);
+  // Question id open in the one-by-one review stepper; null = list view.
+  const [reviewId, setReviewId] = useState<number | null>(null);
+
+  // Keep the latest "answer remaining" handler available to the parent via a
+  // stable trigger (the handler itself closes over fresh state every render).
+  const answerRemainingRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    answerRemainingRef.current = handleAnswerRemaining;
+  });
+  useEffect(() => {
+    onRegisterAnswerRemaining?.(() => answerRemainingRef.current());
+  }, [onRegisterAnswerRemaining]);
 
   const [exporting, setExporting] = useState(false);
   const [pendingReview, setPendingReview] = useState<
@@ -202,7 +248,11 @@ export function RFPProcessor({
 
       const extracted: ExtractedQuestion[] = data.questions ?? [];
       setQuestions(extracted);
-      setSelected(new Set(extracted.map((q) => q.id)));
+      // Guidance items are shown as notes, never selected for answering.
+      setSelected(
+        new Set(extracted.filter((q) => !isGuidance(q)).map((q) => q.id)),
+      );
+      setReviewId(null);
       setStep("reviewing");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -230,6 +280,8 @@ export function RFPProcessor({
       next.delete(id);
       return next;
     });
+    // If the removed question was open in the stepper, fall back to the list.
+    setReviewId((prev) => (prev === id ? null : prev));
   }
 
   // ── Step 3: Batch answering ───────────────────────────────────────────────
@@ -247,10 +299,18 @@ export function RFPProcessor({
     if (toAnswer.length === 0 || answering.size > 0) return;
 
     const stepBefore = step;
+    const hadAnswersBefore = answers.size > 0;
     setError(null);
+    setPartialInfo(null);
     setAnswering(new Set(toAnswer.map((q) => q.id)));
+    setStreamingDrafts(new Map());
     setProgress({ done: 0, total: toAnswer.length });
     setStep("answering");
+
+    // Tracked locally so an abruptly-closed stream (no 'done' event) can
+    // still be reported as partial completion instead of stuck spinners.
+    let answeredCount = 0;
+    let sawDone = false;
 
     try {
       const res = await fetch("/api/rfp/answer-batch", {
@@ -297,9 +357,16 @@ export function RFPProcessor({
           const event = JSON.parse(msg.slice(6));
 
           if (event.type === "result") {
+            answeredCount += 1;
             setAnswers((prev) => {
               const next = new Map(prev);
               next.set(event.question_id, event as AnsweredQuestion);
+              return next;
+            });
+            setStreamingDrafts((prev) => {
+              if (!prev.has(event.question_id)) return prev;
+              const next = new Map(prev);
+              next.delete(event.question_id);
               return next;
             });
             setAnswering((prev) => {
@@ -308,6 +375,16 @@ export function RFPProcessor({
               return next;
             });
             setProgress((prev) => ({ ...prev, done: prev.done + 1 }));
+          } else if (event.type === "delta") {
+            // The question's draft so far (full accumulated text, not a
+            // diff) — typed live into the question's card.
+            const qid = Number(event.question_id);
+            const text = typeof event.text === "string" ? event.text : "";
+            setStreamingDrafts((prev) => {
+              const next = new Map(prev);
+              next.set(qid, text);
+              return next;
+            });
           } else if (event.type === "question_error") {
             setAnswering((prev) => {
               const next = new Set(prev);
@@ -316,6 +393,7 @@ export function RFPProcessor({
             });
             setProgress((prev) => ({ ...prev, done: prev.done + 1 }));
           } else if (event.type === "done") {
+            sawDone = true;
             // A one-question retry must not clobber the routing summary of
             // the wider run, so only full runs update it.
             if (updateRouting) {
@@ -323,14 +401,51 @@ export function RFPProcessor({
               setRfpRunIdForRouting(event.rfp_run_id ?? "");
               setRfpTitleForRouting(event.rfp_title ?? rfpTitle);
             }
-            setStep("done");
+            // The server always sends 'done' last, flagging anything it
+            // didn't get to (timeout/error) so we can offer a clean resume.
+            const unansweredIds: number[] = Array.isArray(event.unanswered_ids)
+              ? event.unanswered_ids.map((id: string | number) => Number(id))
+              : [];
+            if (event.partial && unansweredIds.length > 0) {
+              setPartialInfo({
+                answered: toAnswer.length - unansweredIds.length,
+                total: toAnswer.length,
+                remaining: unansweredIds.length,
+                reason: event.reason === "error" ? "error" : "timeout",
+              });
+            }
+            setStep(
+              answeredCount > 0 || hadAnswersBefore ? "done" : "reviewing",
+            );
           }
         }
       }
+
+      // The stream can also end without a 'done' event (proxy cut, hard
+      // timeout) — treat that exactly like a partial completion.
+      if (!sawDone) {
+        const remaining = toAnswer.length - answeredCount;
+        if (remaining > 0) {
+          setPartialInfo({
+            answered: answeredCount,
+            total: toAnswer.length,
+            remaining,
+            reason: "timeout",
+          });
+        }
+        setStep(
+          answeredCount > 0 || hadAnswersBefore || stepBefore === "done"
+            ? "done"
+            : "reviewing",
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      setAnswering(new Set());
       setStep(stepBefore === "done" ? "done" : "reviewing");
+    } finally {
+      // Whatever happened, never leave a question stuck on "Generating…".
+      setAnswering(new Set());
+      setStreamingDrafts(new Map());
     }
   }
 
@@ -341,16 +456,13 @@ export function RFPProcessor({
     );
   }
 
-  /** Explicit do-over: replaces every selected answer after a confirmation. */
+  /**
+   * Explicit do-over: replaces every selected answer. Confirmation happens in
+   * the inline RedoAllConfirm popover, never a browser dialog.
+   */
   function handleRedoAll() {
     const toRedo = questions.filter((q) => selected.has(q.id));
     if (toRedo.length === 0) return;
-    const ok = window.confirm(
-      `Start these answers again? This will replace all ${toRedo.length} answer${
-        toRedo.length === 1 ? "" : "s"
-      }, including any edits you've made.`,
-    );
-    if (!ok) return;
     void runBatch(toRedo);
   }
 
@@ -369,15 +481,6 @@ export function RFPProcessor({
         ...current,
         response: { ...current.response, draft_answer: draft },
       });
-      return next;
-    });
-  }
-
-  function toggleAnswerOpen(id: number) {
-    setOpenAnswers((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
       return next;
     });
   }
@@ -494,6 +597,27 @@ export function RFPProcessor({
     {},
   );
 
+  const answerableQuestions = questions.filter((q) => !isGuidance(q));
+  const guidanceCount = questions.length - answerableQuestions.length;
+  // The one-by-one review stepper walks the answerable questions in document
+  // order; a stale reviewId (e.g. after re-extracting) falls back to the list.
+  const reviewItems = answerableQuestions;
+  const reviewQuestion =
+    reviewId !== null
+      ? (reviewItems.find((q) => q.id === reviewId) ?? null)
+      : null;
+  const answeredReviewIds = reviewItems
+    .filter((q) => answers.has(q.id))
+    .map((q) => q.id);
+  const allExpanded =
+    answeredReviewIds.length > 0 &&
+    answeredReviewIds.every((id) => openAnswers.has(id));
+
+  function openReview(startId?: number) {
+    const target = startId ?? answeredReviewIds[0] ?? reviewItems[0]?.id;
+    if (target != null) setReviewId(target);
+  }
+
   const selectedUnanswered = questions.filter(
     (q) => selected.has(q.id) && !answers.has(q.id),
   );
@@ -563,10 +687,12 @@ export function RFPProcessor({
                 {rfpTitle}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                {questions.length} {noun}
-                {questions.length !== 1 ? "s" : ""}{" "}
+                {answerableQuestions.length} {noun}
+                {answerableQuestions.length !== 1 ? "s" : ""}{" "}
                 {isGrant ? "found" : "extracted"}
-                {selected.size < questions.length &&
+                {guidanceCount > 0 &&
+                  ` · ${guidanceCount} guidance note${guidanceCount !== 1 ? "s" : ""}`}
+                {selected.size < answerableQuestions.length &&
                   ` · ${selected.size} selected`}
                 {savedAt && <span style={{ color: "#059669" }}> · Saved</span>}
               </p>
@@ -575,7 +701,7 @@ export function RFPProcessor({
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() =>
-                    setSelected(new Set(questions.map((q) => q.id)))
+                    setSelected(new Set(answerableQuestions.map((q) => q.id)))
                   }
                   className="text-xs text-gray-500 hover:text-gray-800 underline"
                 >
@@ -588,13 +714,13 @@ export function RFPProcessor({
                   Deselect all
                 </button>
                 {isGrant && answers.size > 0 && (
-                  <button
-                    onClick={handleRedoAll}
+                  <RedoAllConfirm
+                    count={selected.size}
                     disabled={busy || selected.size === 0}
-                    className="text-xs text-gray-500 hover:text-gray-800 underline disabled:opacity-40"
-                  >
-                    Redo all answers
-                  </button>
+                    onConfirm={handleRedoAll}
+                    buttonLabel="Redo all answers"
+                    buttonClassName="text-xs text-gray-500 hover:text-gray-800 underline disabled:opacity-40"
+                  />
                 )}
                 <button
                   onClick={handleAnswerRemaining}
@@ -649,13 +775,13 @@ export function RFPProcessor({
                         {selectedUnanswered.length !== 1 ? "s" : ""}
                       </button>
                     )}
-                    <button
-                      onClick={handleRedoAll}
+                    <RedoAllConfirm
+                      count={selected.size}
                       disabled={busy || selected.size === 0}
-                      className="btn ghost sm"
-                    >
-                      ↻ Redo all answers
-                    </button>
+                      onConfirm={handleRedoAll}
+                      buttonLabel="↻ Redo all answers"
+                      buttonClassName="btn ghost sm"
+                    />
                   </>
                 ) : (
                   <>
@@ -678,6 +804,64 @@ export function RFPProcessor({
               </div>
             )}
           </div>
+
+          {/* A batch that ended early — explain what happened, offer the rest */}
+          {partialInfo && selectedUnanswered.length > 0 && (
+            <div
+              style={{
+                padding: "14px 16px",
+                background:
+                  "var(--warn-tint, color-mix(in oklch, var(--warn) 10%, var(--surface)))",
+                border:
+                  "1px solid color-mix(in oklch, var(--warn) 25%, transparent)",
+                borderRadius: "var(--r-sm)",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: "var(--ink)",
+                  marginBottom: 4,
+                }}
+              >
+                We answered {partialInfo.answered} of {partialInfo.total} before{" "}
+                {partialInfo.reason === "error"
+                  ? "something went wrong"
+                  : "running out of time"}{" "}
+                — nothing was lost.
+              </p>
+              <p
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--muted)",
+                  marginBottom: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                Your finished answers are saved below. Pick up the rest whenever
+                you&apos;re ready.
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => {
+                    setPartialInfo(null);
+                    handleAnswerRemaining();
+                  }}
+                  disabled={busy}
+                  className="btn accent sm"
+                >
+                  Answer the remaining {selectedUnanswered.length}
+                </button>
+                <button
+                  onClick={() => setPartialInfo(null)}
+                  className="btn ghost sm"
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Review routing — confirmation prompt */}
           {step === "done" && pendingReview.length > 0 && (
@@ -766,137 +950,242 @@ export function RFPProcessor({
             </div>
           )}
 
-          {/* Question groups by section */}
-          <div className="space-y-4">
-            {Object.entries(sectionGroups).map(([section, qs]) => (
-              <div
-                key={section}
-                className="border border-gray-200 rounded-xl overflow-hidden"
+          {/* Review tools — one-by-one stepper entry + expand all */}
+          {answers.size > 0 && !reviewQuestion && (
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <button
+                onClick={() => openReview()}
+                className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
               >
-                <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    {section}
-                  </span>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {qs.map((q) => {
-                    const answer = answers.get(q.id);
-                    const isInProgress = answering.has(q.id);
-                    const isPending =
-                      step === "answering" && !answer && !isInProgress;
-                    return (
-                      <div key={q.id} className="px-4 py-3">
-                        <div className="flex items-start gap-3">
-                          {step === "reviewing" && (
-                            <input
-                              type="checkbox"
-                              checked={selected.has(q.id)}
-                              onChange={() => toggleSelect(q.id)}
-                              className="mt-0.5 rounded border-gray-300 shrink-0"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-800 leading-relaxed">
-                              {q.text}
-                            </p>
-                            {isGrant && q.word_limit != null && (
-                              <p className="text-[11px] text-gray-400 mt-0.5">
-                                Limit: {q.word_limit} words
-                              </p>
-                            )}
-                            {answer && (
-                              <div className="mt-2 space-y-1.5">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <ConfidenceBadge
-                                    confidence={answer.response.confidence}
-                                  />
-                                  {isGrant && (
-                                    <>
-                                      <button
-                                        onClick={() => toggleAnswerOpen(q.id)}
-                                        className="text-xs text-gray-500 hover:text-gray-900 underline"
-                                      >
-                                        {openAnswers.has(q.id)
-                                          ? "Hide full answer"
-                                          : "Read & edit full answer"}
-                                      </button>
-                                      <button
-                                        onClick={() => handleRetryOne(q)}
-                                        disabled={busy}
-                                        className="text-xs text-gray-500 hover:text-gray-900 underline disabled:opacity-40"
-                                      >
-                                        Try again
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                                {!(isGrant && openAnswers.has(q.id)) && (
-                                  <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
-                                    {answer.response.executive_summary}
+                Review answers one by one
+              </button>
+              {isGrant && answeredReviewIds.length > 0 && (
+                <button
+                  onClick={() =>
+                    setOpenAnswers(
+                      allExpanded ? new Set() : new Set(answeredReviewIds),
+                    )
+                  }
+                  className="text-xs text-gray-500 hover:text-gray-900 underline"
+                >
+                  {allExpanded ? "Collapse all answers" : "Expand all answers"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* One-by-one review stepper (replaces the list while open) */}
+          {reviewQuestion ? (
+            <ReviewStepper
+              items={reviewItems}
+              answers={answers}
+              answering={answering}
+              streamingDrafts={streamingDrafts}
+              currentId={reviewQuestion.id}
+              onNavigate={setReviewId}
+              onClose={() => setReviewId(null)}
+              onEdit={handleAnswerEdited}
+              onRetry={handleRetryOne}
+              busy={busy}
+              isGrant={isGrant}
+            />
+          ) : (
+            /* Question groups by section — the overview list */
+            <div className="space-y-4">
+              {Object.entries(sectionGroups).map(([section, qs]) => {
+                const answerableQs = qs.filter((x) => !isGuidance(x));
+                const guidanceQs = qs.filter(isGuidance);
+                return (
+                  <div
+                    key={section}
+                    className="border border-gray-200 rounded-xl overflow-hidden"
+                  >
+                    <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        {section}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {answerableQs.map((q) => {
+                        const answer = answers.get(q.id);
+                        const isInProgress = answering.has(q.id);
+                        const streamingText = streamingDrafts.get(q.id);
+                        const isPending =
+                          step === "answering" && !answer && !isInProgress;
+                        const canOpenReview = answers.size > 0;
+                        return (
+                          <div key={q.id} className="px-4 py-3">
+                            <div className="flex items-start gap-3">
+                              {step === "reviewing" && (
+                                <input
+                                  type="checkbox"
+                                  checked={selected.has(q.id)}
+                                  onChange={() => toggleSelect(q.id)}
+                                  className="mt-0.5 rounded border-gray-300 shrink-0"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                {canOpenReview ? (
+                                  <button
+                                    onClick={() => openReview(q.id)}
+                                    className="block w-full text-left text-sm text-gray-800 leading-relaxed hover:text-gray-950 hover:underline decoration-gray-300 underline-offset-2 cursor-pointer"
+                                  >
+                                    {q.text}
+                                  </button>
+                                ) : (
+                                  <p className="text-sm text-gray-800 leading-relaxed">
+                                    {q.text}
                                   </p>
                                 )}
-                                {isGrant && openAnswers.has(q.id) && (
-                                  <div className="mt-2">
-                                    <ResponseCard
-                                      // Remount when the draft changes (retry
-                                      // or saved edit) so local edit state
-                                      // resets to the new canonical answer.
-                                      key={`${q.id}:${answer.response.draft_answer}`}
-                                      result={{
-                                        query_id: String(q.id),
-                                        response: answer.response,
-                                        retrieved_chunks:
-                                          answer.retrieved_chunks ?? [],
-                                      }}
-                                      query={q.text}
-                                      title="Your draft answer"
-                                      wordLimit={q.word_limit ?? null}
-                                      onDraftSaved={(draft) =>
-                                        handleAnswerEdited(q.id, draft)
-                                      }
-                                    />
+                                <BriefingStrip q={q} isGrant={isGrant} />
+                                {answer && !isInProgress && (
+                                  <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <ConfidenceBadge
+                                        confidence={answer.response.confidence}
+                                      />
+                                      <button
+                                        onClick={() => openReview(q.id)}
+                                        className="text-xs text-gray-500 hover:text-gray-900 underline"
+                                      >
+                                        Review & edit
+                                      </button>
+                                      {isGrant && (
+                                        <button
+                                          onClick={() => handleRetryOne(q)}
+                                          disabled={busy}
+                                          className="text-xs text-gray-500 hover:text-gray-900 underline disabled:opacity-40"
+                                        >
+                                          Try again
+                                        </button>
+                                      )}
+                                    </div>
+                                    {!(isGrant && openAnswers.has(q.id)) && (
+                                      <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
+                                        {answer.response.executive_summary}
+                                      </p>
+                                    )}
+                                    {isGrant && openAnswers.has(q.id) && (
+                                      <div className="mt-2">
+                                        <ResponseCard
+                                          // Remount when the draft changes
+                                          // (retry or saved edit) so local
+                                          // edit state resets to the new
+                                          // canonical answer.
+                                          key={`${q.id}:${answer.response.draft_answer}`}
+                                          result={{
+                                            query_id: String(q.id),
+                                            response: answer.response,
+                                            retrieved_chunks:
+                                              answer.retrieved_chunks ?? [],
+                                          }}
+                                          query={q.text}
+                                          title="Your draft answer"
+                                          wordLimit={q.word_limit ?? null}
+                                          onDraftSaved={(draft) =>
+                                            handleAnswerEdited(q.id, draft)
+                                          }
+                                        />
+                                      </div>
+                                    )}
                                   </div>
                                 )}
+                                {isInProgress &&
+                                  (streamingText ? (
+                                    isGrant ? (
+                                      <div className="mt-2">
+                                        {/* Draft text types in live as the server streams it */}
+                                        <ResponseCard
+                                          partial={{
+                                            draft_answer: streamingText,
+                                          }}
+                                          isStreaming
+                                          query={q.text}
+                                          title="Your draft answer"
+                                          wordLimit={q.word_limit ?? null}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <p className="mt-2 text-xs text-gray-500 leading-relaxed line-clamp-3 whitespace-pre-line">
+                                        {streamingText}
+                                        <span className="inline-block w-0.5 h-3 bg-gray-400 ml-0.5 animate-pulse align-text-bottom" />
+                                      </p>
+                                    )
+                                  ) : (
+                                    <div className="mt-2 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                                      <span className="text-xs text-gray-400">
+                                        {isGrant
+                                          ? "Writing your draft…"
+                                          : "Generating…"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                {isPending && (
+                                  <p className="mt-1 text-xs text-gray-300">
+                                    Queued…
+                                  </p>
+                                )}
                               </div>
-                            )}
-                            {isInProgress && (
-                              <div className="mt-2 flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                                <span className="text-xs text-gray-400">
-                                  Generating…
-                                </span>
-                              </div>
-                            )}
-                            {isPending && (
-                              <p className="mt-1 text-xs text-gray-300">
-                                Queued…
-                              </p>
-                            )}
+                              {step === "reviewing" && (
+                                <button
+                                  onClick={() => removeQuestion(q.id)}
+                                  className="text-gray-300 hover:text-red-500 transition-colors text-xs shrink-0"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          {step === "reviewing" && (
-                            <button
-                              onClick={() => removeQuestion(q.id)}
-                              className="text-gray-300 hover:text-red-500 transition-colors text-xs shrink-0"
-                            >
-                              ✕
-                            </button>
-                          )}
+                        );
+                      })}
+                      {/* The funder's instructions for this section — notes, not questions */}
+                      {guidanceQs.length > 0 && (
+                        <div className="px-4 py-3 bg-gray-50/60">
+                          <p className="text-[10.5px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+                            {isGrant
+                              ? "From the funder's guidance"
+                              : "From the buyer's guidance"}
+                          </p>
+                          <div className="space-y-1.5">
+                            {guidanceQs.map((g) => (
+                              <div
+                                key={g.id}
+                                className="flex items-start gap-2"
+                              >
+                                <p className="flex-1 text-xs text-gray-400 leading-relaxed">
+                                  {g.text}
+                                </p>
+                                {step === "reviewing" && (
+                                  <button
+                                    onClick={() => removeQuestion(g.id)}
+                                    className="text-gray-300 hover:text-red-500 transition-colors text-xs shrink-0"
+                                    aria-label="Remove this note"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-          {step === "reviewing" && (
+          {step === "reviewing" && !reviewQuestion && (
             <button
               onClick={() => {
                 setStep("upload");
                 setQuestions([]);
                 setSelected(new Set());
                 setAnswers(new Map());
+                setReviewId(null);
+                setPartialInfo(null);
               }}
               className="text-xs text-gray-400 hover:text-gray-700 underline"
             >
@@ -905,6 +1194,404 @@ export function RFPProcessor({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Briefing strip ─────────────────────────────────────────────────────────
+// What the funder/buyer is asking for, at a glance: mandatory, topic, word
+// limit, priority. Rendered under each question in the list and the stepper.
+
+const TOPIC_LABELS: Record<string, string> = {
+  security_compliance: "Security & compliance",
+  legal: "Legal",
+  pricing: "Pricing",
+  technical: "Technical",
+  engineering: "Engineering",
+  commercial: "Commercial",
+  implementation: "Delivery",
+  support: "Support",
+  // "general" is deliberately omitted — it tells the reader nothing.
+};
+
+function topicLabel(topic: string, isGrant: boolean): string | null {
+  if (topic === "pricing" && isGrant) return "Budget & costs";
+  return TOPIC_LABELS[topic] ?? null;
+}
+
+const CHIP_TONES = {
+  amber: "bg-amber-50 text-amber-700 border-amber-200",
+  blue: "bg-blue-50 text-blue-700 border-blue-100",
+  gray: "bg-gray-50 text-gray-500 border-gray-200",
+} as const;
+
+function BriefingStrip({
+  q,
+  isGrant,
+}: {
+  q: ExtractedQuestion;
+  isGrant: boolean;
+}) {
+  const topic = topicLabel(q.topic, isGrant);
+  const chips: Array<{ label: string; tone: keyof typeof CHIP_TONES }> = [];
+  if (q.mandatory) chips.push({ label: "Mandatory", tone: "amber" });
+  else if (q.priority === "high")
+    chips.push({ label: "High priority", tone: "blue" });
+  if (topic) chips.push({ label: topic, tone: "gray" });
+  if (q.word_limit != null)
+    chips.push({ label: `Limit: ${q.word_limit} words`, tone: "gray" });
+  if (chips.length === 0) return null;
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+      {chips.map((c) => (
+        <span
+          key={c.label}
+          className={`inline-flex items-center text-[10.5px] font-medium px-1.5 py-0.5 rounded border ${CHIP_TONES[c.tone]}`}
+        >
+          {c.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ── Inline redo confirmation ───────────────────────────────────────────────
+// Replaces window.confirm: names the count and warns that edits are replaced.
+
+function RedoAllConfirm({
+  count,
+  disabled,
+  onConfirm,
+  buttonLabel,
+  buttonClassName,
+}: {
+  count: number;
+  disabled?: boolean;
+  onConfirm: () => void;
+  buttonLabel: string;
+  buttonClassName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        className={buttonClassName}
+      >
+        {buttonLabel}
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Confirm starting all answers again"
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            zIndex: 20,
+            marginTop: 6,
+            width: 270,
+            background: "var(--surface, #fff)",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,.12)",
+            padding: "12px 14px",
+            textAlign: "left",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              margin: 0,
+              color: "var(--ink, #111827)",
+            }}
+          >
+            Start all {count} answer{count === 1 ? "" : "s"} again?
+          </p>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--muted, #6b7280)",
+              margin: "6px 0 10px",
+              lineHeight: 1.45,
+            }}
+          >
+            This replaces every answer, including any edits you&apos;ve made.
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => {
+                setOpen(false);
+                onConfirm();
+              }}
+              style={{
+                background: "#dc2626",
+                color: "#fff",
+                border: "none",
+                borderRadius: 7,
+                padding: "5px 10px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Yes, start again
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              style={{
+                background: "transparent",
+                color: "var(--muted, #6b7280)",
+                border: "1px solid var(--border, #e5e7eb)",
+                borderRadius: 7,
+                padding: "5px 10px",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Keep my answers
+            </button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ── One-by-one review stepper ──────────────────────────────────────────────
+// Walks the answerable questions; the draft is always an editable textarea
+// (no read/edit toggles) that autosaves on blur via the parent's existing
+// debounced PATCH. Citations and gaps sit behind one quiet disclosure.
+
+function ReviewStepper({
+  items,
+  answers,
+  answering,
+  streamingDrafts,
+  currentId,
+  onNavigate,
+  onClose,
+  onEdit,
+  onRetry,
+  busy,
+  isGrant,
+}: {
+  items: ExtractedQuestion[];
+  answers: Map<number, AnsweredQuestion>;
+  answering: Set<number>;
+  streamingDrafts: Map<number, string>;
+  currentId: number;
+  onNavigate: (id: number) => void;
+  onClose: () => void;
+  onEdit: (questionId: number, draft: string) => void;
+  onRetry: (q: ExtractedQuestion) => void;
+  busy: boolean;
+  isGrant: boolean;
+}) {
+  const index = items.findIndex((q) => q.id === currentId);
+  const q = items[index];
+  const prevQ = index > 0 ? items[index - 1] : null;
+  const nextQ = index < items.length - 1 ? items[index + 1] : null;
+
+  // Arrow keys move between questions — but never while typing in a field.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "TEXTAREA" ||
+          t.tagName === "INPUT" ||
+          t.isContentEditable)
+      )
+        return;
+      if (e.key === "ArrowRight" && nextQ) onNavigate(nextQ.id);
+      else if (e.key === "ArrowLeft" && prevQ) onNavigate(prevQ.id);
+      else if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prevQ, nextQ, onNavigate, onClose]);
+
+  if (!q) return null;
+
+  const answer = answers.get(q.id);
+  const streamingText = streamingDrafts.get(q.id);
+  const isGenerating = answering.has(q.id);
+  const citations = answer?.response.citations ?? [];
+  const missing = answer?.response.missing_information ?? [];
+  const chunkMap = Object.fromEntries(
+    (answer?.retrieved_chunks ?? []).map((c) => [c.id, c]),
+  );
+
+  const navButtonClass =
+    "text-xs text-gray-600 hover:text-gray-900 border border-gray-200 px-2.5 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-default";
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      {/* Position + navigation */}
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+        <button
+          onClick={onClose}
+          className="text-xs text-gray-500 hover:text-gray-900 underline"
+        >
+          ← Back to all questions
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">
+            Question {index + 1} of {items.length}
+          </span>
+          <button
+            onClick={() => prevQ && onNavigate(prevQ.id)}
+            disabled={!prevQ}
+            aria-label="Previous question"
+            className={navButtonClass}
+          >
+            ← Previous
+          </button>
+          <button
+            onClick={() => nextQ && onNavigate(nextQ.id)}
+            disabled={!nextQ}
+            aria-label="Next question"
+            className={navButtonClass}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+
+      <div className="px-5 py-4 space-y-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          {q.section}
+        </p>
+        <p className="text-sm font-medium text-gray-900 leading-relaxed">
+          {q.text}
+        </p>
+        <BriefingStrip q={q} isGrant={isGrant} />
+
+        {isGenerating ? (
+          streamingText ? (
+            <div>
+              <p className="text-xs text-gray-400 flex items-center gap-1.5 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                {isGrant ? "Writing your draft…" : "Generating…"}
+              </p>
+              <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line border border-gray-200 rounded-lg px-3 py-2.5 bg-gray-50">
+                {streamingText}
+                <span className="inline-block w-0.5 h-3.5 bg-gray-400 ml-0.5 animate-pulse align-text-bottom" />
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              {isGrant ? "Writing your draft…" : "Generating…"}
+            </p>
+          )
+        ) : answer ? (
+          <>
+            <div className="flex items-center gap-2 flex-wrap">
+              <ConfidenceBadge confidence={answer.response.confidence} />
+              <button
+                onClick={() => onRetry(q)}
+                disabled={busy}
+                className="text-xs text-gray-500 hover:text-gray-900 underline disabled:opacity-40"
+              >
+                Try again
+              </button>
+            </div>
+            <StepperDraftEditor
+              // Remount when the canonical draft changes (retry or a saved
+              // edit) so the textarea resets to the new text.
+              key={`${q.id}:${answer.response.draft_answer}`}
+              draft={answer.response.draft_answer ?? ""}
+              wordLimit={q.word_limit ?? null}
+              onCommit={(text) => onEdit(q.id, text)}
+            />
+            {(citations.length > 0 || missing.length > 0) && (
+              <details>
+                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-800 select-none">
+                  Where this came from
+                  {citations.length > 0 &&
+                    ` · ${citations.length} source${citations.length === 1 ? "" : "s"}`}
+                  {missing.length > 0 &&
+                    ` · ${missing.length} gap${missing.length === 1 ? "" : "s"}`}
+                </summary>
+                <div className="mt-3 space-y-4">
+                  {citations.length > 0 && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {citations.map((citation) => (
+                        <CitationCard
+                          key={citation.chunk_id}
+                          citation={citation}
+                          chunk={chunkMap[citation.chunk_id]}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {missing.length > 0 && <MissingInfoPanel items={missing} />}
+                </div>
+              </details>
+            )}
+          </>
+        ) : (
+          <div className="border border-dashed border-gray-200 rounded-lg px-4 py-5 text-center">
+            <p className="text-xs text-gray-400 mb-2">No answer drafted yet.</p>
+            <button
+              onClick={() => onRetry(q)}
+              disabled={busy}
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors"
+            >
+              Draft this answer
+            </button>
+          </div>
+        )}
+
+        <p className="text-[11px] text-gray-300">
+          Tip: use the ← and → arrow keys to move between questions.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// The draft is always directly editable; changes are handed to the parent on
+// blur, which feeds the existing debounced autosave PATCH.
+function StepperDraftEditor({
+  draft,
+  wordLimit,
+  onCommit,
+}: {
+  draft: string;
+  wordLimit: number | null;
+  onCommit: (text: string) => void;
+}) {
+  const [text, setText] = useState(draft);
+  const words = countWords(text);
+  const over = wordLimit != null && words > wordLimit;
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+        <span className="text-xs text-gray-400">
+          Edit freely — changes save when you click away.
+        </span>
+        <span
+          className={`text-xs ${over ? "text-red-600 font-semibold" : "text-gray-400"}`}
+        >
+          {words}
+          {wordLimit != null ? ` / ${wordLimit}` : ""} words
+          {over ? " — over the limit" : ""}
+        </span>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          if (text !== draft) onCommit(text);
+        }}
+        rows={14}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y font-sans"
+      />
     </div>
   );
 }

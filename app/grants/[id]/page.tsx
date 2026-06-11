@@ -7,7 +7,12 @@ import { getOrgProfile } from "@/lib/procurement/data";
 import { scoreGrant } from "@/lib/grants/scoring";
 import { enrichGrant } from "@/lib/grants/enrich";
 import { ensureApplicationGuide } from "@/lib/grants/guide";
-import { matchColor, matchVerdict } from "@/lib/grants/copy";
+import {
+  matchColor,
+  matchVerdict,
+  formatAmountRange,
+  AMOUNT_NOT_STATED,
+} from "@/lib/grants/copy";
 import { DraftApplicationButton } from "./DraftApplicationButton";
 import { GrantSectionNav, type NavSection } from "./GrantSectionNav";
 import { ApplicationGuide } from "./ApplicationGuide";
@@ -36,13 +41,6 @@ const STATUS_STYLES: Record<
   awarded: { label: "Awarded", color: "#6b7280", bg: "#f3f4f6" },
   unknown: { label: "—", color: "#6b7280", bg: "#f3f4f6" },
 };
-
-function fmtAmount(min: number | null, max: number | null): string | null {
-  const f = (n: number) => `£${n.toLocaleString()}`;
-  if (min != null && max != null && min !== max) return `${f(min)}–${f(max)}`;
-  const one = max ?? min;
-  return one != null ? f(one) : null;
-}
 
 function fmtDate(iso: string | null) {
   if (!iso) return null;
@@ -80,7 +78,9 @@ export default async function GrantDetailPage({ params }: PageProps) {
   if (!grant) notFound();
 
   const s = STATUS_STYLES[grant.status] ?? STATUS_STYLES.unknown;
-  const amount = fmtAmount(grant.amount_min, grant.amount_max);
+  const formattedAmount = formatAmountRange(grant.amount_min, grant.amount_max);
+  // Header and Amount row stay hidden when nothing is stated, as before.
+  const amount = formattedAmount === AMOUNT_NOT_STATED ? null : formattedAmount;
   // Only open calls are applyable; closed grants are often delisted at source, so we
   // hide their (likely dead) external links and show a note instead.
   const applyable =

@@ -268,18 +268,97 @@ describe("buildApplicationFlow — step statuses", () => {
   });
 });
 
-describe("buildApplicationFlow — nextStep and progress", () => {
-  it("nextStep is the first step that isn't done", () => {
-    const fresh = buildApplicationFlow(baseInput({ fit: null }));
-    expect(fresh.nextStep?.key).toBe("eligible");
+// INTENTIONAL CHANGE (guided-UX overhaul): guidance items are the funder's
+// instructions, not questions — they never need an answer, so they're excluded
+// from the answers step, the mandatory gate, and the new answered/unanswered
+// counts that drive the pinned "Draft answers" CTA.
+describe("buildApplicationFlow — guidance items and answer counts", () => {
+  const withGuidance = () =>
+    baseInput({
+      extractedQuestions: [
+        makeQuestion(1),
+        makeQuestion(2, { mandatory: true }),
+        makeQuestion(3, {
+          question_class: "guidance",
+          text: "Note: answers must be under 500 words",
+        }),
+      ],
+    });
 
-    const evidenceNext = buildApplicationFlow(baseInput());
+  it("guidance never counts toward the answers step", () => {
+    // Both real questions answered, guidance untouched — the step is done.
+    const flow = buildApplicationFlow({
+      ...withGuidance(),
+      answers: { "1": "A", "2": "B" },
+    });
+    expect(stepStatus(flow, "answers")).toBe("done");
+    expect(flow.steps.find((s) => s.key === "answers")!.detail).toBe(
+      "2/2 answered",
+    );
+  });
+
+  it("stale guidance ids in a saved selection are ignored", () => {
+    // Older drafts auto-selected everything, including guidance.
+    const flow = buildApplicationFlow({
+      ...withGuidance(),
+      selectedIds: [1, 2, 3],
+      answers: { "1": "A", "2": "B" },
+    });
+    expect(stepStatus(flow, "answers")).toBe("done");
+    expect(flow.unansweredCount).toBe(0);
+  });
+
+  it("answeredCount/unansweredCount track selected answerable questions", () => {
+    const none = buildApplicationFlow(withGuidance());
+    expect(none.answeredCount).toBe(0);
+    expect(none.unansweredCount).toBe(2); // guidance excluded
+
+    const one = buildApplicationFlow({
+      ...withGuidance(),
+      answers: { "1": "A" },
+    });
+    expect(one.answeredCount).toBe(1);
+    expect(one.unansweredCount).toBe(1);
+
+    const empty = buildApplicationFlow(baseInput({ extractedQuestions: [] }));
+    expect(empty.answeredCount).toBe(0);
+    expect(empty.unansweredCount).toBe(0);
+  });
+});
+
+describe("buildApplicationFlow — nextStep and progress", () => {
+  // INTENTIONAL CHANGE (guided-UX overhaul): when questions exist and none are
+  // answered yet, nextStep jumps straight to "answers" instead of the first
+  // not-done step — drafting answers must be one click away, never buried
+  // behind profile or evidence polish.
+  it("nextStep prefers the answers step when questions exist and none are answered", () => {
+    // Even with no profile (eligibility todo), answering comes first.
+    const fresh = buildApplicationFlow(baseInput({ fit: null }));
+    expect(fresh.nextStep?.key).toBe("answers");
+
+    const noEvidence = buildApplicationFlow(baseInput());
+    expect(noEvidence.nextStep?.key).toBe("answers");
+  });
+
+  it("nextStep falls back to the first not-done step once answering has started", () => {
+    // One of two answered: answers step is "current", so the normal
+    // first-not-done rule applies again (evidence here — no KB docs).
+    const evidenceNext = buildApplicationFlow(
+      baseInput({ answers: { "1": "An answer" } }),
+    );
     expect(evidenceNext.nextStep?.key).toBe("evidence");
 
     const budgetNext = buildApplicationFlow(
       baseInput({ answers: { "1": "A", "2": "B" }, kbDocCount: 1 }),
     );
     expect(budgetNext.nextStep?.key).toBe("budget");
+  });
+
+  it("nextStep with no questions at all uses the first not-done step", () => {
+    const flow = buildApplicationFlow(
+      baseInput({ fit: null, extractedQuestions: [] }),
+    );
+    expect(flow.nextStep?.key).toBe("eligible");
   });
 
   it("nextStep is null only when everything including review is done", () => {

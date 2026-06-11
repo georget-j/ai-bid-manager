@@ -63,8 +63,17 @@ export interface ApplicationFlow {
   submitted: boolean;
   matchScore: number | null; // null = no profile yet
   eligible: boolean | null; // null = no profile yet
-  /** First step that isn't done — drives the persistent "Next:" CTA. */
+  /**
+   * The step the "Next:" CTA points at. Usually the first step that isn't
+   * done, but when questions exist and none are answered yet it jumps
+   * straight to "Answer the questions" — drafting answers is the core of the
+   * application, so it should never sit behind profile or evidence polish.
+   */
   nextStep: FlowStep | null;
+  /** Selected answerable questions with a saved answer. */
+  answeredCount: number;
+  /** Selected answerable questions still waiting for an answer — drives the pinned "Draft answers" CTA. */
+  unansweredCount: number;
 }
 
 const PROFILE_GRANT_HREF = "/profile#grant-eligibility";
@@ -106,13 +115,22 @@ export function buildApplicationFlow(input: {
 
   const requirementsCount = extractedQuestions.length;
 
+  // Guidance items are the funder's instructions, not questions — they never
+  // need an answer, so they don't count toward the answers step (older drafts
+  // may still have guidance ids in their saved selection).
+  const answerable = extractedQuestions.filter(
+    (q) => q.question_class !== "guidance",
+  );
+  const answerableIds = new Set(answerable.map((q) => q.id));
   const selected =
-    selectedIds.length > 0 ? selectedIds : extractedQuestions.map((q) => q.id);
+    selectedIds.length > 0
+      ? selectedIds.filter((id) => answerableIds.has(id))
+      : answerable.map((q) => q.id);
   const answeredSelected = selected.filter((id) => hasAnswer(answers, id));
   const allAnswered =
     selected.length > 0 && answeredSelected.length === selected.length;
 
-  const mandatory = extractedQuestions.filter(
+  const mandatory = answerable.filter(
     (q) => q.mandatory || q.priority === "high",
   );
   const mandatoryAnswered = mandatory.filter((q) => hasAnswer(answers, q.id));
@@ -320,7 +338,16 @@ export function buildApplicationFlow(input: {
 
   const doneCount = steps.filter((s) => s.status === "done").length;
   const progress = Math.round((doneCount / steps.length) * 100);
-  const nextStep = steps.find((s) => s.status !== "done") ?? null;
+
+  // One-click answering: when questions are extracted but nothing is answered
+  // yet, "Next:" points straight at drafting answers rather than the first
+  // not-done step (usually evidence) — answering is the heart of the
+  // application and must be reachable in one click.
+  const answersStep = steps.find((s) => s.key === "answers")!;
+  const nextStep =
+    !submitted && selected.length > 0 && answeredSelected.length === 0
+      ? answersStep
+      : (steps.find((s) => s.status !== "done") ?? null);
 
   return {
     steps,
@@ -331,5 +358,7 @@ export function buildApplicationFlow(input: {
     matchScore,
     eligible,
     nextStep,
+    answeredCount: answeredSelected.length,
+    unansweredCount: selected.length - answeredSelected.length,
   };
 }
