@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { BidPipelineStatus } from "@/lib/procurement/types";
 import { daysUntil } from "@/lib/dates";
+import {
+  profileCompletenessPct,
+  type ProfileCompletenessFields,
+} from "@/lib/setup-flow";
 
 interface Recommendation {
   id: string;
@@ -33,6 +37,75 @@ const ACTION_CHIP: Record<
   "needs-review": { label: "Review", color: "#d97706", bg: "#fef3c7" },
   "do-not-bid": { label: "Low fit", color: "#dc2626", bg: "#fee2e2" },
 };
+
+// Session-scoped: dismissing the chip hides it until the browser tab is closed.
+const PROFILE_CHIP_DISMISS_KEY = "profile-strength-chip-dismissed";
+
+/**
+ * Quiet nudge shown when a profile exists but is under 80% complete — the more
+ * of it that's filled in, the better the matches on this page get.
+ */
+function ProfileStrengthChip() {
+  const [pct, setPct] = useState<number | null>(null);
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(PROFILE_CHIP_DISMISS_KEY)) return;
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((d: { profile?: ProfileCompletenessFields | null }) => {
+        if (d.profile) setPct(profileCompletenessPct(d.profile));
+      })
+      .catch(() => {});
+  }, []);
+
+  if (hidden || pct === null || pct >= 80) return null;
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 10,
+        fontSize: 12.5,
+        color: "var(--ink-2)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border)",
+        borderRadius: 999,
+        padding: "4px 12px",
+      }}
+    >
+      <span>
+        Profile strength {pct}% — the more complete it is, the better your
+        matches.{" "}
+        <Link
+          href="/profile"
+          style={{ color: "var(--accent)", textDecoration: "none" }}
+        >
+          Improve it →
+        </Link>
+      </span>
+      <button
+        aria-label="Hide this for now"
+        onClick={() => {
+          sessionStorage.setItem(PROFILE_CHIP_DISMISS_KEY, "1");
+          setHidden(true);
+        }}
+        style={{
+          border: "none",
+          background: "none",
+          color: "var(--muted)",
+          cursor: "pointer",
+          fontSize: 12,
+          padding: 0,
+          lineHeight: 1,
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 // True when the user could lift this recommendation mainly by adding evidence.
 function isEvidenceLimited(rec: Recommendation): boolean {
@@ -223,6 +296,7 @@ export default function MyOpportunitiesPage() {
           AI-recommended tenders matched to your organisation profile, plus the
           opportunities you are actively pursuing.
         </p>
+        <ProfileStrengthChip />
       </div>
 
       {/* Tab bar */}

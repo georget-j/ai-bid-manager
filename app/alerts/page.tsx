@@ -218,8 +218,8 @@ export default function AlertsPage() {
           Alerts &amp; <em>saved searches</em>
         </h1>
         <p className="subtitle">
-          Create alert rules to be notified when new opportunities match your
-          criteria. Rules run automatically after each source sync.
+          Saved searches that watch for new tenders and grants like the ones you
+          want.
         </p>
       </div>
 

@@ -107,8 +107,8 @@ export default function ResponsesPage() {
           Your <em>responses</em>
         </h1>
         <p className="subtitle">
-          Draft RFP responses that save automatically. Open several at once as
-          tabs and switch between them — your work is never lost.
+          Every answer document you&apos;ve drafted, for tenders and grants —
+          your work saves automatically as you go.
         </p>
       </div>
 

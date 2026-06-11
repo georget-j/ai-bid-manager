@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RFPProcessor, type AnsweredQuestion } from "@/components/RFPProcessor";
+import { DocumentUpload } from "@/components/DocumentUpload";
 import { BudgetBuilder } from "./BudgetBuilder";
 import { ApplicationGuide } from "@/app/grants/[id]/ApplicationGuide";
 import type { ExtractedQuestion } from "@/lib/rfp-extract";
@@ -722,6 +723,41 @@ export function GrantApplicationFlow({
               available={availableResources}
               onDone={scheduleRefresh}
             />
+
+            {/* your own evidence — goes to the shared library, helps every answer */}
+            <div
+              style={{
+                marginTop: 18,
+                paddingTop: 14,
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>
+                Add your own supporting documents
+              </div>
+              <p
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--muted)",
+                  margin: "0 0 10px",
+                }}
+              >
+                Case studies, accreditations and policies give the AI real
+                evidence to quote — they strengthen this application and every
+                future answer.
+              </p>
+              <DocumentUpload compact onSuccess={scheduleRefresh} />
+              <p
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--muted)",
+                  margin: "8px 0 0",
+                }}
+              >
+                🔒 Private to your organisation — only your team can see or
+                search these files.
+              </p>
+            </div>
           </section>
 
           {/* 4 — answer the questions */}

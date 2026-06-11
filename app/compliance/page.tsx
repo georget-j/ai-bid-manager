@@ -64,9 +64,7 @@ export default function CompliancePage() {
           Compliance <em>matrices</em>
         </h1>
         <p className="subtitle">
-          Generate, review, and manage compliance matrices for your active
-          opportunities. Each matrix tracks tender requirements against your
-          knowledge base evidence.
+          A checklist of everything the buyer requires, and where you stand.
         </p>
       </div>
 

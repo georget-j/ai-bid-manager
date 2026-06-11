@@ -32,9 +32,40 @@ type Collection = "main" | "procurement";
 
 interface DocumentListProps {
   refreshKey?: number;
+  /** Reports how many documents the current tab holds — lets the page show a first-run state. */
+  onCountChange?: (collection: Collection, count: number) => void;
 }
 
-function ChunkViewer({
+// ── pure copy helpers (exported for tests) ─────────────────────────────────────
+
+/** Row status — never expose chunk/token vocabulary to users. */
+export function readinessLabel(chunkCount: number): string {
+  return chunkCount > 0 ? "Ready to use" : "No readable text";
+}
+
+/** Detail-view wording: "3 sections indexed" — the most technical we get. */
+export function sectionsIndexedLabel(count: number): string {
+  return count === 1 ? "1 section indexed" : `${count} sections indexed`;
+}
+
+/** Plain-English source label — the raw source_type enum never reaches users. */
+export function sourceTypeLabel(sourceType: string): string {
+  switch (sourceType) {
+    case "sample":
+      return "Sample";
+    case "procurement":
+      return "Tender";
+    default:
+      return "Uploaded";
+  }
+}
+
+const TAB_LABELS: Record<Collection, string> = {
+  main: "Shared — used for every answer",
+  procurement: "Tender documents",
+};
+
+function SectionViewer({
   docId,
   onClose,
 }: {
@@ -44,7 +75,7 @@ function ChunkViewer({
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"chunks" | "raw">("chunks");
+  const [tab, setTab] = useState<"sections" | "raw">("sections");
 
   useEffect(() => {
     fetch(`/api/documents/${docId}`)
@@ -66,16 +97,16 @@ function ChunkViewer({
           <div>
             {/* Tab bar */}
             <div className="flex items-center justify-between mb-3">
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setTab("chunks")}
+                  onClick={() => setTab("sections")}
                   className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                    tab === "chunks"
+                    tab === "sections"
                       ? "bg-gray-900 text-white"
                       : "text-gray-500 hover:text-gray-800"
                   }`}
                 >
-                  Chunks ({detail.chunks.length})
+                  Contents
                 </button>
                 {detail.doc.raw_text && (
                   <button
@@ -86,9 +117,12 @@ function ChunkViewer({
                         : "text-gray-500 hover:text-gray-800"
                     }`}
                   >
-                    Raw text
+                    Full text
                   </button>
                 )}
+                <span className="text-xs text-gray-400 ml-2">
+                  {sectionsIndexedLabel(detail.chunks.length)}
+                </span>
               </div>
               <button
                 onClick={onClose}
@@ -98,8 +132,8 @@ function ChunkViewer({
               </button>
             </div>
 
-            {/* Chunks tab */}
-            {tab === "chunks" && (
+            {/* Sections tab */}
+            {tab === "sections" && (
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {detail.chunks.map((chunk) => (
                   <div
@@ -108,13 +142,8 @@ function ChunkViewer({
                   >
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                        Chunk {chunk.chunk_index + 1}
+                        Section {chunk.chunk_index + 1}
                       </span>
-                      {chunk.token_count && (
-                        <span className="text-[10px] text-gray-300">
-                          ~{chunk.token_count} tokens
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
                       {chunk.content}
@@ -124,7 +153,7 @@ function ChunkViewer({
               </div>
             )}
 
-            {/* Raw text tab */}
+            {/* Full text tab */}
             {tab === "raw" && detail.doc.raw_text && (
               <div className="max-h-96 overflow-y-auto">
                 <pre className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap bg-white border border-gray-200 rounded-lg p-3 font-sans">
@@ -139,7 +168,10 @@ function ChunkViewer({
   );
 }
 
-export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
+export function DocumentList({
+  refreshKey = 0,
+  onCountChange,
+}: DocumentListProps) {
   const [collection, setCollection] = useState<Collection>("main");
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,6 +190,7 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
         setExpandedId(null);
         setError(null);
         setLoading(false);
+        onCountChange?.(collection, data.length);
       })
       .catch((err: unknown) => {
         setError(
@@ -165,18 +198,31 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
         );
         setLoading(false);
       });
-  }, [refreshKey, collection]);
+  }, [refreshKey, collection, onCountChange]);
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this document and all its chunks?")) return;
-    setDeleting(id);
+  async function handleDelete(doc: DocumentRow) {
+    if (
+      !confirm(
+        `Remove "${doc.title}" from your evidence library? The AI will no longer use it when drafting your answers.`,
+      )
+    )
+      return;
+    setDeleting(doc.id);
     try {
-      const res = await fetch(`/api/documents?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed");
-      setDocs((prev) => prev.filter((d) => d.id !== id));
-      if (expandedId === id) setExpandedId(null);
+      const res = await fetch(`/api/documents?id=${doc.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("We couldn't remove it — please try again.");
+      const next = docs.filter((d) => d.id !== doc.id);
+      setDocs(next);
+      onCountChange?.(collection, next.length);
+      if (expandedId === doc.id) setExpandedId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "We couldn't remove it — please try again.",
+      );
     } finally {
       setDeleting(null);
     }
@@ -188,8 +234,8 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
 
   const emptyMessage =
     collection === "main"
-      ? "Load the sample dataset or upload a document to get started."
-      : "No procurement documents have been added yet. Use the 'Add to KB' button on an opportunity's tender documents to populate this collection.";
+      ? "Your library is empty. Use the upload box above to add your first documents, or load the sample set to explore."
+      : "When you save a tender's documents from an opportunity page, they appear here and ground your answers for that bid.";
 
   return (
     <div>
@@ -205,7 +251,7 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {col === "main" ? "Knowledge Base" : "Procurement Documents"}
+            {TAB_LABELS[col]}
             {!loading && collection === col && docs.length > 0 && (
               <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5">
                 {docs.length}
@@ -222,8 +268,8 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
         <EmptyState
           title={
             collection === "main"
-              ? "No documents indexed"
-              : "No procurement documents"
+              ? "No documents yet"
+              : "No tender documents yet"
           }
           description={emptyMessage}
         />
@@ -241,7 +287,7 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
                   Source
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                  Chunks
+                  Status
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                   Added
@@ -293,11 +339,19 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
                               : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {doc.source_type}
+                        {sourceTypeLabel(doc.source_type)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-600 hidden sm:table-cell">
-                      {doc.chunk_count}
+                    <td className="px-4 py-3 text-right text-xs hidden sm:table-cell">
+                      <span
+                        className={
+                          doc.chunk_count > 0
+                            ? "text-green-700"
+                            : "text-amber-700"
+                        }
+                      >
+                        {readinessLabel(doc.chunk_count)}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-gray-400 hidden md:table-cell">
                       {formatDate(doc.created_at)}
@@ -311,17 +365,17 @@ export function DocumentList({ refreshKey = 0 }: DocumentListProps) {
                           {expandedId === doc.id ? "Hide ▲" : "View ▼"}
                         </button>
                         <button
-                          onClick={() => handleDelete(doc.id)}
+                          onClick={() => handleDelete(doc)}
                           disabled={deleting === doc.id}
                           className="text-xs text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
                         >
-                          {deleting === doc.id ? "…" : "Delete"}
+                          {deleting === doc.id ? "…" : "Remove"}
                         </button>
                       </div>
                     </td>
                   </tr>
                   {expandedId === doc.id && (
-                    <ChunkViewer
+                    <SectionViewer
                       key={`viewer-${doc.id}`}
                       docId={doc.id}
                       onClose={() => setExpandedId(null)}

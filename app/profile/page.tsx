@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { LEGAL_FORM_OPTIONS } from "@/lib/copy";
 
 interface Profile {
   name: string;
@@ -64,18 +65,6 @@ const EMPTY: Profile = {
   beneficiaries: "",
   grant_themes: "",
 };
-
-const LEGAL_FORMS = [
-  "company",
-  "charity",
-  "cic",
-  "registered-society",
-  "partnership",
-  "sole-trader",
-  "university",
-  "public-body",
-  "other",
-];
 
 const COMPANY_SIZE_BANDS = [
   "Micro (0-9)",
@@ -1038,9 +1027,9 @@ export default function ProfilePage() {
                 style={{ width: "100%" }}
               >
                 <option value="">Select…</option>
-                {LEGAL_FORMS.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
+                {LEGAL_FORM_OPTIONS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
                   </option>
                 ))}
               </select>

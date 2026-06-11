@@ -230,7 +230,9 @@ export function RFPWorkflow({
         error?: string;
       };
       if (!res.ok || !data.counts) {
-        setDetailsError(data.error ?? "Extraction failed");
+        setDetailsError(
+          data.error ?? "We couldn't pull out the details — please try again.",
+        );
         return;
       }
       setCounts(data.counts);
@@ -533,7 +535,7 @@ export function RFPWorkflow({
         <SectionHeading
           step="2"
           title="What this tender wants"
-          subtitle="Read the summary to understand the buyer's needs before extracting questions."
+          subtitle="Read the summary to understand the buyer's needs before pulling out the questions."
         />
 
         {description ? (
@@ -641,7 +643,7 @@ export function RFPWorkflow({
         >
           <SectionHeading
             step="3"
-            title="Extract requirements & questions"
+            title="Pull out the requirements & questions"
             subtitle="Pull every requirement and question from the description and all tender documents into one list — each tagged with where it came from."
           />
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
@@ -654,7 +656,7 @@ export function RFPWorkflow({
               {gettingDetails
                 ? "Working…"
                 : counts.total > 0
-                  ? "Re-extract all"
+                  ? "Pull out the questions again"
                   : "Get all details"}
             </button>
             {docs.length === 0 && (
@@ -679,7 +681,7 @@ export function RFPWorkflow({
               marginBottom: 12,
             }}
           >
-            Reading the description and tender documents, then extracting
+            Reading the description and tender documents, then pulling out the
             requirements and questions…
           </p>
         )}
@@ -871,7 +873,7 @@ export function RFPWorkflow({
                 disabled={uploading}
                 style={{ fontSize: 12, padding: "4px 12px" }}
               >
-                {uploading ? "Adding…" : "Add & extract"}
+                {uploading ? "Adding…" : "Add & pull out questions"}
               </button>
               <button
                 className="btn ghost"
@@ -889,8 +891,9 @@ export function RFPWorkflow({
           )}
         </div>
         <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>
-          Portal-locked document? Download it and upload here — it&apos;ll be
-          stored and included in the extraction.
+          Document locked behind a portal sign-in? Download it and upload it
+          here — it&apos;ll be stored and included when we pull out the
+          questions.
         </p>
       </div>
 
@@ -900,7 +903,7 @@ export function RFPWorkflow({
           <SectionHeading
             step="4"
             title="Compliance requirements"
-            subtitle="Draft a compliance statement for each requirement using your knowledge base."
+            subtitle="Draft a compliance statement for each requirement using your evidence library."
           />
           <RequirementsSection
             opportunityId={opp.id}
@@ -916,7 +919,7 @@ export function RFPWorkflow({
           <SectionHeading
             step="5"
             title="Questions to answer"
-            subtitle="AI drafts each answer from your knowledge base. Review, edit, and approve before exporting."
+            subtitle="AI drafts each answer from your evidence library. Review, edit, and approve before exporting."
           />
           <QuestionsSection
             opportunityId={opp.id}

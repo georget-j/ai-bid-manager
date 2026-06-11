@@ -234,8 +234,7 @@ export default function PipelinePage() {
           Bid <em>pipeline</em>
         </h1>
         <p className="subtitle">
-          Manage your active opportunities from first match to submission. Track
-          decisions, assign owners, and set next actions.
+          Track the tenders you&apos;re pursuing from first look to submitted.
         </p>
         {clients.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

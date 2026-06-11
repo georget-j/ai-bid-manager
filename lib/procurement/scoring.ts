@@ -180,7 +180,7 @@ export function scoreOpportunity(
   score += Math.min(20, evidenceScore);
   if (evidenceScore < 10) {
     missingRequirements.push(
-      "Upload capability statements, case studies, and compliance evidence to the Knowledge Base to improve your readiness score.",
+      "Add your certifications and accreditations to your organisation profile to improve your readiness score.",
     );
   } else {
     reasons.push("Organisation has certifications and accreditations on file.");

@@ -1,5 +1,39 @@
 # Market Wedge Changelog v3
 
+## 2026-06-11 — UX overhaul shipped: 3 phases (design → answering → IA/home → evidence/help)
+
+Full design in `MARKET_WEDGE_UX_OVERHAUL_v1.md` (4-agent flow review + live visual walkthrough).
+
+- **UX-C `d1cc085` — answering is fast, reliable, reviewable.** Server: always-terminal SSE
+  (done{partial, unanswered_ids, reason} even on timeout/error — kills the stuck "Generating…"
+  forever bug), abort plumbing into every OpenAI call, sliding-window concurrency (no lock-step
+  waves), batch path skips the LLM rerank, draft text STREAMS via 'delta' events. Client:
+  guidance items no longer auto-answered (rendered as funder-guidance notes), per-question
+  briefing chips (Mandatory/topic/word-limit), question-by-question review stepper
+  (always-editable, autosave on blur, keyboard nav), partial-completion banner with "Answer the
+  remaining M", pinned "Draft all N answers" CTA, inline redo confirm. Display: formatDaysLeft
+  grammar + formatAmountRange ("Up to £1.4m", no more "£1–£1.4m").
+- **UX-B `27b4fbc` — offering-first IA + a home that answers "what next".** Sidebar: Home /
+  Tenders / Grants / Investors / Your workspace / Operator; breadcrumbs cover every route
+  ("Page" impossible); home = both-offering hero + derived "Get set up" checklist
+  (lib/setup-flow.ts) + "Recommended for you" (top-3 tenders + top-3 grants, one card language)
+  - cross-offering "Due soon" + reworded KPIs; operator-only source cards.
+- **UX-D (this commit) — evidence trust + instruction system.** /documents → "Evidence
+  library": outcome subtitle, lock-icon privacy strip ("Private to your organisation…"),
+  teaching empty state (what-to-upload checklist + sample data), multi-file drop with per-file
+  status, 409 duplicate → "Replace existing", plain-English scope tabs; privacy lines on /ask +
+  grant-flow evidence step; "Add your own supporting documents" inside the application flow.
+  HelpNavigator rewritten (Get started / Tenders / Grants / Your documents & privacy — tech
+  specs deleted); new authenticated /help full guide. lib/copy.ts: confidence → "Well evidenced
+  / Partly evidenced / Needs your input"; extraction strings humanised; one-line page-head
+  explainers (review/pipeline/responses/compliance/history/alerts); profile-strength chips on
+  both Matched-to-you pages; legal-form labels ("Community interest company (CIC)" not "cic");
+  truthful readiness tip (was falsely claiming KB uploads improve a profile-only score).
+
+Tests 422 passed + 1 intentional skip (was 327 pre-overhaul); tsc/lint/build clean throughout.
+Follow-ups: /my-applications real-browser hydration check; embeddings AbortSignal; /api/ask
+latent unhandled-rejection path; middleware→proxy convention.
+
 ## 2026-06-11 — xlsx patched (0 vulnerabilities), Eventbrite live in production
 
 - `xlsx` 0.18.5 → 0.20.3 (official SheetJS registry; npm registry stopped at the vulnerable
