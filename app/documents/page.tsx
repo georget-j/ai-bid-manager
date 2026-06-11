@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { CredentialsPanel } from "@/components/CredentialsPanel";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUpload } from "@/components/DocumentUpload";
 import { SampleDataLoader } from "@/components/SampleDataLoader";
@@ -137,6 +138,11 @@ export default function DocumentsPage() {
 
       <div className="section-title">Your documents</div>
       <DocumentList refreshKey={refreshKey} onCountChange={handleCountChange} />
+
+      <div className="section-title" style={{ marginTop: 36 }}>
+        Your credentials
+      </div>
+      <CredentialsPanel />
     </div>
   );
 }

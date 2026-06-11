@@ -2,15 +2,62 @@ import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
 import { getRequestOrgId } from "@/lib/org";
 import { getOrgProfile, upsertOrgProfile } from "@/lib/procurement/data";
+import { normaliseInsurance } from "@/lib/procurement/types";
+
+// One line of cover: a plain number (the pre-070 shape older clients still
+// send) or the structured {amount, insurer?, policy_number?, expires_at?}
+// object. Saves go through normaliseInsurance, so storage converges on the
+// object shape either way.
+const InsuranceLineSchema = z
+  .union([
+    z.number(),
+    z.object({
+      amount: z.number().nullable().optional(),
+      insurer: z.string().optional(),
+      policy_number: z.string().optional(),
+      expires_at: z.string().optional(),
+    }),
+  ])
+  .nullable()
+  .optional();
 
 const InsuranceSchema = z
   .object({
-    professional_indemnity: z.number().nullable().optional(),
-    public_liability: z.number().nullable().optional(),
-    employers_liability: z.number().nullable().optional(),
+    professional_indemnity: InsuranceLineSchema,
+    public_liability: InsuranceLineSchema,
+    employers_liability: InsuranceLineSchema,
   })
   .nullable()
   .optional();
+
+const AddressSchema = z
+  .object({
+    line1: z.string().nullable().optional(),
+    line2: z.string().nullable().optional(),
+    city: z.string().nullable().optional(),
+    postcode: z.string().nullable().optional(),
+    country: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const KeyPersonSchema = z.object({
+  name: z.string().min(1),
+  role: z.string().min(1),
+  bio: z.string().nullable().optional(),
+});
+
+const FrameworkSchema = z.object({
+  name: z.string().min(1),
+  reference: z.string().nullable().optional(),
+  expires_at: z.string().nullable().optional(),
+});
+
+const PolicySchema = z.object({
+  name: z.string().min(1),
+  last_reviewed: z.string().nullable().optional(),
+  document_id: z.string().nullable().optional(),
+});
 
 const ProfileSchema = z.object({
   name: z.string().min(1),
@@ -42,6 +89,23 @@ const ProfileSchema = z.object({
   match_funding_capacity: z.number().nullable().optional(),
   beneficiaries: z.array(z.string()).default([]),
   grant_themes: z.array(z.string()).default([]),
+  // Business credentials (migration 070)
+  website: z.string().nullable().optional(),
+  vat_number: z.string().nullable().optional(),
+  registered_address: AddressSchema,
+  incorporation_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the format YYYY-MM-DD")
+    .nullable()
+    .optional(),
+  sic_codes: z.array(z.string()).default([]),
+  trading_names: z.array(z.string()).default([]),
+  employee_count: z.number().int().min(0).nullable().optional(),
+  key_people: z.array(KeyPersonSchema).default([]),
+  memberships: z.array(z.string()).default([]),
+  frameworks: z.array(FrameworkSchema).default([]),
+  policies: z.array(PolicySchema).default([]),
+  carbon_reduction_plan: z.boolean().nullable().optional(),
 });
 
 export async function GET() {
@@ -78,7 +142,8 @@ export async function POST(request: NextRequest) {
       organisation_type: parsed.data.organisation_type ?? null,
       min_contract_value: parsed.data.min_contract_value ?? null,
       max_contract_value: parsed.data.max_contract_value ?? null,
-      insurance: parsed.data.insurance ?? null,
+      // Stores the structured shape whichever era the client sent.
+      insurance: normaliseInsurance(parsed.data.insurance),
       company_size_band: parsed.data.company_size_band ?? null,
       annual_turnover: parsed.data.annual_turnover ?? null,
       year_established: parsed.data.year_established ?? null,
@@ -87,6 +152,12 @@ export async function POST(request: NextRequest) {
       charity_number: parsed.data.charity_number ?? null,
       company_number: parsed.data.company_number ?? null,
       match_funding_capacity: parsed.data.match_funding_capacity ?? null,
+      website: parsed.data.website ?? null,
+      vat_number: parsed.data.vat_number ?? null,
+      registered_address: parsed.data.registered_address ?? null,
+      incorporation_date: parsed.data.incorporation_date ?? null,
+      employee_count: parsed.data.employee_count ?? null,
+      carbon_reduction_plan: parsed.data.carbon_reduction_plan ?? null,
     });
 
     return NextResponse.json({ profile });

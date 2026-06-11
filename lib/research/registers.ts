@@ -2,6 +2,8 @@
 // Companies House: https://developer.company-information.service.gov.uk/ (Basic auth, key as username)
 // Charity Commission: https://api-portal.charitycommission.gov.uk/ (Ocp-Apim-Subscription-Key)
 
+import type { RegisteredAddress } from "@/lib/procurement/types";
+
 export interface RegisterEnrichment {
   legal_form?: string;
   company_number?: string;
@@ -9,6 +11,9 @@ export interface RegisterEnrichment {
   is_registered_charity?: boolean;
   year_established?: number;
   name?: string;
+  /** Registered office, mapped to the migration-070 profile shape. */
+  registered_address?: RegisteredAddress;
+  sic_codes?: string[];
   notes: string[];
 }
 
@@ -58,6 +63,29 @@ export async function lookupCompany(
   if (typeof data.date_of_creation === "string") {
     const y = Number(data.date_of_creation.slice(0, 4));
     if (Number.isFinite(y)) out.year_established = y;
+  }
+  // Registered office + SIC codes ride along in the same response — map them
+  // into the migration-070 profile fields instead of discarding them.
+  const office = data.registered_office_address;
+  if (office && typeof office === "object") {
+    const str = (v: unknown) =>
+      typeof v === "string" && v.trim() ? v.trim() : undefined;
+    const address: RegisteredAddress = {
+      line1: str(office.address_line_1),
+      line2: str(office.address_line_2),
+      city: str(office.locality),
+      postcode: str(office.postal_code),
+      country: str(office.country),
+    };
+    if (Object.values(address).some((v) => v != null)) {
+      out.registered_address = address;
+    }
+  }
+  if (Array.isArray(data.sic_codes)) {
+    const codes = data.sic_codes.filter(
+      (c: unknown): c is string => typeof c === "string" && c.trim() !== "",
+    );
+    if (codes.length > 0) out.sic_codes = codes;
   }
   out.notes.push(`Found ${out.name ?? number} on Companies House.`);
   return out;

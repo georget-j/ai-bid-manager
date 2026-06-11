@@ -155,6 +155,29 @@ export async function addToPipeline(
 
 // ── Organisation profiles ─────────────────────────────────────────────────────
 
+/**
+ * Rows read before migration 070 (or written by older seeds) lack the
+ * business-credential columns. Default them here so every caller sees stable
+ * shapes — arrays are arrays, scalars are null — instead of undefined.
+ */
+function mapProfileRow(row: OrganisationProfileRow): OrganisationProfileRow {
+  return {
+    ...row,
+    website: row.website ?? null,
+    vat_number: row.vat_number ?? null,
+    registered_address: row.registered_address ?? null,
+    incorporation_date: row.incorporation_date ?? null,
+    sic_codes: row.sic_codes ?? [],
+    trading_names: row.trading_names ?? [],
+    employee_count: row.employee_count ?? null,
+    key_people: row.key_people ?? [],
+    memberships: row.memberships ?? [],
+    frameworks: row.frameworks ?? [],
+    policies: row.policies ?? [],
+    carbon_reduction_plan: row.carbon_reduction_plan ?? null,
+  };
+}
+
 export async function getOrgProfile(
   orgId: string,
 ): Promise<OrganisationProfileRow | null> {
@@ -166,7 +189,7 @@ export async function getOrgProfile(
     .single();
 
   if (error) return null;
-  return data as OrganisationProfileRow;
+  return mapProfileRow(data as OrganisationProfileRow);
 }
 
 export async function upsertOrgProfile(
@@ -187,7 +210,7 @@ export async function upsertOrgProfile(
     .single();
 
   if (error) throw new Error(`Failed to save profile: ${error.message}`);
-  return data as OrganisationProfileRow;
+  return mapProfileRow(data as OrganisationProfileRow);
 }
 
 // ── Matches ───────────────────────────────────────────────────────────────────

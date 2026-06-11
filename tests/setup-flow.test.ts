@@ -193,47 +193,70 @@ describe("profileCompletenessPct", () => {
     grant_themes: [],
   };
 
+  /** Every check in every section filled (migration-070 fields included). */
+  const full: ProfileCompletenessFields = {
+    cpv_codes: ["72000000"],
+    services: ["penetration testing"],
+    keywords: ["cyber"],
+    sectors: ["IT"],
+    regions: ["London"],
+    certifications: ["ISO 27001"],
+    accreditations: ["Cyber Essentials Plus"],
+    min_contract_value: 10_000,
+    max_contract_value: 500_000,
+    company_size_band: "small",
+    annual_turnover: 1_000_000,
+    delivery_models: ["remote"],
+    insurance: {
+      professional_indemnity: { amount: 1_000_000, expires_at: "2027-01-01" },
+      public_liability: { amount: 5_000_000, expires_at: "2027-01-01" },
+      employers_liability: { amount: 10_000_000, expires_at: "2027-01-01" },
+    },
+    legal_form: "company",
+    grant_themes: ["innovation"],
+    company_number: "01234567",
+    website: "https://example.co.uk",
+    vat_number: "GB123456789",
+    registered_address: { line1: "1 High St", postcode: "EC1A 1AA" },
+    incorporation_date: "2015-03-01",
+    sic_codes: ["62020"],
+    employee_count: 42,
+    key_people: [{ name: "A. Person", role: "Managing Director" }],
+    memberships: ["techUK"],
+    frameworks: [{ name: "G-Cloud 14" }],
+    policies: [{ name: "Information Security Policy" }],
+    carbon_reduction_plan: true,
+  };
+
   it("is 0 for a missing or empty profile", () => {
     expect(profileCompletenessPct(null)).toBe(0);
     expect(profileCompletenessPct(empty)).toBe(0);
   });
 
-  it("is 100 when every scoring field is filled", () => {
-    expect(
-      profileCompletenessPct({
-        cpv_codes: ["72000000"],
-        services: ["penetration testing"],
-        keywords: ["cyber"],
-        sectors: ["IT"],
-        regions: ["London"],
-        certifications: ["ISO 27001"],
-        accreditations: ["Cyber Essentials Plus"],
-        min_contract_value: 10_000,
-        max_contract_value: 500_000,
-        company_size_band: "small",
-        annual_turnover: 1_000_000,
-        delivery_models: ["remote"],
-        insurance: { professional_indemnity: 1_000_000 },
-        legal_form: "limited-company",
-        grant_themes: ["innovation"],
-      }),
-    ).toBe(100);
+  it("is 100 when every section is complete", () => {
+    expect(profileCompletenessPct(full)).toBe(100);
   });
 
-  it("counts partial fills proportionally", () => {
-    // 7 of 14 fields filled → 50%.
-    expect(
-      profileCompletenessPct({
-        ...empty,
-        cpv_codes: ["72000000"],
-        services: ["security"],
-        keywords: ["cyber"],
-        sectors: ["IT"],
-        regions: ["UK"],
-        company_size_band: "small",
-        legal_form: "cic",
-      }),
-    ).toBe(50);
+  it("weights matching fields highest", () => {
+    // "What you do" carries 4 of the 21 weight → 19% on its own.
+    const matchingOnly = profileCompletenessPct({
+      ...empty,
+      services: ["security"],
+      sectors: ["IT"],
+      keywords: ["cyber"],
+      cpv_codes: ["72000000"],
+      regions: ["UK"],
+      delivery_models: ["remote"],
+    });
+    expect(matchingOnly).toBe(19);
+
+    // ...more than the two financial fields (2 of 21 → 10%).
+    const financialOnly = profileCompletenessPct({
+      ...empty,
+      annual_turnover: 1_000_000,
+      min_contract_value: 10_000,
+    });
+    expect(matchingOnly).toBeGreaterThan(financialOnly);
   });
 
   it("either contract-value bound counts as filled", () => {
@@ -242,7 +265,7 @@ describe("profileCompletenessPct", () => {
     ).toBe(profileCompletenessPct({ ...empty, max_contract_value: 50_000 }));
   });
 
-  it("insurance only counts when a cover amount is actually set", () => {
+  it("insurance counts amounts in either stored shape, never empty objects", () => {
     expect(profileCompletenessPct({ ...empty, insurance: {} })).toBe(0);
     expect(
       profileCompletenessPct({
@@ -250,11 +273,17 @@ describe("profileCompletenessPct", () => {
         insurance: { public_liability: null },
       }),
     ).toBe(0);
-    expect(
-      profileCompletenessPct({
-        ...empty,
-        insurance: { public_liability: 2_000_000 },
-      }),
-    ).toBe(7); // 1 of 14
+
+    // Pre-070 rows store plain numbers; both eras score identically.
+    const legacy = profileCompletenessPct({
+      ...empty,
+      insurance: { public_liability: 2_000_000 },
+    });
+    const structured = profileCompletenessPct({
+      ...empty,
+      insurance: { public_liability: { amount: 2_000_000 } },
+    });
+    expect(legacy).toBeGreaterThan(0);
+    expect(legacy).toBe(structured);
   });
 });

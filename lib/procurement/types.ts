@@ -150,11 +150,126 @@ export interface SourceRow {
   updated_at: string;
 }
 
-/** Structured insurance cover (amounts in GBP). All optional. */
+// ── Insurance ─────────────────────────────────────────────────────────────────
+
+export const INSURANCE_LINES = [
+  "professional_indemnity",
+  "public_liability",
+  "employers_liability",
+] as const;
+
+export type InsuranceLine = (typeof INSURANCE_LINES)[number];
+
+/** One line of cover in the migration-070 shape (amount in GBP). */
+export interface InsuranceCoverDetail {
+  amount: number | null;
+  insurer?: string;
+  policy_number?: string;
+  /** ISO date the policy runs out. */
+  expires_at?: string;
+}
+
+/**
+ * What a stored insurance value can hold: rows written before migration 070
+ * keep plain numbers; newer rows hold {amount, insurer?, policy_number?,
+ * expires_at?} objects. Readers must go through normaliseInsurance.
+ */
+export type InsuranceCoverValue = number | InsuranceCoverDetail | null;
+
+/** Structured insurance cover. All lines optional. */
 export interface InsuranceCover {
-  professional_indemnity?: number | null;
-  public_liability?: number | null;
-  employers_liability?: number | null;
+  professional_indemnity?: InsuranceCoverValue;
+  public_liability?: InsuranceCoverValue;
+  employers_liability?: InsuranceCoverValue;
+}
+
+/** Every line present, every value in the migration-070 object shape. */
+export type NormalisedInsurance = Record<
+  InsuranceLine,
+  InsuranceCoverDetail | null
+>;
+
+function normaliseInsuranceLine(value: unknown): InsuranceCoverDetail | null {
+  // Pre-070 shape: the value is the cover amount itself.
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? { amount: value } : null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const o = value as Record<string, unknown>;
+  const detail: InsuranceCoverDetail = {
+    amount:
+      typeof o.amount === "number" && Number.isFinite(o.amount)
+        ? o.amount
+        : null,
+  };
+  if (typeof o.insurer === "string" && o.insurer.trim()) {
+    detail.insurer = o.insurer.trim();
+  }
+  if (typeof o.policy_number === "string" && o.policy_number.trim()) {
+    detail.policy_number = o.policy_number.trim();
+  }
+  if (typeof o.expires_at === "string" && o.expires_at.trim()) {
+    detail.expires_at = o.expires_at.trim();
+  }
+  const hasAnything =
+    detail.amount != null ||
+    detail.insurer != null ||
+    detail.policy_number != null ||
+    detail.expires_at != null;
+  return hasAnything ? detail : null;
+}
+
+/**
+ * Normalise a stored insurance value (either era) into the migration-070
+ * object shape. Returns null when there is no usable cover at all, so
+ * `normaliseInsurance(x) != null` still means "has some insurance recorded".
+ */
+export function normaliseInsurance(value: unknown): NormalisedInsurance | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const out = {} as NormalisedInsurance;
+  let any = false;
+  for (const line of INSURANCE_LINES) {
+    const detail = normaliseInsuranceLine(raw[line]);
+    out[line] = detail;
+    if (detail) any = true;
+  }
+  return any ? out : null;
+}
+
+// ── Organisation profile ──────────────────────────────────────────────────────
+
+/** Registered office address (migration 070, Companies House shape). */
+export interface RegisteredAddress {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  postcode?: string | null;
+  country?: string | null;
+}
+
+/** A named person buyers ask about (migration 070). */
+export interface KeyPerson {
+  name: string;
+  role: string;
+  bio?: string | null;
+}
+
+/** A framework place, e.g. G-Cloud 14 (migration 070). */
+export interface FrameworkEntry {
+  name: string;
+  reference?: string | null;
+  /** ISO date the place expires. */
+  expires_at?: string | null;
+}
+
+/** A named policy document, e.g. "Information Security Policy" (migration 070). */
+export interface PolicyEntry {
+  name: string;
+  /** ISO date the policy was last reviewed. */
+  last_reviewed?: string | null;
+  /** Knowledge-base document holding the policy text. */
+  document_id?: string | null;
 }
 
 export interface OrganisationProfileRow {
@@ -189,6 +304,22 @@ export interface OrganisationProfileRow {
   match_funding_capacity: number | null;
   beneficiaries: string[];
   grant_themes: string[];
+  // Business credentials (migration 070). Optional because rows fetched before
+  // the migration (and older seed inputs) omit them — getOrgProfile defaults
+  // them, so reads through lib/procurement/data.ts always see stable values.
+  website?: string | null;
+  vat_number?: string | null;
+  registered_address?: RegisteredAddress | null;
+  /** ISO date of incorporation. */
+  incorporation_date?: string | null;
+  sic_codes?: string[];
+  trading_names?: string[];
+  employee_count?: number | null;
+  key_people?: KeyPerson[];
+  memberships?: string[];
+  frameworks?: FrameworkEntry[];
+  policies?: PolicyEntry[];
+  carbon_reduction_plan?: boolean | null;
   created_at: string;
   updated_at: string;
 }
