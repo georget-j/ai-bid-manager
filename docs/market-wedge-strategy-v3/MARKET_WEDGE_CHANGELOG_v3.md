@@ -1,5 +1,16 @@
 # Market Wedge Changelog v3
 
+## 2026-06-11 — xlsx patched (0 vulnerabilities), Eventbrite live in production
+
+- `xlsx` 0.18.5 → 0.20.3 (official SheetJS registry; npm registry stopped at the vulnerable
+  version) — closes both high advisories; postcss override for Next's nested copy.
+  **`npm audit`: 0 vulnerabilities; Dependabot: 0 open alerts.**
+- `EVENTBRITE_TOKEN` configured (Vercel production + local). Connector fixed live: public
+  `/o/{slug}-{id}` ids are ORGANIZER ids → endpoint switched to `/v3/organizers/{id}/events/`
+  (organizations API 404s them); stale organizer ids now skip instead of failing the run.
+  Source enabled; first live sync upserted 5 London pitch events (venue lat/lng, classified).
+  Nightly sync-events cron now covers UKBAA + Eventbrite.
+
 ## 2026-06-11 — Investor events: UK map + virtual list, organizer profiles, Eventbrite/UKBAA sync
 
 New feature (migration **069**, applied via `db push` — history recorded; next free: 070):
