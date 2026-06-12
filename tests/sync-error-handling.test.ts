@@ -507,6 +507,7 @@ describe("seedGrantSources", () => {
       rows.map((r) => [r.name, r.enabled]),
     );
     expect(enabledByName["ukri-funding-finder"]).toBe(true); // core UK coverage
+    expect(enabledByName["tnl-community-fund"]).toBe(true); // core UK coverage
     expect(enabledByName["sedia-horizon"]).toBe(false); // operator opts in
     expect(enabledByName["ukri-gtr"]).toBe(false); // no connector — "Planned"
     expect(enabledByName["360giving"]).toBe(true);
@@ -525,12 +526,21 @@ describe("seedGrantSources", () => {
 
     await seedGrantSources();
 
-    // Only the two new sources are inserted.
+    // Only the missing (newer) sources are inserted.
     expect(state.insertCalls).toHaveLength(1);
     const names = (state.insertCalls[0].rows as Array<{ name: string }>).map(
       (r) => r.name,
     );
-    expect(names.sort()).toEqual(["sedia-horizon", "ukri-funding-finder"]);
+    expect(names.sort()).toEqual([
+      "foundation-scotland",
+      "funding-scotland",
+      "heritage-fund",
+      "london-cf",
+      "ni-business-info",
+      "sedia-horizon",
+      "tnl-community-fund",
+      "ukri-funding-finder",
+    ]);
 
     // Exactly one targeted repair: disable the dead ukri-gtr row by name —
     // operator toggles and sync state on every other source are untouched.
@@ -551,6 +561,12 @@ describe("seedGrantSources", () => {
       "innovate-uk",
       "ukri-funding-finder",
       "sedia-horizon",
+      "tnl-community-fund",
+      "funding-scotland",
+      "ni-business-info",
+      "foundation-scotland",
+      "heritage-fund",
+      "london-cf",
       "manual-upload",
     );
 

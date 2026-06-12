@@ -160,6 +160,26 @@ describe("programmeToGrantRow", () => {
     expect(deriveRegions("somewhere unmapped")).toEqual(["United Kingdom"]);
   });
 
+  it("maps devolved nations (and implies United Kingdom for any UK sub-region)", () => {
+    expect(deriveRegions("Scotland")).toEqual(["Scotland", "United Kingdom"]);
+    expect(deriveRegions("Edinburgh / Glasgow / Aberdeen")).toEqual([
+      "Scotland",
+      "United Kingdom",
+    ]);
+    expect(deriveRegions("Wales (Cardiff, Newport, Swansea, Barry)")).toEqual([
+      "Wales",
+      "United Kingdom",
+    ]);
+    expect(deriveRegions("Belfast / Northern Ireland")).toEqual([
+      "Northern Ireland",
+      "United Kingdom",
+    ]);
+    // SETsquared's multi-campus footprint includes Cardiff → Wales + UK.
+    expect(
+      deriveRegions("Bath, Bristol, Cardiff, Exeter, Southampton, Surrey"),
+    ).toEqual(["Wales", "United Kingdom"]);
+  });
+
   it("keeps raw-before-normalise: the curated programme is stored as raw_json", () => {
     const raw = row.raw_json as { curated: boolean; programme: unknown };
     expect(raw.curated).toBe(true);
@@ -364,16 +384,89 @@ describe("collapseDuplicateGrants", () => {
 // ── Events cross-links ────────────────────────────────────────────────────────
 
 describe("programme ↔ investor organizer cross-links", () => {
-  it("organizerSlug is set only for the two organisations that exist in both curated lists", () => {
+  it("organizerSlug is set only for the organisations that exist in both curated lists", () => {
     const withSlug = PROGRAMMES.filter((p) => p.organizerSlug);
     expect(withSlug.map((p) => [p.id, p.organizerSlug]).sort()).toEqual([
       ["entrepreneur-first", "entrepreneur-first"],
       ["seedcamp", "seedcamp"],
+      ["setsquared", "setsquared"],
     ]);
   });
 
-  it("listProgrammes filters by the remaining programme types", () => {
-    expect(listProgrammes("accelerator").length).toBeGreaterThan(0);
+  it("listProgrammes filters by every programme type, and each type is populated", () => {
+    const types = [
+      "accelerator",
+      "investor-programme",
+      "ecosystem-support",
+      "incubator",
+      "grant-competition",
+    ] as const;
+    for (const t of types) {
+      const filtered = listProgrammes(t);
+      expect(filtered.length).toBeGreaterThan(0);
+      expect(filtered.every((p) => p.type === t)).toBe(true);
+    }
     expect(listProgrammes().length).toBe(PROGRAMMES.length);
+    // Every programme's type is one of the filterable types (pills cover all).
+    expect(
+      PROGRAMMES.every((p) => (types as readonly string[]).includes(p.type)),
+    ).toBe(true);
+  });
+});
+
+// ── Curated-list integrity (2026-06 expansion to 40+ verified programmes) ────
+
+describe("curated programme list integrity", () => {
+  it("holds 40–60 programmes (expansion target)", () => {
+    expect(PROGRAMMES.length).toBeGreaterThanOrEqual(40);
+    expect(PROGRAMMES.length).toBeLessThanOrEqual(60);
+  });
+
+  it("ids are unique, slug-shaped, and stable as upsert keys", () => {
+    const ids = PROGRAMMES.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) {
+      expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    }
+  });
+
+  it("every applicationUrl is a parseable https URL (liveness-verified at curation time)", () => {
+    for (const p of PROGRAMMES) {
+      expect(p.applicationUrl.startsWith("https://")).toBe(true);
+      // URL constructor throws on malformed URLs.
+      expect(() => new URL(p.applicationUrl)).not.toThrow();
+    }
+  });
+
+  it("application URLs are unique — no two programmes share an apply page", () => {
+    const urls = PROGRAMMES.map((p) => p.applicationUrl);
+    expect(new Set(urls).size).toBe(urls.length);
+  });
+
+  it("every entry carries the plain-English essentials the card renders", () => {
+    for (const p of PROGRAMMES) {
+      expect(p.name.trim().length).toBeGreaterThan(0);
+      expect(p.organiser.trim().length).toBeGreaterThan(0);
+      expect(p.location.trim().length).toBeGreaterThan(0);
+      expect(p.cadence.trim().length).toBeGreaterThan(0);
+      expect(p.offer.trim().length).toBeGreaterThan(0);
+      expect(p.focus.length).toBeGreaterThan(0);
+      // Description: substantial, plain-English prose ending in a full stop.
+      expect(p.description.trim().length).toBeGreaterThanOrEqual(80);
+      expect(p.description.trim().endsWith(".")).toBe(true);
+    }
+  });
+
+  it("stays cyber/IT-weighted: at least 8 cyber-relevant programmes", () => {
+    expect(
+      PROGRAMMES.filter((p) => p.cyberRelevant).length,
+    ).toBeGreaterThanOrEqual(8);
+  });
+
+  it("known-dead programmes never creep back in", () => {
+    const names = PROGRAMMES.map((p) => p.name.toLowerCase());
+    for (const dead of ["lorca", "tech nation", "wayra"]) {
+      expect(names.some((n) => n.includes(dead))).toBe(false);
+    }
   });
 });
