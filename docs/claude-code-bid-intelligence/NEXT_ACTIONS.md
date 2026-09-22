@@ -4,7 +4,7 @@ Last updated: 2026-06-04
 
 ## Current objective
 
-All phases complete. DB migrations applied. Deployed to Vercel. App is live at ai-rfp-agent-ten.vercel.app.
+All phases complete. DB migrations applied. Deployed to Vercel. App is live at ai-bid-manager.vercel.app.
 
 ---
 
