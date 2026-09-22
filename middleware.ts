@@ -62,12 +62,11 @@ export async function middleware(request: NextRequest) {
     ["POST", "PUT", "PATCH", "DELETE"].includes(request.method)
   ) {
     const origin = request.headers.get("origin");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (origin && appUrl) {
+    if (origin) {
       try {
         const originHost = new URL(origin).host;
-        const appHost = new URL(appUrl).host;
-        if (originHost !== appHost) {
+        const requestHost = request.nextUrl.host;
+        if (originHost !== requestHost) {
           return NextResponse.json(
             { error: "CSRF check failed" },
             { status: 403 },
