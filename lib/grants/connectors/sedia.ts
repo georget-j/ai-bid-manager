@@ -25,7 +25,7 @@ const BASE_URL =
 const API_URL = "https://api.tech.ec.europa.eu/search-api/prod/rest/search";
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
-  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+  "Mozilla/5.0 (compatible; AIBidManager/1.0; +https://ai-bid-manager.vercel.app)";
 const PAGE_SIZE = 50;
 const FRAMEWORK_HORIZON_EUROPE = "43108390";
 const STATUS_OPEN = "31094501";
