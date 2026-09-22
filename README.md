@@ -2,7 +2,7 @@
 
 > Find, qualify, manage, and respond to UK public-sector tenders with AI — from opportunity discovery and bid/no-bid assessment through pipeline management, evidence-grounded drafting, review, and export.
 
-Live demo: **[ai-rfp-agent-ten.vercel.app](https://ai-rfp-agent-ten.vercel.app)**  
+Live demo: **[ai-bid-manager.vercel.app](https://ai-bid-manager.vercel.app)**  
 Demo account: `demo@fortis-cyber.co.uk` / `FortisDemo2024!` (Fortis Cyber Solutions Ltd — a pre-built cyber security persona)
 
 ---
