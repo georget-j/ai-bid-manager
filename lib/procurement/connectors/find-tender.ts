@@ -13,7 +13,7 @@ const BASE_URL =
 // IPs that send no/blank User-Agent. Overridable via env.
 const USER_AGENT =
   process.env.PROCUREMENT_USER_AGENT ??
-  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+  "Mozilla/5.0 (compatible; AIBidManager/1.0; +https://ai-bid-manager.vercel.app)";
 
 const LOOKBACK_HOURS = Number(
   process.env.PROCUREMENT_SYNC_LOOKBACK_HOURS ?? "24",
