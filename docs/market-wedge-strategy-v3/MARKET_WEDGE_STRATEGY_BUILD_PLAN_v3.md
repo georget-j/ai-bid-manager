@@ -9,7 +9,7 @@ This version intentionally uses a unique folder and file naming scheme so it doe
 Target repo:
 
 ```text
-https://github.com/georget-j/ai-rfp-agent
+https://github.com/georget-j/ai-bid-manager
 ```
 
 ---
