@@ -14,10 +14,10 @@
     "qa:grants": "vitest run --config vitest.qa.config.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.63",
+    "@ai-sdk/openai": "^3.0.115",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
-    "ai": "^6.0.177",
+    "ai": "^6.0.287",
     "csv-parse": "^6.2.1",
     "docx": "^9.6.1",
     "leaflet": "^1.9.4",
