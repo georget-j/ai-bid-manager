@@ -25,7 +25,7 @@ import type {
 const BASE_URL = "https://www.ukri.org";
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
-  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+  "Mozilla/5.0 (compatible; AIBidManager/1.0; +https://ai-bid-manager.vercel.app)";
 const REQUEST_DELAY_MS = 150; // polite pacing between detail-page fetches
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_DETAIL_PER_PAGE = 12; // safety cap on detail fetches per listing page (10 listed)
