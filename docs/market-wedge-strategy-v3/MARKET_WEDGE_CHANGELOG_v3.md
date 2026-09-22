@@ -92,7 +92,7 @@ investor meetings across the UK on a map, virtual events alongside, organizer pr
   detection (zoom/meet/teams/webex); free geocoding via postcodes.io + Nominatim fallback
   (paced, cached); 22 curated UK organizers seeded (5 with verified Eventbrite org ids).
 - **Connectors**: `ukbaa` (live: 31 events, 3 pages, geocoded venues; UA note — their WAF
-  blocks the repo's usual "Mozilla/5.0 (compatible…)" UA, plain UKBidIntelligence UA works) and
+  blocks the repo's usual "Mozilla/5.0 (compatible…)" UA, plain AIBidManager UA works) and
   `eventbrite` (organizer polling, Bearer auth so the token can't leak into URLs; **seeded
   disabled until `EVENTBRITE_TOKEN` is set** — free from eventbrite.com → Account settings →
   Developer; panel shows amber setup guidance).
@@ -937,7 +937,7 @@ Found during a live end-to-end test (real login against the deployed app).
   (used as the tender reference on the cover page).
 - Pre-existing bug, unrelated to the RFP rework; surfaced by the live test.
 
-### Live test (throwaway authenticated user, against ai-rfp-agent-ten.vercel.app)
+### Live test (throwaway authenticated user, against ai-bid-manager.vercel.app)
 
 - Real Supabase login → valid session cookie → `auth/me` 200.
 - `extract-all`: **200 — 45 items (30 requirements / 12 questions / 3 guidance)
