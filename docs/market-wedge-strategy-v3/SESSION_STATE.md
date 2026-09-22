@@ -28,7 +28,7 @@ All core product phases complete. Recent work: client account provisioning (invi
 - **`/clients/[id]`**: invite status chips (green Active / amber Pending), inline invite form, `sendInvite()` function
 - **`components/ClientsAdmin.tsx`**: create client + optional email invite in one form; shown in `/admin` under "Client accounts"
 - **`app/admin/page.tsx`**: "Client accounts" section added at top using `ClientsAdmin`
-- **Vercel**: `NEXT_PUBLIC_APP_URL=https://ai-rfp-agent-ten.vercel.app` set for Production and Development environments
+- **Vercel**: `NEXT_PUBLIC_APP_URL=https://ai-bid-manager.vercel.app` set for Production and Development environments
 
 ### `e233a2c` — fix(phase1): make AI draft answers visible + always-present export button
 
