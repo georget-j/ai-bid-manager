@@ -45,7 +45,7 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.6",
+    "vitest": "^4.1.11",
     "zod-to-json-schema": "^3.25.2"
   },
   "overrides": {
