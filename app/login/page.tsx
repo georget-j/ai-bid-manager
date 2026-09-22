@@ -111,7 +111,7 @@ export default function LoginPage() {
             />
           </svg>
         </div>
-        <h1 className="login-title">UK Bid Intelligence</h1>
+        <h1 className="login-title">AI Bid Manager</h1>
         <p className="login-subtitle">Sign in to your workspace</p>
 
         {status === "sent" ? (
