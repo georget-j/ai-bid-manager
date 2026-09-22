@@ -23,7 +23,7 @@ import { dedupeLinks } from "../richtext";
 const BASE_URL = "https://apply-for-innovation-funding.service.gov.uk";
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
-  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+  "Mozilla/5.0 (compatible; AIBidManager/1.0; +https://ai-bid-manager.vercel.app)";
 const REQUEST_DELAY_MS = 400;
 const MAX_DETAIL_PER_PAGE = 12; // safety cap on detail fetches per list page
 
