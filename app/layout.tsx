@@ -11,9 +11,9 @@ import { getRequestOrgRole } from "@/lib/org";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "UK Bid Intelligence Agent",
+  title: "AI Bid Manager",
   description:
-    "Find, qualify, and respond to UK public-sector tenders with AI. Monitor procurement opportunities, score bid fit, and draft compliant responses from your knowledge base.",
+    "Find, qualify, manage, and respond to UK public-sector tenders with AI. Track bid pipelines, identify fit, and draft grounded responses from your evidence base.",
 };
 
 const FONTS =
