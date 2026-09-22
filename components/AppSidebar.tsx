@@ -505,7 +505,7 @@ export function AppSidebar({
         <div className="brand">
           <div className="brand-mark">B</div>
           <div className="brand-text">
-            Bid Intelligence
+            AI Bid Manager
             <small>Tenders · Grants</small>
           </div>
         </div>
@@ -558,7 +558,7 @@ export function AppSidebar({
                 whiteSpace: "nowrap",
               }}
             >
-              {userEmail ?? "UK Bid Intelligence"}
+              {userEmail ?? "AI Bid Manager"}
             </div>
             <div className="role">
               {orgRole
