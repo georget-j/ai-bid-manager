@@ -3,8 +3,8 @@
 **Date:** 2026-06-06  
 **Previous model:** claude-sonnet-4-6  
 **Continuing with:** claude-opus-4-8  
-**Live demo:** https://ai-rfp-agent-ten.vercel.app  
-**Repo:** georget-j/ai-rfp-agent (main branch, auto-deploys to Vercel)
+**Live demo:** https://ai-bid-manager.vercel.app  
+**Repo:** georget-j/ai-bid-manager (main branch, auto-deploys to Vercel)
 
 ---
 
