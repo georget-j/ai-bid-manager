@@ -39,7 +39,7 @@ Phases 1–10 complete. All planned features shipped.
 - **AI:** OpenAI text-embedding-3-small + gpt-4o-mini via Vercel AI SDK
 - **Auth:** Supabase Auth (magic link OTP); `@supabase/ssr` cookie sessions
 - **Notifications:** Resend (email) + Slack webhook
-- **Deployment:** Vercel (live at ai-rfp-agent-ten.vercel.app)
+- **Deployment:** Vercel (live at ai-bid-manager.vercel.app)
 - **Styling:** Custom CSS variables (no Tailwind/MUI)
 
 ### Working routes (pages)
