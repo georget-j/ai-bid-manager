@@ -269,7 +269,7 @@ describe("ukbaa fetchSince", () => {
 
     // Polite scraping: an identifying User-Agent on every request.
     for (const call of fetchMock.mock.calls) {
-      expect(call[1]?.headers?.["User-Agent"]).toContain("UKBidIntelligence");
+      expect(call[1]?.headers?.["User-Agent"]).toContain("AIBidManager");
     }
   });
 
