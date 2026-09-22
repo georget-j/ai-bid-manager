@@ -28,7 +28,7 @@ const BASE_URL = "https://ukbaa.org.uk";
 // …)" crawler pattern but accepts an honestly-named agent (verified live).
 const USER_AGENT =
   process.env.EVENTS_USER_AGENT ??
-  "UKBidIntelligence/1.0 (+https://ai-rfp-agent-ten.vercel.app)";
+  "AIBidManager/1.0 (+https://ai-bid-manager.vercel.app)";
 const REQUEST_DELAY_MS = 150; // polite pacing between detail-page fetches
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_DETAIL_PER_PAGE = 12; // safety cap on detail fetches per listing page
