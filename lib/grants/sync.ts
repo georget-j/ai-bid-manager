@@ -555,6 +555,66 @@ export async function seedGrantSources(): Promise<void> {
         last_error: null,
       },
       {
+        name: "tnl-community-fund",
+        display_name: "National Lottery Community Fund",
+        type: "Web (guardrailed)",
+        base_url: "https://www.tnlcommunityfund.org.uk",
+        enabled: true, // open community programmes across all four UK nations
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
+        name: "funding-scotland",
+        display_name: "Funding Scotland (SCVO)",
+        type: "Web (guardrailed)",
+        base_url: "https://funding.scot",
+        enabled: true, // ~788 open funds, Scotland + many UK-wide funders
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
+        name: "ni-business-info",
+        display_name: "NI Business Info (Invest NI)",
+        type: "Web (guardrailed)",
+        base_url: "https://www.nibusinessinfo.co.uk",
+        enabled: true, // ~80 grant schemes — Northern Ireland coverage
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
+        name: "foundation-scotland",
+        display_name: "Foundation Scotland",
+        type: "Web (guardrailed)",
+        base_url: "https://www.foundationscotland.org.uk",
+        enabled: true, // ~125 available funds — Scottish community coverage
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
+        name: "heritage-fund",
+        display_name: "National Lottery Heritage Fund",
+        type: "Web (guardrailed)",
+        base_url: "https://www.heritagefund.org.uk",
+        enabled: true, // the UK's largest heritage funder (~2-5 open programmes)
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
+        name: "london-cf",
+        display_name: "The London Community Foundation",
+        type: "Web (guardrailed)",
+        base_url: "https://londoncf.org.uk",
+        enabled: true, // ~13 listed funds (open + closed) — London coverage
+        last_successful_sync_at: null,
+        last_cursor: null,
+        last_error: null,
+      },
+      {
         name: "manual-upload",
         display_name: "Manual Upload",
         type: "File upload",

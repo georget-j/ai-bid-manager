@@ -11,6 +11,27 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export const WEB_SEARCH_MODEL =
   process.env.OPENAI_WEBSEARCH_MODEL ?? "gpt-4o-mini";
 
+/**
+ * Kill switch: set WEB_RESEARCH_DISABLED=true to turn off all paid web-search
+ * features at once (routes return a friendly 503). Cost controls live in
+ * lib/rate-limit.ts (web_research / web_research_org_daily buckets).
+ */
+export function webResearchDisabled(): boolean {
+  return (process.env.WEB_RESEARCH_DISABLED ?? "").toLowerCase() === "true";
+}
+
+/** The 503 body every research route returns when the kill switch is on. */
+export const WEB_RESEARCH_DISABLED_MESSAGE =
+  "Online research is currently switched off by your administrator.";
+
+// Search context size drives the per-call price (low < medium < high). Low is
+// plenty for the short cited summaries these features produce; override with
+// WEB_SEARCH_CONTEXT_SIZE if a feature ever needs deeper context.
+const DEFAULT_CONTEXT_SIZE = ((): "low" | "medium" | "high" => {
+  const v = (process.env.WEB_SEARCH_CONTEXT_SIZE ?? "").toLowerCase();
+  return v === "medium" || v === "high" ? v : "low";
+})();
+
 export interface Citation {
   title: string;
   url: string;
@@ -39,7 +60,7 @@ export async function webSearchSummary(opts: {
     query,
     instructions,
     maxOutputTokens = 500,
-    contextSize = "medium",
+    contextSize = DEFAULT_CONTEXT_SIZE,
   } = opts;
 
   const input = instructions ? `${instructions}\n\n${query}` : query;
