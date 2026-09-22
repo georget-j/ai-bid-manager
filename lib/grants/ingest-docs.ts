@@ -13,7 +13,7 @@ import type { GrantRow } from "./types";
 
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
-  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+  "Mozilla/5.0 (compatible; AIBidManager/1.0; +https://ai-bid-manager.vercel.app)";
 const MAX_SOURCES = 12;
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB
 const FETCH_TIMEOUT_MS = 20_000;
