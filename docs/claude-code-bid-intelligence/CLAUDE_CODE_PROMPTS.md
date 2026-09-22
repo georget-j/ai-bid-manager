@@ -14,7 +14,7 @@ Then read every file in:
 docs/claude-code-bid-intelligence/
 
 This is an existing repo, not a greenfield build:
-https://github.com/georget-j/ai-rfp-agent
+https://github.com/georget-j/ai-bid-manager
 
 Important:
 - Do not overwrite existing files blindly.
