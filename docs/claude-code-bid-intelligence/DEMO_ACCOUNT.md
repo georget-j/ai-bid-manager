@@ -8,14 +8,14 @@ A pre-built demo persona for testing the system as a real user. Represents a sma
 | --------- | ----------------------------------------- |
 | Email     | `demo@fortis-cyber.co.uk`                 |
 | Password  | `FortisDemo2024!`                         |
-| Login URL | https://ai-rfp-agent-ten.vercel.app/login |
+| Login URL | https://ai-bid-manager.vercel.app/login |
 
 ## Creating the Account (one-time setup)
 
 After deploying the latest code, run:
 
 ```bash
-curl -s -X POST https://ai-rfp-agent-ten.vercel.app/api/auth/signup \
+curl -s -X POST https://ai-bid-manager.vercel.app/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"demo@fortis-cyber.co.uk","password":"FortisDemo2024!"}' | jq .
 ```
