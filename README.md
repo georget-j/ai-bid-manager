@@ -1,6 +1,6 @@
-# UK Bid Intelligence Agent
+# AI Bid Manager
 
-> Find, qualify, and respond to UK public-sector tenders with AI — grounded in your knowledge base, with source citations, confidence scoring, and a human-in-the-loop review queue.
+> Find, qualify, manage, and respond to UK public-sector tenders with AI — from opportunity discovery and bid/no-bid assessment through pipeline management, evidence-grounded drafting, review, and export.
 
 Live demo: **[ai-rfp-agent-ten.vercel.app](https://ai-rfp-agent-ten.vercel.app)**  
 Demo account: `demo@fortis-cyber.co.uk` / `FortisDemo2024!` (Fortis Cyber Solutions Ltd — a pre-built cyber security persona)
@@ -131,8 +131,8 @@ flowchart LR
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/georget-j/ai-rfp-agent.git
-cd ai-rfp-agent
+git clone https://github.com/georget-j/ai-bid-manager.git
+cd ai-bid-manager
 npm install
 ```
 
