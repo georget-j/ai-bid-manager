@@ -15,7 +15,7 @@ import type {
 const BASE_URL = "https://api.threesixtygiving.org/api/v1";
 const USER_AGENT =
   process.env.GRANTS_USER_AGENT ??
-  "Mozilla/5.0 (compatible; UKBidIntelligence/1.0; +https://ai-rfp-agent-ten.vercel.app)";
+  "Mozilla/5.0 (compatible; AIBidManager/1.0; +https://ai-bid-manager.vercel.app)";
 
 // Curated major UK funders (360Giving org ids, verified live). We ingest one recent
 // page per funder — a representative sample for funder intelligence (these are awarded
