@@ -6,7 +6,7 @@ This file is intended to be pasted into a Claude Code chat or saved in the repos
 
 The goal is to convert the existing app at:
 
-- Current app: `https://ai-rfp-agent-ten.vercel.app`
+- Current app: `https://ai-bid-manager.vercel.app`
 - Inspiration app: `https://ai-rfp-agent.vercel.app`
 
 into a UK public-sector bid intelligence and RFP response platform.
