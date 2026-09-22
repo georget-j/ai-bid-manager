@@ -233,7 +233,7 @@ describe("geocode", () => {
     );
     // Identifying User-Agent (API etiquette).
     expect(fetchMock.mock.calls[0][1]?.headers?.["User-Agent"]).toContain(
-      "UKBidIntelligence",
+      "AIBidManager",
     );
   });
 
