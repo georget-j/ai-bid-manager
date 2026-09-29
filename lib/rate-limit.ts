@@ -4,6 +4,7 @@ import { getServiceSupabase } from "@/lib/supabase";
 type Config = { windowSeconds: number; maxRequests: number };
 
 const LIMITS: Record<string, Config> = {
+  guest: { windowSeconds: 3600, maxRequests: 30 },
   ask: { windowSeconds: 3600, maxRequests: 20 },
   upload: { windowSeconds: 3600, maxRequests: 10 },
   seed: { windowSeconds: 3600, maxRequests: 3 },
