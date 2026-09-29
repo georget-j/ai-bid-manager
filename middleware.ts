@@ -109,13 +109,16 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    // API: 401; pages: redirect to /login
+    // API calls still require an established session. Page visits silently
+    // create a private guest session, so shared links never show a login wall.
     if (isApi) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(loginUrl);
+
+    const guestUrl = new URL("/api/auth/guest", request.url);
+    const redirectTo = `${pathname}${request.nextUrl.search}`;
+    guestUrl.searchParams.set("redirectTo", redirectTo);
+    return NextResponse.redirect(guestUrl);
   }
 
   // ── Platform-operator enforcement ──────────────────────────────────────────
