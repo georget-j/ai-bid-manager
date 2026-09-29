@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { getAuthUser } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,14 @@ interface Params {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const user = await getAuthUser();
+  if (user?.user_metadata?.is_guest === true) {
+    return NextResponse.json(
+      { error: "Guest workspaces cannot send account invitations" },
+      { status: 403 },
+    );
+  }
+
   const orgId = await getRequestOrgId();
   if (!orgId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
