@@ -31,11 +31,12 @@ export async function GET() {
     getIsOperator(),
     getRequestOrgRole(),
   ]);
+  const isGuest = user.user_metadata?.is_guest === true;
   return NextResponse.json({
     isOperator,
     role,
-    email: user.email ?? null,
-    isGuest: user.user_metadata?.is_guest === true,
+    email: isGuest ? null : (user.email ?? null),
+    isGuest,
     isAdmin: isOperator,
   });
 }
