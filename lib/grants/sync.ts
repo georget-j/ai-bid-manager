@@ -176,7 +176,9 @@ export async function syncGrantSource(
         source_name: connector.sourceName,
         source_notice_id: i.noticeId,
         external_id: extractGrantId(i.raw),
-        raw_payload: i.raw as object,
+        // Keep a hash receipt for deduplication without retaining a second
+        // full copy of every public source payload.
+        raw_payload: {},
         content_hash: i.hash,
         fetched_at: fetchResult.fetchedAt,
         parser_version: "1",
@@ -189,8 +191,7 @@ export async function syncGrantSource(
           ignoreDuplicates: true,
         });
       if (rawErr) {
-        // Raw-before-normalise (repo policy): if the raw payload can't be stored,
-        // do NOT normalise this page — no grant row without its audit trail. The
+        // If the hash receipt can't be stored, do NOT normalise this page. The
         // hash dedup won't see these items next run, so they retry automatically.
         errors.push(`raw_grant_notices: ${rawErr.message}`);
         grantsErrored += freshItems.length;
@@ -442,7 +443,7 @@ function toGrantRow(g: NormalizedGrant): Record<string, unknown> {
     match_funding_required: g.matchFundingRequired ?? false,
     beneficiaries: g.beneficiaries ?? [],
     documents: g.documents ?? null,
-    raw_json: g.rawJson ?? null,
+    raw_json: null,
     published_at: g.publishedAt ?? null,
     updated_at: new Date().toISOString(),
   };

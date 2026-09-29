@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { pruneRawReceipts } from "@/lib/catalog-retention";
 import { allEventConnectors } from "@/lib/events/connectors";
 import { syncEventSource, seedEventSources } from "@/lib/events/sync";
 import { seedInvestorOrganizers } from "@/lib/events/seed";
@@ -55,6 +56,8 @@ export async function GET(req: NextRequest) {
       }),
     ),
   );
+
+  await pruneRawReceipts("raw_event_notices");
 
   return NextResponse.json({
     ran: connectors.map((c) => c.sourceName),

@@ -406,6 +406,17 @@ describe("syncEventSource error handling", () => {
     );
   });
 
+  it("keeps an event hash receipt without duplicating its source payload", async () => {
+    const raw = { id: "ev-compact", name: "Event", details: "large payload" };
+    await syncEventSource(eventConnector({
+      fetchSince: vi.fn().mockResolvedValue(pageResult([raw])),
+      normalize: vi.fn().mockResolvedValue([normalizedEvent("ev-compact")]),
+    }));
+
+    expect(state.upsertCalls.find((u) => u.table === "raw_event_notices")?.rows[0])
+      .toMatchObject({ content_hash: hashPayload(raw), payload: {} });
+  });
+
   it("resumes from the stored cursor and persists it when the page cap hits", async () => {
     state.sourceRow = { last_cursor: "page-3" };
     const fetchSince = vi

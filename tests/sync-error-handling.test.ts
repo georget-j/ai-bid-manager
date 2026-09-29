@@ -107,7 +107,7 @@ vi.mock("@/lib/grants/alerts", () => ({
   matchAlertsForGrants: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { syncSource } from "@/lib/procurement/sync";
+import { syncSource, syncPage } from "@/lib/procurement/sync";
 import { syncGrantSource, seedGrantSources } from "@/lib/grants/sync";
 
 function throwingConnector() {
@@ -202,6 +202,51 @@ describe("syncSource page-0 error handling", () => {
     // No write to the sources row — the historical sweep must not overwrite
     // last_error / last_cursor for the forward sync.
     expect(state.updateCalls).toHaveLength(0);
+  });
+});
+
+describe("compact catalog sync", () => {
+  it("stores a procurement hash receipt and normalized fields without duplicated source JSON", async () => {
+    const raw = { id: "notice-1", title: "Tender", extra: "large payload" };
+    const connector = {
+      sourceName: "find-tender",
+      displayName: "Find a Tender",
+      baseUrl: "https://example.com",
+      fetchSince: vi.fn().mockResolvedValue({
+        rawItems: [raw],
+        fetchedAt: new Date().toISOString(),
+        hasMore: false,
+        nextCursor: null,
+      }),
+      normalize: vi.fn().mockResolvedValue([{
+        sourceName: "find-tender",
+        sourceNoticeId: "notice-1",
+        title: "Tender",
+        rawJson: raw,
+        documents: [{ url: "https://example.com/tender.pdf" }],
+      }]),
+    };
+
+    const res = await syncPage(connector as Parameters<typeof syncPage>[0]);
+    expect(res.errors).toEqual([]);
+    expect(state.upsertCalls.find((u) => u.table === "raw_notices")?.rows[0])
+      .toMatchObject({ content_hash: hashPayload(raw), raw_payload: {} });
+    expect(state.upsertCalls.find((u) => u.table === "opportunities")?.rows[0])
+      .toMatchObject({ raw_json: null, documents: [{ url: "https://example.com/tender.pdf" }] });
+  });
+
+  it("stores a grant hash receipt and normalized fields without duplicated source JSON", async () => {
+    const raw = { id: "grant-1", title: "Grant", extra: "large payload" };
+    await syncGrantSource(grantConnector({
+      fetchSince: vi.fn().mockResolvedValue(pageResult([raw])),
+      normalize: vi.fn().mockResolvedValue([{
+        ...normalizedGrant("grant-1"), rawJson: raw,
+      }]),
+    }));
+    expect(state.upsertCalls.find((u) => u.table === "raw_grant_notices")?.rows[0])
+      .toMatchObject({ content_hash: hashPayload(raw), raw_payload: {} });
+    expect(state.upsertCalls.find((u) => u.table === "grants")?.rows[0])
+      .toMatchObject({ raw_json: null, title: "Grant grant-1" });
   });
 });
 
