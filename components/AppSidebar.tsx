@@ -477,7 +477,7 @@ export function AppSidebar({
   // Role-gated items only render post-mount; server gates still enforce access.
   function isVisible(item: NavItem) {
     if (item.operatorOnly) return mounted && isOperator;
-    if (item.ownerAdmin) return mounted && canManageTeam;
+    if (item.ownerAdmin) return mounted && !isGuest && canManageTeam;
     return true;
   }
 
