@@ -70,8 +70,15 @@ export async function GET(request: NextRequest) {
         message: createError?.message,
       });
       return NextResponse.json(
-        { error: "Could not create your private guest session." },
-        { status: 503 },
+        {
+          error: "Could not create your private guest session.",
+          diagnostic: {
+            stage: "create_user",
+            code: createError?.code ?? "unknown",
+            status: createError?.status ?? null,
+          },
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
 
