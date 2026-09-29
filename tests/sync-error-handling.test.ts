@@ -210,6 +210,8 @@ describe("compact catalog sync", () => {
     const raw = { id: "notice-1", title: "Tender", extra: "large payload" };
     const connector = {
       sourceName: "find-tender",
+      displayName: "Find a Tender",
+      baseUrl: "https://example.com",
       fetchSince: vi.fn().mockResolvedValue({
         rawItems: [raw],
         fetchedAt: new Date().toISOString(),
