@@ -425,10 +425,12 @@ export function AppSidebar({
   isOperator: isOperatorProp = false,
   orgRole: orgRoleProp = null,
   userEmail: userEmailProp,
+  isGuest = false,
 }: {
   isOperator?: boolean;
   orgRole?: string | null;
   userEmail?: string | null;
+  isGuest?: boolean;
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
@@ -475,7 +477,7 @@ export function AppSidebar({
   // Role-gated items only render post-mount; server gates still enforce access.
   function isVisible(item: NavItem) {
     if (item.operatorOnly) return mounted && isOperator;
-    if (item.ownerAdmin) return mounted && canManageTeam;
+    if (item.ownerAdmin) return mounted && !isGuest && canManageTeam;
     return true;
   }
 
@@ -558,13 +560,15 @@ export function AppSidebar({
                 whiteSpace: "nowrap",
               }}
             >
-              {userEmail ?? "AI Bid Manager"}
+              {isGuest ? "Guest workspace" : (userEmail ?? "AI Bid Manager")}
             </div>
             <div className="role">
-              {orgRole
-                ? orgRole.charAt(0).toUpperCase() + orgRole.slice(1)
-                : "Member"}
-              {isOperator ? " · Operator" : ""}
+              {isGuest
+                ? "Private browser session"
+                : orgRole
+                  ? orgRole.charAt(0).toUpperCase() + orgRole.slice(1)
+                  : "Member"}
+              {!isGuest && isOperator ? " · Operator" : ""}
             </div>
           </div>
         </div>

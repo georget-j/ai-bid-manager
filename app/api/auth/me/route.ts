@@ -12,6 +12,7 @@ export async function GET() {
       isOperator: true,
       role: "owner",
       email: null,
+      isGuest: false,
       // Back-compat: some clients still read isAdmin.
       isAdmin: true,
     });
@@ -22,6 +23,7 @@ export async function GET() {
       isOperator: false,
       role: null,
       email: null,
+      isGuest: false,
       isAdmin: false,
     });
   }
@@ -29,10 +31,12 @@ export async function GET() {
     getIsOperator(),
     getRequestOrgRole(),
   ]);
+  const isGuest = user.user_metadata?.is_guest === true;
   return NextResponse.json({
     isOperator,
     role,
-    email: user.email ?? null,
+    email: isGuest ? null : (user.email ?? null),
+    isGuest,
     isAdmin: isOperator,
   });
 }
