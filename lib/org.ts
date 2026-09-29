@@ -66,57 +66,83 @@ export async function getOrgIdForUser(userId: string): Promise<string | null> {
 
 /**
  * On first login: creates a private org for the user if they have none.
+ * Anonymous users are supported: they receive a private "Guest workspace"
+ * while a synthetic membership email keeps the existing schema unchanged.
+ *
  * Each user gets their own isolated org — data isolation is enforced by org_id.
- * Called from the auth callback.
  */
 export async function getOrCreateOrgForUser(
   userId: string,
-  email: string,
+  email?: string | null,
 ): Promise<string> {
   const supabase = getServiceSupabase();
+  const normalizedEmail = email?.trim().toLowerCase() || null;
 
   // Already a member of an org?
   const existing = await getOrgIdForUser(userId);
-  if (existing) return existing;
-
-  // Accept a pending team invitation for this email → join the inviting org with the
-  // invited role (instead of creating a private org). Email is verified by Supabase
-  // Auth, so matching on email is safe.
-  const { data: invite } = await supabase
-    .from("org_invitations")
-    .select("id, org_id, role")
-    .eq("status", "pending")
-    .ilike("email", email)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (invite) {
-    await supabase
-      .from("org_memberships")
-      .upsert(
-        { org_id: invite.org_id, user_id: userId, email, role: invite.role },
-        { onConflict: "org_id,user_id" },
-      );
-    await supabase
-      .from("org_invitations")
-      .update({ status: "accepted", accepted_at: new Date().toISOString() })
-      .eq("id", invite.id);
-    return invite.org_id;
+  if (existing) {
+    // If an anonymous account is later upgraded to a real email identity,
+    // replace the synthetic membership email while preserving the same org/data.
+    if (normalizedEmail) {
+      await supabase
+        .from("org_memberships")
+        .update({ email: normalizedEmail })
+        .eq("org_id", existing)
+        .eq("user_id", userId)
+        .like("email", "guest-%@anonymous.local");
+    }
+    return existing;
   }
 
-  // Create a new org for this user. Use the full sanitized email as slug to
-  // guarantee uniqueness (email addresses are unique in Supabase Auth).
-  const slug = email
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+  // Real email users can accept a pending team invitation. Anonymous users skip
+  // this path because there is no verified email to match against an invite.
+  if (normalizedEmail) {
+    const { data: invite } = await supabase
+      .from("org_invitations")
+      .select("id, org_id, role")
+      .eq("status", "pending")
+      .ilike("email", normalizedEmail)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (invite) {
+      await supabase
+        .from("org_memberships")
+        .upsert(
+          {
+            org_id: invite.org_id,
+            user_id: userId,
+            email: normalizedEmail,
+            role: invite.role,
+          },
+          { onConflict: "org_id,user_id" },
+        );
+      await supabase
+        .from("org_invitations")
+        .update({ status: "accepted", accepted_at: new Date().toISOString() })
+        .eq("id", invite.id);
+      return invite.org_id;
+    }
+  }
+
+  const membershipEmail =
+    normalizedEmail ?? `guest-${userId}@anonymous.local`;
+  const orgName = normalizedEmail ?? "Guest workspace";
+
+  // Email users get a readable email-based slug. Anonymous workspaces use the
+  // auth user UUID, which is already unique and avoids a schema migration.
+  const slug = normalizedEmail
+    ? normalizedEmail
+        .replace(/[^a-z0-9]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+    : `guest-${userId}`;
 
   const { data: newOrg, error } = await supabase
     .from("orgs")
-    .insert({ name: email, slug })
+    .insert({ name: orgName, slug })
     .select("id")
     .single();
 
@@ -127,7 +153,12 @@ export async function getOrCreateOrgForUser(
   await supabase
     .from("org_memberships")
     .upsert(
-      { org_id: newOrg.id, user_id: userId, email, role: "owner" },
+      {
+        org_id: newOrg.id,
+        user_id: userId,
+        email: membershipEmail,
+        role: "owner",
+      },
       { onConflict: "org_id,user_id" },
     );
 
