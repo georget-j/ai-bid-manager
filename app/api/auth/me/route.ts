@@ -12,7 +12,7 @@ export async function GET() {
       isOperator: true,
       role: "owner",
       email: null,
-      isAnonymous: false,
+      isGuest: false,
       // Back-compat: some clients still read isAdmin.
       isAdmin: true,
     });
@@ -23,7 +23,7 @@ export async function GET() {
       isOperator: false,
       role: null,
       email: null,
-      isAnonymous: false,
+      isGuest: false,
       isAdmin: false,
     });
   }
@@ -35,7 +35,7 @@ export async function GET() {
     isOperator,
     role,
     email: user.email ?? null,
-    isAnonymous: !!user.is_anonymous,
+    isGuest: user.user_metadata?.is_guest === true,
     isAdmin: isOperator,
   });
 }
