@@ -425,12 +425,12 @@ export function AppSidebar({
   isOperator: isOperatorProp = false,
   orgRole: orgRoleProp = null,
   userEmail: userEmailProp,
-  isAnonymous = false,
+  isGuest = false,
 }: {
   isOperator?: boolean;
   orgRole?: string | null;
   userEmail?: string | null;
-  isAnonymous?: boolean;
+  isGuest?: boolean;
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
@@ -560,15 +560,15 @@ export function AppSidebar({
                 whiteSpace: "nowrap",
               }}
             >
-              {isAnonymous ? "Guest workspace" : (userEmail ?? "AI Bid Manager")}
+              {isGuest ? "Guest workspace" : (userEmail ?? "AI Bid Manager")}
             </div>
             <div className="role">
-              {isAnonymous
+              {isGuest
                 ? "Private browser session"
                 : orgRole
                   ? orgRole.charAt(0).toUpperCase() + orgRole.slice(1)
                   : "Member"}
-              {!isAnonymous && isOperator ? " · Operator" : ""}
+              {!isGuest && isOperator ? " · Operator" : ""}
             </div>
           </div>
         </div>
