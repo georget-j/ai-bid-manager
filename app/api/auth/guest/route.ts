@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
     // in through the normal browser-session client. This avoids a visible login
     // and does not require Supabase Anonymous Sign-Ins to be enabled.
     const token = randomUUID();
-    const email = `guest-${token}@guest.invalid`;
+    // Supabase rejects reserved test domains (including .invalid). Use this
+    // app's domain for the internal, server-created guest identity.
+    const email = `guest-${token}@ai-bid-manager.vercel.app`;
     const password = randomBytes(32).toString("base64url");
     const admin = getServiceSupabase();
 
@@ -62,7 +64,11 @@ export async function GET(request: NextRequest) {
       });
 
     if (createError || !created.user) {
-      console.error("[auth/guest] guest user creation failed:", createError?.message);
+      console.error("[auth/guest] guest user creation failed:", {
+        code: createError?.code,
+        status: createError?.status,
+        message: createError?.message,
+      });
       return NextResponse.json(
         { error: "Could not create your private guest session." },
         { status: 503 },
