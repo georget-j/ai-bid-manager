@@ -171,7 +171,8 @@ export async function syncEventSource(
         source_name: connector.sourceName,
         source_event_id: i.eventId,
         content_hash: i.hash,
-        payload: i.raw as object,
+        // Hash receipt only; the normalized event retains user-facing fields.
+        payload: {},
         fetched_at: fetchResult.fetchedAt,
       }));
       const { error: rawErr } = await supabase
@@ -182,8 +183,7 @@ export async function syncEventSource(
           ignoreDuplicates: true,
         });
       if (rawErr) {
-        // Raw-before-normalise (repo policy): if the raw payload can't be stored,
-        // do NOT normalise this page — no event row without its audit trail. The
+        // If the hash receipt can't be stored, do NOT normalise this page. The
         // hash dedup won't see these items next run, so they retry automatically.
         errors.push(`raw_event_notices: ${rawErr.message}`);
         eventsErrored += freshItems.length;

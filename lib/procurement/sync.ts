@@ -180,7 +180,9 @@ export async function syncSource(
         source_name: connector.sourceName,
         source_notice_id: i.noticeId,
         ocid: extractOcid(i.raw),
-        raw_payload: i.raw as object,
+        // Compact catalog mode: keep the hash for deduplication, not another
+        // full copy of the public notice alongside the normalized opportunity.
+        raw_payload: {},
         content_hash: i.hash,
         fetched_at: fetchResult.fetchedAt,
         parser_version: "1",
@@ -340,7 +342,9 @@ function toOpportunityRow(opp: NormalizedOpportunity): Record<string, unknown> {
     framework_flag: opp.frameworkFlag ?? false,
     lots: opp.lots ?? null,
     documents: opp.documents ?? null,
-    raw_json: opp.rawJson ?? null,
+    // The normalized fields and documents are sufficient for the app. The
+    // full release would duplicate the source payload for every opportunity.
+    raw_json: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -398,7 +402,7 @@ export async function syncPage(
   options: {
     cursor?: string | null;
     limit?: number;
-    /** Date window to query. Defaults to 2 years → now so CF returns latest first. */
+    /** Date window to query. Defaults to 90 days → now for a bounded catalog. */
     from?: Date;
     to?: Date;
   } = {},
@@ -408,7 +412,7 @@ export async function syncPage(
 
   const to = options.to ?? new Date();
   const from =
-    options.from ?? new Date(to.getTime() - 2 * 365 * 24 * 60 * 60 * 1000);
+    options.from ?? new Date(to.getTime() - 90 * 24 * 60 * 60 * 1000);
   const limit = options.limit ?? SYNC_LIMIT;
 
   let fetchResult;
@@ -447,7 +451,7 @@ export async function syncPage(
     source_name: connector.sourceName,
     source_notice_id: extractSourceId(raw) ?? hashPayload(raw),
     ocid: extractOcid(raw),
-    raw_payload: raw as object,
+    raw_payload: {},
     content_hash: hashPayload(raw),
     fetched_at: fetchResult.fetchedAt,
     parser_version: "1",

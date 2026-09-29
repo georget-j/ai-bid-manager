@@ -5,6 +5,7 @@ import { contractsFinderConnector } from "@/lib/procurement/connectors/contracts
 import { publicContractsScotlandConnector } from "@/lib/procurement/connectors/public-contracts-scotland";
 import { sell2walesConnector } from "@/lib/procurement/connectors/sell2wales";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { pruneRawReceipts } from "@/lib/catalog-retention";
 import type { ProcurementSourceConnector } from "@/lib/procurement/types";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,12 @@ export async function GET(request: NextRequest) {
   const catchUp: Array<Record<string, unknown>> = [];
   const byName = new Map(ALL_CONNECTORS.map((c) => [c.sourceName, c]));
 
-  if (Date.now() - startedAt < OVERALL_BUDGET_MS - 30_000) {
+  // Historical backfills can add years of notices. Keep them opt-in while this
+  // portfolio runs within the Free database allowance.
+  if (
+    process.env.CATALOG_BACKFILL_ENABLED === "true" &&
+    Date.now() - startedAt < OVERALL_BUDGET_MS - 30_000
+  ) {
     const { data: srcRows } = await supabase
       .from("sources")
       .select("name, backfill_watermark, backfill_complete")
@@ -164,6 +170,8 @@ export async function GET(request: NextRequest) {
   console.log(
     `[cron/sync-sources] synced ${enabled.length} sources, ${totalNew} new opportunities, ${catchUp.length} catch-up sweep(s)`,
   );
+
+  await pruneRawReceipts("raw_notices");
 
   return NextResponse.json({ ok: true, results, catchUp });
 }

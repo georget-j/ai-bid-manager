@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { pruneRawReceipts } from "@/lib/catalog-retention";
 import { allGrantConnectors } from "@/lib/grants/connectors";
 import { syncGrantSource, seedGrantSources } from "@/lib/grants/sync";
 import { enrichPendingGrants } from "@/lib/grants/enrich";
@@ -111,6 +112,8 @@ export async function GET(req: NextRequest) {
   } catch {
     /* best-effort */
   }
+
+  await pruneRawReceipts("raw_grant_notices");
 
   return NextResponse.json({
     ran: connectors.map((c) => c.sourceName),
