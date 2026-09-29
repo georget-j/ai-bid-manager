@@ -33,6 +33,7 @@ export default async function RootLayout({
     ? await Promise.all([getIsOperator(), getRequestOrgRole()])
     : [false, null];
   const userEmail = user?.email ?? null;
+  const isAnonymous = !!user?.is_anonymous;
 
   return (
     <html lang="en">
@@ -52,6 +53,7 @@ export default async function RootLayout({
               isOperator={isOperator}
               orgRole={orgRole}
               userEmail={userEmail}
+              isAnonymous={isAnonymous}
             />
             <div className="main">
               <AppTopbar />
