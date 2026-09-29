@@ -1,14 +1,20 @@
+import { randomBytes, randomUUID } from "crypto";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrCreateOrgForUser } from "@/lib/org";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getServiceSupabase } from "@/lib/supabase-service";
 
 export const dynamic = "force-dynamic";
 
 function safeRedirect(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
   return value;
+}
+
+function isGuest(user: { user_metadata?: Record<string, unknown> | null }) {
+  return user.user_metadata?.is_guest === true;
 }
 
 export async function GET(request: NextRequest) {
@@ -39,26 +45,58 @@ export async function GET(request: NextRequest) {
   let user = existingUser;
 
   if (!user) {
-    const { data, error } = await supabase.auth.signInAnonymously();
+    // Create a hidden email/password identity with the service role, then sign it
+    // in through the normal browser-session client. This avoids a visible login
+    // and does not require Supabase Anonymous Sign-Ins to be enabled.
+    const token = randomUUID();
+    const email = `guest-${token}@guest.invalid`;
+    const password = randomBytes(32).toString("base64url");
+    const admin = getServiceSupabase();
 
-    if (error || !data.user) {
-      console.error("[auth/guest] anonymous sign-in failed:", error?.message);
+    const { data: created, error: createError } =
+      await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { is_guest: true },
+      });
+
+    if (createError || !created.user) {
+      console.error("[auth/guest] guest user creation failed:", createError?.message);
       return NextResponse.json(
-        {
-          error:
-            "Guest access is not enabled yet. Enable Anonymous Sign-Ins in Supabase Auth settings.",
-        },
+        { error: "Could not create your private guest session." },
         { status: 503 },
       );
     }
 
-    user = data.user;
+    const { data: signedIn, error: signInError } =
+      await supabase.auth.signInWithPassword({ email, password });
+
+    if (signInError || !signedIn.user) {
+      console.error("[auth/guest] guest sign-in failed:", signInError?.message);
+      await admin.auth.admin.deleteUser(created.user.id).catch(() => undefined);
+      return NextResponse.json(
+        { error: "Could not start your private guest session." },
+        { status: 503 },
+      );
+    }
+
+    user = signedIn.user;
   }
 
   try {
-    await getOrCreateOrgForUser(user.id, user.email ?? null);
+    // Guest auth emails are implementation details and must never drive invite
+    // matching or org naming. Real signed-in users keep their normal email path.
+    await getOrCreateOrgForUser(
+      user.id,
+      isGuest(user) ? null : (user.email ?? null),
+    );
   } catch (error) {
     console.error("[auth/guest] org provisioning failed:", error);
+    const admin = getServiceSupabase();
+    if (isGuest(user)) {
+      await admin.auth.admin.deleteUser(user.id).catch(() => undefined);
+    }
     await supabase.auth.signOut().catch(() => undefined);
     return NextResponse.json(
       { error: "Could not create your private guest workspace." },
