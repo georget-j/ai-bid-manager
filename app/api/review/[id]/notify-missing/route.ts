@@ -5,6 +5,7 @@ import { getRequestOrgId } from "@/lib/org";
 import { getRoutingConfig } from "@/lib/routing";
 import { logReviewAction } from "@/lib/audit";
 import { escapeHtml } from "@/lib/html";
+import { getAuthUser } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const user = await getAuthUser();
+  if (user?.user_metadata?.is_guest === true) {
+    return NextResponse.json(
+      { error: "Guest workspaces cannot send email notifications" },
+      { status: 403 },
+    );
+  }
+
   const orgId = await getRequestOrgId();
   if (!orgId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
