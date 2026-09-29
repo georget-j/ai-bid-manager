@@ -39,6 +39,16 @@ export async function requireOrgRole(
   min: OrgRole,
 ): Promise<NextResponse | null> {
   if (isDemoMode) return null;
+  const user = await getAuthUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (user.user_metadata?.is_guest === true && min !== "member") {
+    return NextResponse.json(
+      { error: "Guest workspaces cannot manage organisation access" },
+      { status: 403 },
+    );
+  }
   const role = await getRequestOrgRole();
   if (!role) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
