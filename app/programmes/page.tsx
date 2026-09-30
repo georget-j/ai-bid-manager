@@ -19,6 +19,8 @@ const TYPE_LABELS: Record<ProgrammeType, string> = {
   accelerator: "Accelerator",
   "investor-programme": "Investor programme",
   "ecosystem-support": "Ecosystem support",
+  incubator: "Incubator",
+  "grant-competition": "Grant competition",
 };
 
 const TYPE_FILTERS: Array<{ key: string; label: string }> = [
@@ -26,6 +28,8 @@ const TYPE_FILTERS: Array<{ key: string; label: string }> = [
   { key: "accelerator", label: "Accelerators" },
   { key: "investor-programme", label: "Investor programmes" },
   { key: "ecosystem-support", label: "Ecosystem support" },
+  { key: "incubator", label: "Incubators" },
+  { key: "grant-competition", label: "Grant competitions" },
 ];
 
 /** Curated programme rows in the grants catalogue, keyed by programme id

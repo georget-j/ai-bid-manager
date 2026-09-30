@@ -1,5 +1,35 @@
 # Market Wedge Changelog v3
 
+## 2026-06-12 — Coverage expansion: 6 new scrape connectors, programmes 14 → 42
+
+Owner asked whether the catalogue covered ALL UK grants (answer: official sources yes, trusts/
+Lottery/devolved no) and approved expansion. Research lane empirically probed 13 candidate
+sources; 5 proved politely scrapeable and ALL were built, plus TNL:
+
+- **New connectors, all live-synced with raw audit trails + fixture-based tests:**
+  `tnl-community-fund` (21 programmes; real filter param is ?status=open — the researched
+  ?programme-status=open is ignored by their server), `funding-scotland` (SCVO; 400 of ~788
+  funds per pass via two alphabetical slices — anonymous pagination clamps at 20 pages;
+  award amounts are SCVO-membership-gated → null; listsAllOpenCalls=false so prune stays off),
+  `ni-business-info` (Invest NI Drupal facet; 80 schemes, complete walk),
+  `foundation-scotland` (125 funds, 11 pages), `heritage-fund` (2 live programmes; the
+  previously-reported 403 does not reproduce with the plain UA), `london-cf` (13 funds —
+  listing lies about openness, status read from detail pages; 12 of 13 currently closed).
+- **Rejected with evidence** (recorded for honesty): Arts Council (WAF 403 ×2), Business Wales
+  (finance locator retired: 404/403), gov.scot + gov.wales (no central listing), Turn2us (JS
+  SPA, individuals-focused), Charity Excellence (account-gated), My Funding Central (paid),
+  Heart of England CF (broken TLS), Sport England (consolidated to one fund — skip).
+- **Programmes 14 → 42** (9 cyber-relevant): every entry's URL fetched live before inclusion;
+  dead programmes excluded with documented reasons (LORCA, Tech Nation, Wayra UK, Ignite,
+  Alacrity, Techscaler domains); incubator + grant-competition types wired with filter pills;
+  organizerSlug links for entrepreneur-first/seedcamp/setsquared; devolved-nation region
+  mapping in the seed. All 42 re-seeded live as apply-able rows.
+- Catalogue after expansion: ~245 → **~460+ open/rolling** across 10 enabled sources + curated
+  programmes. Tests 671 passed + 1 intentional skip; tsc/lint clean.
+- Known ceilings (recorded): Funding Scotland needs query-slicing for the last ~388 funds;
+  TNL eligibility sub-pages not yet fetched (optional fetchDetail follow-on); full
+  trusts/foundations coverage still requires a commercial directory agreement.
+
 ## 2026-06-12 — E2E review executed: cleanup, coverage, programmes-in-flow, full business profile
 
 Decisions in `MARKET_WEDGE_E2E_REVIEW_v1.md`; built in two commits (`a0a6963`, `e76cbe6`):

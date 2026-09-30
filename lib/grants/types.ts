@@ -7,6 +7,12 @@ export type GrantSourceName =
   | "innovate-uk"
   | "ukri-funding-finder"
   | "sedia-horizon"
+  | "tnl-community-fund"
+  | "funding-scotland"
+  | "ni-business-info"
+  | "foundation-scotland"
+  | "heritage-fund"
+  | "london-cf"
   | "manual-upload";
 
 export type GrantStatus =

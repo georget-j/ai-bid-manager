@@ -4,7 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestOrgId } from "@/lib/org";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { getOpportunityTenderTexts } from "@/lib/tender-docs";
-import { webSearchSummary, type Citation } from "@/lib/research/web-search";
+import {
+  webSearchSummary,
+  webResearchDisabled,
+  WEB_RESEARCH_DISABLED_MESSAGE,
+  type Citation,
+} from "@/lib/research/web-search";
+import { checkRateLimit, checkRateLimitKey } from "@/lib/rate-limit";
 import { openai } from "@/lib/openai";
 
 interface Params {
@@ -24,7 +30,9 @@ interface BuyerWebResearch {
   generatedAt: string;
 }
 
-const MAX_PEOPLE = 5;
+// Each named person costs one extra paid web search per research run, so the
+// list is capped tightly — the 3 most relevant people, not everyone mentioned.
+const MAX_PEOPLE = 3;
 
 // Public-sources-only, cite-everything guidance shared by every search so the output
 // stays evidence-grounded and reviewable.
@@ -93,6 +101,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     };
     return NextResponse.json(empty);
   }
+
+  // Only past this point does the request cost money (1 buyer search + up to
+  // MAX_PEOPLE person searches). Kill switch first, then the hourly per-caller
+  // brake and the org's shared daily research budget.
+  if (webResearchDisabled()) {
+    return NextResponse.json(
+      { error: WEB_RESEARCH_DISABLED_MESSAGE },
+      { status: 503 },
+    );
+  }
+  const limited =
+    (await checkRateLimit(req, "web_research")) ??
+    (await checkRateLimitKey(`org:${orgId}`, "web_research_org_daily"));
+  if (limited) return limited;
 
   // Gather text to mine for named people: description + any extracted document text.
   const docTexts = await getOpportunityTenderTexts(id);

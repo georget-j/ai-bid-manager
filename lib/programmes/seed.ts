@@ -94,11 +94,29 @@ export function deriveRegions(location: string): string[] {
   if (loc.includes("london")) regions.push("London");
   if (loc.includes("cambridge")) regions.push("East of England");
   if (
+    loc.includes("scotland") ||
+    loc.includes("edinburgh") ||
+    loc.includes("glasgow") ||
+    loc.includes("aberdeen")
+  ) {
+    regions.push("Scotland");
+  }
+  if (
+    loc.includes("wales") ||
+    loc.includes("cardiff") ||
+    loc.includes("swansea") ||
+    loc.includes("newport")
+  ) {
+    regions.push("Wales");
+  }
+  if (loc.includes("northern ireland") || loc.includes("belfast")) {
+    regions.push("Northern Ireland");
+  }
+  if (
+    regions.length > 0 || // any UK sub-region implies the UK
     loc.includes("uk") ||
     loc.includes("united kingdom") ||
-    loc.includes("national") ||
-    loc.includes("london") ||
-    loc.includes("cambridge")
+    loc.includes("national")
   ) {
     regions.push("United Kingdom");
   }

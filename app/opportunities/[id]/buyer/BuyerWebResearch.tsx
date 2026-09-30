@@ -122,7 +122,8 @@ export function BuyerWebResearch({ opportunityId }: { opportunityId: string }) {
           <div className="eyebrow">Online research</div>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
             Searches public web sources for the buyer and any people named in
-            the tender, with citations
+            the tender, with citations. Results are saved and shared with your
+            team — refresh only when something has changed.
           </p>
         </div>
         {!started && (
